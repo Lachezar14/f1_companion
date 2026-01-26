@@ -51,6 +51,8 @@ export type DriverRaceOverview = {
     };
     stints: Stint[];
     laps: Lap[];
+    lap_count: number;
+    stint_count: number;
 };
 
 
@@ -367,6 +369,8 @@ export async function getDriverRaceOverview(
             },
             stints,
             laps,
+            lap_count: laps.length,
+            stint_count: stints.length
         };
     } catch (error) {
         console.error(
