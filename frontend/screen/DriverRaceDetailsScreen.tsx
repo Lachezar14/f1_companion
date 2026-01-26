@@ -26,6 +26,30 @@ interface DriverState {
     error: string | null;
 }
 
+// Helper function to get compound colors
+const getCompoundColor = (compound: string): string => {
+    const compoundLower = compound.toLowerCase();
+    switch (compoundLower) {
+        case 'soft':
+            return '#E10600';
+        case 'medium':
+            return '#d8b031';
+        case 'hard':
+            return '#9E9E9E';
+        case 'intermediate':
+            return '#4CAF50';
+        case 'wet':
+            return '#2196F3';
+        default:
+            return '#666';
+    }
+};
+
+// Helper function to format tyre status
+const getTyreStatus = (tyreAge: number): string => {
+    return tyreAge > 1 ? `Used (${tyreAge})` : `New (${tyreAge})`;
+};
+
 export default function DriverOverviewScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const { driverNumber, sessionKey } = route.params;
@@ -38,8 +62,8 @@ export default function DriverOverviewScreen() {
     });
 
     const [expandedSections, setExpandedSections] = useState({
-        stints: true,
-        laps: true,
+        stints: false,
+        laps: false,
     });
 
     const toggleSection = (section: 'stints' | 'laps') => {
@@ -219,13 +243,18 @@ export default function DriverOverviewScreen() {
                         <View key={idx} style={styles.card}>
                             <View style={styles.cardHeader}>
                                 <Text style={styles.cardTitle}>Stint {stint.stint_number}</Text>
-                                <View style={styles.compoundBadge}>
+                                <View style={[
+                                    styles.compoundBadge,
+                                    { backgroundColor: getCompoundColor(stint.compound) }
+                                ]}>
                                     <Text style={styles.compoundText}>{stint.compound}</Text>
                                 </View>
                             </View>
                             <View style={styles.cardRow}>
-                                <Ionicons name="speedometer-outline" size={16} color="#666" />
-                                <Text style={styles.cardDetail}>Tyre age: {stint.tyre_age_at_start} laps</Text>
+                                <Ionicons name="albums-outline" size={16} color="#666" />
+                                <Text style={styles.cardDetail}>
+                                    Tyres: {getTyreStatus(stint.tyre_age_at_start)}
+                                </Text>
                             </View>
                             <View style={styles.cardRow}>
                                 <Ionicons name="flag-outline" size={16} color="#666" />
@@ -240,51 +269,68 @@ export default function DriverOverviewScreen() {
 
             {/* Laps Section */}
             <CollapsibleSection
-                title="Lap Times"
+                title="Laps"
                 count={driver_overview.lap_count}
                 isExpanded={expandedSections.laps}
                 onToggle={() => toggleSection('laps')}
             >
                 {driver_overview.laps.length > 0 ? (
-                    driver_overview.laps.map((lap: Lap, idx) => (
-                        <View
-                            key={idx}
-                            style={[
-                                styles.card,
-                                lap.is_pit_out_lap && styles.pitOutCard,
-                            ]}
-                        >
-                            <View style={styles.cardHeader}>
-                                <Text style={styles.cardTitle}>Lap {lap.lap_number}</Text>
-                                {lap.is_pit_out_lap && (
-                                    <View style={styles.pitOutBadge}>
-                                        <Ionicons name="build-outline" size={12} color="#E10600" />
-                                        <Text style={styles.pitOutText}>Pit Out</Text>
+                    driver_overview.laps.map((lap: Lap, idx) => {
+                        // Find the stint for this lap
+                        const currentStint = driver_overview.stints.find(
+                            (stint: Stint) => lap.lap_number >= stint.lap_start && lap.lap_number <= stint.lap_end
+                        );
+
+                        return (
+                            <View
+                                key={idx}
+                                style={[
+                                    styles.card,
+                                    lap.is_pit_out_lap && styles.pitOutCard,
+                                ]}
+                            >
+                                <View style={styles.cardHeader}>
+                                    <Text style={styles.cardTitle}>Lap {lap.lap_number}</Text>
+                                    <View style={styles.lapBadges}>
+                                        {currentStint && (
+                                            <View style={[
+                                                styles.compoundBadgeSmall,
+                                                { backgroundColor: getCompoundColor(currentStint.compound) }
+                                            ]}>
+                                                <Text style={styles.compoundTextSmall}>{currentStint.compound}</Text>
+                                            </View>
+                                        )}
+                                        {lap.is_pit_out_lap && (
+                                            <View style={styles.pitOutBadge}>
+                                                <Ionicons name="build-outline" size={12} color="#E10600" />
+                                                <Text style={styles.pitOutText}>Pit Out</Text>
+                                            </View>
+                                        )}
                                     </View>
-                                )}
-                            </View>
-                            <View style={styles.cardRow}>
-                                <Ionicons name="time-outline" size={16} color="#666" />
-                                <Text style={styles.cardDetailBold}>{formatLapTime(lap.lap_duration)}</Text>
-                            </View>
-                            <View style={styles.sectorsContainer}>
-                                <View style={styles.sectorItem}>
-                                    <Text style={styles.sectorLabel}>S1</Text>
-                                    <Text style={styles.sectorValue}>{lap.duration_sector_1 ?? '-'}</Text>
                                 </View>
-                                <View style={styles.sectorDivider} />
-                                <View style={styles.sectorItem}>
-                                    <Text style={styles.sectorLabel}>S2</Text>
-                                    <Text style={styles.sectorValue}>{lap.duration_sector_2 ?? '-'}</Text>
+                                <View style={styles.cardRow}>
+                                    <Ionicons name="time-outline" size={16} color="#666" />
+                                    <Text style={styles.cardDetailBold}>{formatLapTime(lap.lap_duration)}</Text>
                                 </View>
-                                <View style={styles.sectorDivider} />
-                                <View style={styles.sectorItem}>
-                                    <Text style={styles.sectorLabel}>S3</Text>
-                                    <Text style={styles.sectorValue}>{lap.duration_sector_3 ?? '-'}</Text>
+                                <View style={styles.sectorsContainer}>
+                                    <View style={styles.sectorItem}>
+                                        <Text style={styles.sectorLabel}>S1</Text>
+                                        <Text style={styles.sectorValue}>{lap.duration_sector_1 ?? '-'}</Text>
+                                    </View>
+                                    <View style={styles.sectorDivider} />
+                                    <View style={styles.sectorItem}>
+                                        <Text style={styles.sectorLabel}>S2</Text>
+                                        <Text style={styles.sectorValue}>{lap.duration_sector_2 ?? '-'}</Text>
+                                    </View>
+                                    <View style={styles.sectorDivider} />
+                                    <View style={styles.sectorItem}>
+                                        <Text style={styles.sectorLabel}>S3</Text>
+                                        <Text style={styles.sectorValue}>{lap.duration_sector_3 ?? '-'}</Text>
+                                    </View>
                                 </View>
                             </View>
-                        </View>
-                    ))
+                        );
+                    })
                 ) : (
                     <Text style={styles.noData}>Lap times not available</Text>
                 )}
@@ -313,7 +359,7 @@ const styles = StyleSheet.create({
     },
     name: { fontSize: 26, fontWeight: 'bold', color: '#E10600', marginBottom: 4 },
     team: { fontSize: 18, color: '#333', marginBottom: 4 },
-    number: { fontSize: 18, fontWeight: '600', color: '#FFD700' },
+    number: { fontSize: 18, fontWeight: '600', color: '#0c0c0c' },
     section: {
         marginTop: 16,
         marginHorizontal: 16,
@@ -403,6 +449,22 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 13,
         fontWeight: '700',
+    },
+    compoundBadgeSmall: {
+        backgroundColor: '#E10600',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 5,
+        marginRight: 6,
+    },
+    compoundTextSmall: {
+        color: '#FFF',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    lapBadges: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     pitOutBadge: {
         flexDirection: 'row',
