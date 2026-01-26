@@ -5,8 +5,8 @@ import {
     getSessionResults,
     getDrivers,
     getLapsBySession,
-} from '../api/openf1';
-import {SessionResult, Driver, Lap, Row} from '../api/types';
+} from '../../backend/api/openf1';
+import {SessionResult, Driver, Lap, Row} from '../../backend/types';
 
 export default function SessionClassificationScreen() {
     const route = useRoute<any>();

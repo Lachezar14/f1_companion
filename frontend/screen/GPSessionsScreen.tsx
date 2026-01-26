@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { getSessionsByMeeting } from "../api/openf1";
-import { Session } from "../api/types";
+import { getSessionsByMeeting } from "../../backend/api/openf1";
+import { Session } from "../../backend/types";
 
 export default function GPSessionsScreen() {
     const route = useRoute<any>();

@@ -9,8 +9,9 @@ import {
     RefreshControl,
     TouchableOpacity,
 } from 'react-native';
-import { RouteProp, useRoute } from '@react-navigation/native';
-import { getGPDetails, GPDetails, PartialErrors } from '../service/openf1Service';
+import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
+import { getGPDetails, GPDetails, PartialErrors, findRaceSession } from '../../backend/service/openf1Service';
+
 
 type RouteParams = { gpKey: number };
 
@@ -25,6 +26,8 @@ interface GPDetailsState {
 export default function GPDetailsScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const { gpKey } = route.params;
+    const navigation = useNavigation();
+    const [raceSessionKey, setRaceSessionKey] = useState<number | null>(null);
 
     const [state, setState] = useState<GPDetailsState>({
         data: null,
@@ -60,8 +63,29 @@ export default function GPDetailsScreen() {
                 error: result.error,
                 partialErrors: result.partialErrors,
             });
+
+            // Get race session key for driver pages
+            if (result.data) {
+                const raceSession = await findRaceSession(gpKey);
+                setRaceSessionKey(raceSession?.session_key ?? null);
+            }
         },
         [gpKey]
+    );
+
+    const handleDriverPress = useCallback(
+        (driverNumber: number) => {
+            if (!raceSessionKey) {
+                console.warn('Race session not loaded yet!');
+                return;
+            }
+
+            navigation.navigate('DriverOverview' as never, {
+                driverNumber,
+                sessionKey: raceSessionKey,
+            } as never);
+        },
+        [navigation, raceSessionKey]
     );
 
     /**
@@ -103,7 +127,7 @@ export default function GPDetailsScreen() {
         );
     }
 
-    const { meeting, pole, podium } = state.data;
+    const { meeting, pole, podium, drivers } = state.data;
     const { refreshing, partialErrors } = state;
 
     return (
@@ -226,6 +250,58 @@ export default function GPDetailsScreen() {
                     <Text style={styles.noData}>Race data not yet available</Text>
                 )}
             </View>
+
+            {/* Drivers Section */}
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>👤 Drivers</Text>
+
+                {partialErrors.drivers ? (
+                    <View style={styles.errorBox}>
+                        <Text style={styles.errorBoxText}>
+                            {partialErrors.drivers}
+                        </Text>
+                        <TouchableOpacity
+                            onPress={handleRetry}
+                            style={styles.errorBoxButton}
+                        >
+                            <Text style={styles.errorBoxButtonText}>Retry</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : drivers && drivers.length > 0 ? (
+                    drivers.map(driver => (
+                        <TouchableOpacity
+                            key={driver.driver_number}
+                            style={styles.driverCard}
+                            activeOpacity={0.8}
+                            onPress={() => handleDriverPress(driver.driver_number)}
+                        >
+                            {driver.driver_number && (
+                                <View style={styles.driverNumber}>
+                                    <Text style={styles.driverNumberText}>
+                                        {driver.driver_number}
+                                    </Text>
+                                </View>
+                            )}
+
+                            <View style={styles.driverInfo}>
+                                <Text style={styles.driverName}>
+                                    {driver.full_name}
+                                </Text>
+                                <Text style={styles.driverConstructor}>
+                                    {driver.team_name}
+                                </Text>
+                            </View>
+
+                            <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
+                    ))
+                ) : (
+                    <Text style={styles.noData}>
+                        Driver list not available
+                    </Text>
+                )}
+            </View>
+
 
             {/* Pull to refresh hint */}
             <Text style={styles.refreshHint}>Pull down to refresh</Text>
@@ -420,4 +496,38 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         paddingVertical: 24,
     },
+    driverCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F8F8F8',
+        padding: 14,
+        borderRadius: 8,
+        marginBottom: 8,
+    },
+    driverNumber: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#15151E',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    driverNumberText: {
+        color: '#FFF',
+        fontWeight: 'bold',
+    },
+    driverInfo: {
+        flex: 1,
+    },
+    driverConstructor: {
+        fontSize: 13,
+        color: '#666',
+    },
+    chevron: {
+        fontSize: 26,
+        color: '#CCC',
+        marginLeft: 8,
+    },
+
 });

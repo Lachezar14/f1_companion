@@ -5,10 +5,11 @@ import { NavigationContainer } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 
-import SessionsScreen from './SessionsScreen';
-import GPSessionsScreen from './GPSessionsScreen';
-import SessionClassificationScreen from "./SessionClassificationScreen";
-import GPDetailsScreen from "./GPDetailsScreen";
+import SessionsScreen from '../screen/SessionsScreen';
+import GPSessionsScreen from '../screen/GPSessionsScreen';
+import SessionClassificationScreen from "../screen/SessionClassificationScreen";
+import GPDetailsScreen from "../screen/GPDetailsScreen";
+import DriverOverviewScreen from "../screen/DriverRaceDetailsScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -35,6 +36,11 @@ function SessionsStack() {
                 name="SessionDetails"
                 component={GPDetailsScreen}
                 options={{ title: 'Details' }}
+            />
+            <Stack.Screen
+                name="DriverOverview"
+                component={DriverOverviewScreen}
+                options={{ title: 'Driver Overview' }}
             />
         </Stack.Navigator>
     );

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { Driver, Meeting, Session, SessionResult } from './types';
+import {Driver, Lap, Meeting, Session, SessionResult, Stint} from '../types';
 
 const openF1 = axios.create({
     baseURL: 'https://api.openf1.org/v1',
@@ -209,6 +209,42 @@ export async function getDriversBySessionKey(sessionKey: number): Promise<Driver
  */
 export async function getSessionResults(sessionKey: number): Promise<SessionResult[]> {
     return cachedGet<SessionResult[]>('/session_result', { session_key: sessionKey });
+}
+
+/**
+ * Get all stints for a session
+ */
+export async function getStintsBySession(
+    sessionKey: number,
+    options?: {
+        driverNumber?: number;
+    }
+): Promise<Stint[]> {
+    const params: any = { session_key: sessionKey };
+
+    if (options?.driverNumber != null) {
+        params.driver_number = options.driverNumber;
+    }
+
+    return cachedGet<Stint[]>('/stints', params);
+}
+
+/**
+ * Get laps for a session (optionally filtered by driver or lap number)
+ */
+export async function getLaps(
+    sessionKey: number,
+    options?: {
+        driverNumber?: number;
+    }
+): Promise<Lap[]> {
+    const params: any = { session_key: sessionKey };
+
+    if (options?.driverNumber != null) {
+        params.driver_number = options.driverNumber;
+    }
+
+    return cachedGet<Lap[]>('/laps', params);
 }
 
 /* =========================

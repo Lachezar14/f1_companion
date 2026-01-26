@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { getMeetingsByYear } from "../api/openf1";
-import { Meeting } from "../api/types";
+import { getMeetingsByYear } from "../../backend/api/openf1";
+import { Meeting } from "../../backend/types";
 
 export default function SessionsScreen() {
     const [gps, setGps] = useState<Meeting[]>([]);

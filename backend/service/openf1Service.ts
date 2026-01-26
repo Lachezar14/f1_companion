@@ -1,10 +1,12 @@
 import {
-    getMeetingsByYear,
-    getSessionsByMeetingKey,
     getDriversBySessionKey,
+    getLaps,
+    getMeetingsByYear,
     getSessionResults,
+    getSessionsByMeetingKey,
+    getStintsBySession,
 } from '../api/openf1';
-import { Driver, Meeting, Session, SessionResult } from '../api/types';
+import {Driver, Meeting, Session} from '../types';
 
 /* =========================
    TYPE DEFINITIONS
@@ -27,11 +29,13 @@ export type GPDetails = {
     meeting: Meeting;
     pole: PoleSitter | null;
     podium: PodiumFinisher[];
+    drivers: Driver[];
 };
 
 export type PartialErrors = {
     pole?: string;
     podium?: string;
+    drivers?: string;
 };
 
 export type GPDetailsResult = {
@@ -39,6 +43,34 @@ export type GPDetailsResult = {
     partialErrors: PartialErrors;
     error: string | null;
 };
+
+export type DriverLap = {
+    lapNumber: number;
+    lapTime: string | null;
+    sector1: number | null;
+    sector2: number | null;
+    sector3: number | null;
+    isPitOutLap: boolean;
+};
+
+export type DriverStint = {
+    stintNumber: number;
+    compound: string;
+    lapStart: number;
+    lapEnd: number;
+    tyreAgeAtStart: number;
+};
+
+export type DriverRaceOverview = {
+    driver: {
+        number: number;
+        name: string;
+        team: string;
+    };
+    stints: DriverStint[];
+    laps: DriverLap[];
+};
+
 
 /* =========================
    FORMATTING UTILITIES
@@ -73,6 +105,11 @@ function formatLapTime(seconds: number | null | undefined): string {
     return `${minutes}:${secs.padStart(6, '0')}`;
 }
 
+function formatLapDuration(seconds: number | null | undefined): string | null {
+    if (seconds == null) return null;
+    return formatLapTime(seconds);
+}
+
 /**
  * Normalize duration from SessionResult
  * - For qualifying: takes fastest of Q1/Q2/Q3 → MM:SS.mmm
@@ -103,7 +140,7 @@ function normalizeDuration(
 /**
  * Find qualifying session for a meeting
  */
-async function findQualifyingSession(meetingKey: number): Promise<Session | null> {
+export async function findQualifyingSession(meetingKey: number): Promise<Session | null> {
     try {
         const sessions = await getSessionsByMeetingKey(meetingKey);
         return sessions.find(s => s.session_name === 'Qualifying') || null;
@@ -116,12 +153,24 @@ async function findQualifyingSession(meetingKey: number): Promise<Session | null
 /**
  * Find race session for a meeting
  */
-async function findRaceSession(meetingKey: number): Promise<Session | null> {
+export async function findRaceSession(meetingKey: number): Promise<Session | null> {
     try {
         const sessions = await getSessionsByMeetingKey(meetingKey);
         return sessions.find(s => s.session_name === 'Race') || null;
     } catch (error) {
         console.error(`[SERVICE] Error finding race session for meeting ${meetingKey}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Get all drivers by session
+ */
+export async function getDriversBySession(sessionKey: number): Promise<Driver[] | null> {
+    try {
+        return await getDriversBySessionKey(sessionKey);
+    } catch (error) {
+        console.error(`[SERVICE] Error fetching drivers for session ${sessionKey}:`, error);
         return null;
     }
 }
@@ -230,8 +279,8 @@ export async function getGPDetails(gpKey: number, year: number = 2025): Promise<
             };
         }
 
-        // 2. Fetch pole and podium in parallel with individual error handling
-        const [poleResult, podiumResult] = await Promise.allSettled([
+        // 2. Fetch pole, podium and drivers in parallel
+        const [poleResult, podiumResult, driversResult] = await Promise.allSettled([
             (async () => {
                 const session = await findQualifyingSession(gpKey);
                 if (!session) return null;
@@ -242,11 +291,33 @@ export async function getGPDetails(gpKey: number, year: number = 2025): Promise<
                 if (!session) return [];
                 return buildPodium(session);
             })(),
+            (async () => {
+                // Prefer race session for drivers
+                const raceSession = await findRaceSession(gpKey);
+                if (raceSession) {
+                    return getDriversBySession(raceSession.session_key);
+                }
+
+                // Fallback to quali
+                const qualiSession = await findQualifyingSession(gpKey);
+                if (qualiSession) {
+                    return getDriversBySession(qualiSession.session_key);
+                }
+
+                return [];
+            })(),
         ]);
 
+
         // 3. Extract results and track errors
-        const pole = poleResult.status === 'fulfilled' ? poleResult.value : null;
-        const podium = podiumResult.status === 'fulfilled' ? podiumResult.value : [];
+        const pole =
+            poleResult.status === 'fulfilled' ? poleResult.value : null;
+
+        const podium =
+            podiumResult.status === 'fulfilled' ? podiumResult.value : [];
+
+        const drivers =
+            driversResult.status === 'fulfilled' ? driversResult.value : [];
 
         const partialErrors: PartialErrors = {};
 
@@ -260,12 +331,19 @@ export async function getGPDetails(gpKey: number, year: number = 2025): Promise<
             partialErrors.podium = 'Failed to load podium data';
         }
 
+        if (driversResult.status === 'rejected') {
+            console.error('[SERVICE] Drivers fetch failed:', driversResult.reason);
+            partialErrors.drivers = 'Failed to load drivers';
+        }
+
+
         // 4. Return complete result
         return {
             data: {
                 meeting,
                 pole,
                 podium,
+                drivers
             },
             partialErrors,
             error: null,
@@ -307,3 +385,90 @@ export async function getPodium(meetingKey: number): Promise<PodiumFinisher[]> {
         return [];
     }
 }
+
+/**
+ * Get all laps for a driver in a specific session
+ */
+export async function getDriverLapsForSession(
+    sessionKey: number,
+    driverNumber: number
+): Promise<DriverLap[]> {
+    try {
+        const laps = await getLaps(sessionKey, { driverNumber });
+
+        return laps
+            .sort((a, b) => a.lap_number - b.lap_number)
+            .map(lap => ({
+                lapNumber: lap.lap_number,
+                lapTime: formatLapDuration(lap.lap_duration),
+                sector1: lap.duration_sector_1,
+                sector2: lap.duration_sector_2,
+                sector3: lap.duration_sector_3,
+                isPitOutLap: lap.is_pit_out_lap,
+            }));
+    } catch (error) {
+        console.error(
+            `[SERVICE] Failed to fetch laps for driver ${driverNumber} in session ${sessionKey}:`,
+            error
+        );
+        throw error;
+    }
+}
+
+/**
+ * Get all stints for a driver in a specific session
+ */
+export async function getDriverStintsForSession(
+    sessionKey: number,
+    driverNumber: number
+): Promise<DriverStint[]> {
+    try {
+        const stints = await getStintsBySession(sessionKey, {
+            driverNumber,
+        });
+
+        return stints
+            .sort((a, b) => a.stint_number - b.stint_number)
+            .map(stint => ({
+                stintNumber: stint.stint_number,
+                compound: stint.compound,
+                lapStart: stint.lap_start,
+                lapEnd: stint.lap_end,
+                tyreAgeAtStart: stint.tyre_age_at_start,
+            }));
+    } catch (error) {
+        console.error(
+            `[SERVICE] Failed to fetch stints for driver ${driverNumber} in session ${sessionKey}:`,
+            error
+        );
+        throw error;
+    }
+}
+
+export async function getDriverRaceOverview(
+    sessionKey: number,
+    driverNumber: number
+): Promise<DriverRaceOverview> {
+    const [drivers, laps, stints] = await Promise.all([
+        getDriversBySessionKey(sessionKey),
+        getDriverLapsForSession(sessionKey, driverNumber),
+        getDriverStintsForSession(sessionKey, driverNumber),
+    ]);
+
+    const driver = drivers.find(d => d.driver_number === driverNumber);
+
+    if (!driver) {
+        throw new Error(`Driver ${driverNumber} not found in session ${sessionKey}`);
+    }
+
+    return {
+        driver: {
+            number: driver.driver_number,
+            name: driver.full_name,
+            team: driver.team_name,
+        },
+        laps,
+        stints,
+    };
+}
+
