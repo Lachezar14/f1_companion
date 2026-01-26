@@ -82,6 +82,32 @@ function isCacheStale(entry: CacheEntry<any>): boolean {
 }
 
 /* =========================
+   CACHE MANAGEMENT
+========================= */
+
+export async function clearCache(): Promise<void> {
+    try {
+        const keys = await AsyncStorage.getAllKeys();
+        const cacheKeys = keys.filter(key => key.startsWith(CACHE_PREFIX));
+        await AsyncStorage.multiRemove(cacheKeys);
+        console.log(`[CACHE] Cleared ${cacheKeys.length} entries`);
+    } catch (error) {
+        console.error('[CACHE] Error clearing cache:', error);
+    }
+}
+
+export async function clearCacheForEndpoint(url: string): Promise<void> {
+    try {
+        const keys = await AsyncStorage.getAllKeys();
+        const cacheKeys = keys.filter(key => key.startsWith(CACHE_PREFIX + url));
+        await AsyncStorage.multiRemove(cacheKeys);
+        console.log(`[CACHE] Cleared ${cacheKeys.length} entries for ${url}`);
+    } catch (error) {
+        console.error(`[CACHE] Error clearing cache for ${url}:`, error);
+    }
+}
+
+/* =========================
    CORE API FUNCTION
 ========================= */
 
@@ -186,89 +212,75 @@ async function cachedGet<T>(
 /**
  * Get all meetings (GPs) for a given year
  */
-export async function getMeetingsByYear(year: number): Promise<Meeting[]> {
+export async function fetchMeetingsByYear(year: number): Promise<Meeting[]> {
     return cachedGet<Meeting[]>('/meetings', { year });
+}
+
+/**
+ * Get meeting by meeting key
+ */
+export async function fetchMeetingsByKey(meetingKey: number): Promise<Meeting[]> {
+    return cachedGet<Meeting[]>('/meetings', { meeting_key: meetingKey });
 }
 
 /**
  * Get all sessions for a meeting
  */
-export async function getSessionsByMeetingKey(meetingKey: number): Promise<Session[]> {
+export async function fetchSessionsByMeeting(meetingKey: number): Promise<Session[]> {
     return cachedGet<Session[]>('/sessions', { meeting_key: meetingKey });
 }
 
 /**
- * Get all drivers for a session
+ * Get all drivers in a session
  */
-export async function getDriversBySessionKey(sessionKey: number): Promise<Driver[]> {
+export async function fetchDriversBySession(
+    sessionKey: number
+): Promise<Driver[]> {
     return cachedGet<Driver[]>('/drivers', { session_key: sessionKey });
 }
 
 /**
  * Get session results
  */
-export async function getSessionResults(sessionKey: number): Promise<SessionResult[]> {
+export async function fetchSessionResults(sessionKey: number): Promise<SessionResult[]> {
     return cachedGet<SessionResult[]>('/session_result', { session_key: sessionKey });
 }
 
 /**
- * Get all stints for a session
+ * Get all stints for a driver in a session
  */
-export async function getStintsBySession(
+export async function fetchStintsByDriverAndSession(
     sessionKey: number,
-    options?: {
-        driverNumber?: number;
-    }
+    driverNumber: number
 ): Promise<Stint[]> {
-    const params: any = { session_key: sessionKey };
-
-    if (options?.driverNumber != null) {
-        params.driver_number = options.driverNumber;
-    }
-
-    return cachedGet<Stint[]>('/stints', params);
+    return cachedGet<Stint[]>('/stints', {
+        session_key: sessionKey,
+        driver_number: driverNumber,
+    });
 }
 
 /**
- * Get laps for a session (optionally filtered by driver or lap number)
+ * Get all laps for a driver in a session
  */
-export async function getLaps(
+export async function fetchLapsByDriverAndSession(
     sessionKey: number,
-    options?: {
-        driverNumber?: number;
-    }
+    driverNumber: number
 ): Promise<Lap[]> {
-    const params: any = { session_key: sessionKey };
-
-    if (options?.driverNumber != null) {
-        params.driver_number = options.driverNumber;
-    }
-
-    return cachedGet<Lap[]>('/laps', params);
+    return cachedGet<Lap[]>('/laps', {
+        session_key: sessionKey,
+        driver_number: driverNumber,
+    });
 }
 
-/* =========================
-   CACHE MANAGEMENT
-========================= */
-
-export async function clearCache(): Promise<void> {
-    try {
-        const keys = await AsyncStorage.getAllKeys();
-        const cacheKeys = keys.filter(key => key.startsWith(CACHE_PREFIX));
-        await AsyncStorage.multiRemove(cacheKeys);
-        console.log(`[CACHE] Cleared ${cacheKeys.length} entries`);
-    } catch (error) {
-        console.error('[CACHE] Error clearing cache:', error);
-    }
-}
-
-export async function clearCacheForEndpoint(url: string): Promise<void> {
-    try {
-        const keys = await AsyncStorage.getAllKeys();
-        const cacheKeys = keys.filter(key => key.startsWith(CACHE_PREFIX + url));
-        await AsyncStorage.multiRemove(cacheKeys);
-        console.log(`[CACHE] Cleared ${cacheKeys.length} entries for ${url}`);
-    } catch (error) {
-        console.error(`[CACHE] Error clearing cache for ${url}:`, error);
-    }
+/**
+ * Get telemetry / car data for a driver in a session
+ */
+export async function fetchCarDataByDriverAndSession(
+    sessionKey: number,
+    driverNumber: number
+): Promise<any[]> {
+    return cachedGet<any[]>('/car_data', {
+        session_key: sessionKey,
+        driver_number: driverNumber,
+    });
 }

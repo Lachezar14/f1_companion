@@ -1,20 +1,25 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { NavigationContainer } from '@react-navigation/native';
+import {getFocusedRouteNameFromRoute, NavigationContainer} from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-
-
 import SessionsScreen from '../screen/SessionsScreen';
-import GPSessionsScreen from '../screen/GPSessionsScreen';
-import SessionClassificationScreen from "../screen/SessionClassificationScreen";
 import GPDetailsScreen from "../screen/GPDetailsScreen";
 import DriverOverviewScreen from "../screen/DriverRaceDetailsScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-function SessionsStack() {
+function SessionsStack({navigation, route}: any) {
+    React.useLayoutEffect(() => {
+        const routeName = getFocusedRouteNameFromRoute(route);
+        if (routeName === "SessionDetails" || routeName === "DriverOverview") {
+            navigation.setOptions({tabBarStyle: {display: 'none'}});
+        }else {
+            navigation.setOptions({tabBarStyle: {display: 'flex'}});
+        }
+    }, [navigation, route]);
+    
     return (
         <Stack.Navigator>
             <Stack.Screen
@@ -22,16 +27,6 @@ function SessionsStack() {
                 component={SessionsScreen}
                 options={{ title: 'Sessions' }}
             />
-            <Stack.Screen
-                name="GPSessions"
-                component={GPSessionsScreen}
-                options={{ title: 'GP Sessions' }}
-            />
-            {/*<Stack.Screen
-                name="SessionClassification"
-                component={SessionClassificationScreen}
-                options={{ title: 'Session Classification' }}
-            />*/}
             <Stack.Screen
                 name="SessionDetails"
                 component={GPDetailsScreen}

@@ -8,8 +8,8 @@ import {
     RefreshControl,
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
-import { getDriversBySession } from '../../backend/service/openf1Service';
-import {Driver} from "../../backend/types";
+import { DriverRaceOverview, formatLapTime, getDriverRaceOverview } from '../../backend/service/openf1Service';
+import { Lap, Stint } from '../../backend/types';
 
 type RouteParams = {
     driverNumber: number;
@@ -17,7 +17,7 @@ type RouteParams = {
 };
 
 interface DriverState {
-    data: Driver | null;
+    data: DriverRaceOverview | null;
     loading: boolean;
     refreshing: boolean;
     error: string | null;
@@ -34,7 +34,6 @@ export default function DriverOverviewScreen() {
         error: null,
     });
 
-    // Fetch driver details
     const fetchDriver = useCallback(
         async (isRefresh = false) => {
             setState(prev => ({
@@ -45,10 +44,9 @@ export default function DriverOverviewScreen() {
             }));
 
             try {
-                const drivers = await getDriversBySession(sessionKey);
-                const driver = drivers?.find(d => d.driver_number === driverNumber) ?? null;
+                const overview = await getDriverRaceOverview(sessionKey, driverNumber);
 
-                if (!driver) {
+                if (!overview) {
                     setState({
                         data: null,
                         loading: false,
@@ -59,7 +57,7 @@ export default function DriverOverviewScreen() {
                 }
 
                 setState({
-                    data: driver,
+                    data: overview,
                     loading: false,
                     refreshing: false,
                     error: null,
@@ -113,34 +111,49 @@ export default function DriverOverviewScreen() {
                 />
             }
         >
+            {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.name}>{driver.full_name}</Text>
-                <Text style={styles.team}>{driver.team_name}</Text>
-                {driver.driver_number && (
-                    <Text style={styles.number}>#{driver.driver_number}</Text>
-                )}
+                <Text style={styles.name}>{driver.driver.name}</Text>
+                <Text style={styles.team}>{driver.driver.team}</Text>
+                <Text style={styles.number}>#{driver.driver.number}</Text>
             </View>
 
+            {/* Stints */}
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Performance</Text>
-                {driver.best_lap_time && (
-                    <Text style={styles.detail}>Best Lap: {driver.best_lap_time}</Text>
-                )}
-                {driver.total_race_time && (
-                    <Text style={styles.detail}>Total Race Time: {driver.total_race_time}</Text>
-                )}
-                {driver.position && (
-                    <Text style={styles.detail}>Position: {driver.position}</Text>
+                <Text style={styles.sectionTitle}>Stints</Text>
+                {driver.stints.length > 0 ? (
+                    driver.stints.map((stint: Stint, idx) => (
+                        <View key={idx} style={styles.card}>
+                            <Text style={styles.cardTitle}>Stint {stint.stint_number}</Text>
+                            <Text style={styles.cardDetail}>Compound: {stint.compound} ({stint.tyre_age_at_start})</Text>
+                            <Text style={styles.cardDetail}>Laps: {stint.lap_start}-{stint.lap_end}</Text>
+                        </View>
+                    ))
+                ) : (
+                    <Text style={styles.noData}>Stints data not available</Text>
                 )}
             </View>
 
+            {/* Laps */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Lap Times</Text>
-                {driver.laps && driver.laps.length > 0 ? (
-                    driver.laps.map((lap, idx) => (
-                        <Text key={idx} style={styles.detail}>
-                            Lap {lap.lap_number}: {lap.time}
-                        </Text>
+                {driver.laps.length > 0 ? (
+                    driver.laps.map((lap: Lap, idx) => (
+                        <View
+                            key={idx}
+                            style={[
+                                styles.card,
+                                lap.is_pit_out_lap ? { backgroundColor: '#FFF0F0' } : {},
+                            ]}
+                        >
+                            <Text style={styles.cardTitle}>
+                                Lap {lap.lap_number} {lap.is_pit_out_lap ? '(Pit Out)' : ''}
+                            </Text>
+                            <Text style={styles.cardDetail}>Time: {formatLapTime(lap.lap_duration)}</Text>
+                            <Text style={styles.cardDetail}>
+                                Sectors: {lap.duration_sector_1 ?? '-'} | {lap.duration_sector_2 ?? '-'} | {lap.duration_sector_3 ?? '-'}
+                            </Text>
+                        </View>
                     ))
                 ) : (
                     <Text style={styles.noData}>Lap times not available</Text>
@@ -151,17 +164,31 @@ export default function DriverOverviewScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F2F2F2' },
+    container: { flex: 1, backgroundColor: '#FFF' },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-    loadingText: { marginTop: 12, fontSize: 16, color: '#666' },
+    loadingText: { marginTop: 12, fontSize: 16, color: '#333' },
     errorTitle: { fontSize: 20, fontWeight: 'bold', color: '#E10600', marginBottom: 8 },
-    errorMessage: { fontSize: 16, color: '#666', textAlign: 'center' },
-    header: { padding: 16, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-    name: { fontSize: 22, fontWeight: 'bold', color: '#15151E', marginBottom: 4 },
-    team: { fontSize: 16, color: '#666', marginBottom: 4 },
-    number: { fontSize: 16, fontWeight: '600', color: '#E10600' },
-    section: { backgroundColor: '#FFF', padding: 16, marginTop: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#E0E0E0' },
-    sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#15151E', marginBottom: 8 },
-    detail: { fontSize: 14, color: '#15151E', marginBottom: 4 },
-    noData: { fontSize: 14, color: '#999', fontStyle: 'italic', paddingVertical: 12 },
+    errorMessage: { fontSize: 16, color: '#333', textAlign: 'center' },
+    header: { padding: 20, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#EEE', alignItems: 'center' },
+    name: { fontSize: 26, fontWeight: 'bold', color: '#E10600', marginBottom: 4 },
+    team: { fontSize: 18, color: '#333', marginBottom: 4 },
+    number: { fontSize: 18, fontWeight: '600', color: '#FFD700' },
+    section: { padding: 16, marginTop: 12 },
+    sectionTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 12 },
+    card: {
+        backgroundColor: '#FFF',
+        padding: 14,
+        marginBottom: 10,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#EEE',
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#E10600', marginBottom: 4 },
+    cardDetail: { fontSize: 14, color: '#333', marginBottom: 2 },
+    noData: { fontSize: 14, color: '#888', fontStyle: 'italic', paddingVertical: 12, textAlign: 'center' },
 });

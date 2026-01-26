@@ -10,7 +10,7 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
-import { getGPDetails, GPDetails, PartialErrors, findRaceSession } from '../../backend/service/openf1Service';
+import { getGPDetails, GPDetails, PartialErrors, getRaceSession } from '../../backend/service/openf1Service';
 
 
 type RouteParams = { gpKey: number };
@@ -66,7 +66,7 @@ export default function GPDetailsScreen() {
 
             // Get race session key for driver pages
             if (result.data) {
-                const raceSession = await findRaceSession(gpKey);
+                const raceSession = await getRaceSession(gpKey);
                 setRaceSessionKey(raceSession?.session_key ?? null);
             }
         },
