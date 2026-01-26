@@ -49,7 +49,13 @@ export default function AppNavigator() {
                     component={SessionsStack}
                     options={{
                         title: 'Sessions',
-                        tabBarIcon: () => <MaterialCommunityIcons name="compass" size="24" color="black" />
+                        tabBarIcon: () =>
+                            <MaterialCommunityIcons
+                            name="compass"
+                            size={24}
+                            color="black"
+                        />
+
                     }}
                 />
             </Tab.Navigator>

@@ -10,28 +10,16 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
-import {
-    getMeetingsByYear,
-    getPoleSitterByMeeting,
-    getRacePodiumByMeeting,
-    PoleSitter,
-    PodiumFinisher,
-} from '../api/openf1';
-import { Meeting } from '../api/types';
+import { getGPDetails, GPDetails, PartialErrors } from '../service/openf1Service';
 
 type RouteParams = { gpKey: number };
 
 interface GPDetailsState {
-    meeting: Meeting | null;
-    pole: PoleSitter | null;
-    podium: PodiumFinisher[];
+    data: GPDetails | null;
     loading: boolean;
     refreshing: boolean;
     error: string | null;
-    partialError: {
-        pole?: string;
-        podium?: string;
-    };
+    partialErrors: PartialErrors;
 }
 
 export default function GPDetailsScreen() {
@@ -39,13 +27,11 @@ export default function GPDetailsScreen() {
     const { gpKey } = route.params;
 
     const [state, setState] = useState<GPDetailsState>({
-        meeting: null,
-        pole: null,
-        podium: [],
+        data: null,
         loading: true,
         refreshing: false,
         error: null,
-        partialError: {},
+        partialErrors: {},
     });
 
     useEffect(() => {
@@ -53,88 +39,27 @@ export default function GPDetailsScreen() {
     }, [gpKey]);
 
     /**
-     * Fetch all GP details with robust error handling
+     * Fetch GP details using service layer
      */
     const fetchDetails = useCallback(
         async (isRefresh = false) => {
-            try {
-                // Set loading state
-                setState(prev => ({
-                    ...prev,
-                    loading: !isRefresh,
-                    refreshing: isRefresh,
-                    error: null,
-                    partialError: {},
-                }));
+            setState(prev => ({
+                ...prev,
+                loading: !isRefresh,
+                refreshing: isRefresh,
+                error: null,
+                partialErrors: {},
+            }));
 
-                // 1. Fetch meeting info first
-                const meetings = await getMeetingsByYear(2025);
-                const thisMeeting = meetings.find(m => m.meeting_key === gpKey);
+            const result = await getGPDetails(gpKey);
 
-                if (!thisMeeting) {
-                    setState({
-                        meeting: null,
-                        pole: null,
-                        podium: [],
-                        loading: false,
-                        refreshing: false,
-                        error: 'Meeting not found',
-                        partialError: {},
-                    });
-                    return;
-                }
-
-                // Update meeting immediately
-                setState(prev => ({ ...prev, meeting: thisMeeting }));
-
-                // 2. Fetch pole and podium in parallel with individual error handling
-                const results = await Promise.allSettled([
-                    getPoleSitterByMeeting(gpKey),
-                    getRacePodiumByMeeting(gpKey),
-                ]);
-
-                // Extract results
-                const pole =
-                    results[0].status === 'fulfilled' ? results[0].value : null;
-                const podium =
-                    results[1].status === 'fulfilled' ? results[1].value : [];
-
-                // Track partial errors
-                const partialError: GPDetailsState['partialError'] = {};
-
-                if (results[0].status === 'rejected') {
-                    console.error('Pole sitter fetch failed:', results[0].reason);
-                    partialError.pole = 'Failed to load pole sitter data';
-                }
-
-                if (results[1].status === 'rejected') {
-                    console.error('Podium fetch failed:', results[1].reason);
-                    partialError.podium = 'Failed to load podium data';
-                }
-
-                // Update state with all data
-                setState({
-                    meeting: thisMeeting,
-                    pole,
-                    podium,
-                    loading: false,
-                    refreshing: false,
-                    error: null,
-                    partialError,
-                });
-            } catch (error) {
-                console.error('Failed to fetch GP details:', error);
-
-                setState(prev => ({
-                    ...prev,
-                    loading: false,
-                    refreshing: false,
-                    error:
-                        error instanceof Error
-                            ? error.message
-                            : 'Failed to load meeting details',
-                }));
-            }
+            setState({
+                data: result.data,
+                loading: false,
+                refreshing: false,
+                error: result.error,
+                partialErrors: result.partialErrors,
+            });
         },
         [gpKey]
     );
@@ -164,7 +89,7 @@ export default function GPDetailsScreen() {
     }
 
     // Error state (complete failure)
-    if (state.error || !state.meeting) {
+    if (state.error || !state.data) {
         return (
             <View style={styles.center}>
                 <Text style={styles.errorTitle}>Unable to Load Data</Text>
@@ -178,7 +103,8 @@ export default function GPDetailsScreen() {
         );
     }
 
-    const { meeting, pole, podium, refreshing, partialError } = state;
+    const { meeting, pole, podium } = state.data;
+    const { refreshing, partialErrors } = state;
 
     return (
         <ScrollView
@@ -220,9 +146,9 @@ export default function GPDetailsScreen() {
             {/* Pole Sitter Section */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>🏁 Pole Sitter</Text>
-                {partialError.pole ? (
+                {partialErrors.pole ? (
                     <View style={styles.errorBox}>
-                        <Text style={styles.errorBoxText}>{partialError.pole}</Text>
+                        <Text style={styles.errorBoxText}>{partialErrors.pole}</Text>
                         <TouchableOpacity
                             onPress={handleRetry}
                             style={styles.errorBoxButton}
@@ -250,9 +176,9 @@ export default function GPDetailsScreen() {
             {/* Podium Section */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>🏆 Race Podium</Text>
-                {partialError.podium ? (
+                {partialErrors.podium ? (
                     <View style={styles.errorBox}>
-                        <Text style={styles.errorBoxText}>{partialError.podium}</Text>
+                        <Text style={styles.errorBoxText}>{partialErrors.podium}</Text>
                         <TouchableOpacity
                             onPress={handleRetry}
                             style={styles.errorBoxButton}
