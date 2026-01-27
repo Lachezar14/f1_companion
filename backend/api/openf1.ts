@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import {Driver, Lap, Meeting, Session, SessionResult, Stint} from '../types';
+import {Driver, Lap, Meeting, Session, SessionResult, Stint, StartingGrid} from '../types';
 
 const openF1 = axios.create({
     baseURL: 'https://api.openf1.org/v1',
@@ -244,6 +244,13 @@ export async function fetchDriversBySession(
  */
 export async function fetchSessionResults(sessionKey: number): Promise<SessionResult[]> {
     return cachedGet<SessionResult[]>('/session_result', { session_key: sessionKey });
+}
+
+/**
+ * Get session starting grid
+ */
+export async function fetchSessionStartingGrid(sessionKey: number): Promise<StartingGrid[]> {
+    return cachedGet<StartingGrid[]>('/starting_grid', { session_key: sessionKey });
 }
 
 /**

@@ -1,11 +1,13 @@
 import {
-    fetchSessionsByMeeting,
     fetchDriversBySession,
+    fetchLapsByDriverAndSession,
+    fetchMeetingsByYear,
     fetchSessionResults,
+    fetchSessionsByMeeting,
     fetchStintsByDriverAndSession,
-    fetchLapsByDriverAndSession, fetchMeetingsByYear,
+    fetchSessionStartingGrid,
 } from '../api/openf1';
-import {Driver, Meeting, Session, Stint, Lap} from '../types';
+import {Driver, Lap, Meeting, Session, SessionResult, StartingGrid, Stint} from '../types';
 
 /* =========================
    TYPE DEFINITIONS
@@ -122,7 +124,57 @@ function normalizeDuration(
 ========================= */
 
 /**
- * Find qualifying session for a meeting
+ * Get result for a session
+ */
+export async function getSessionResult(sessionKey: number): Promise<SessionResult[] | null> {
+    try {
+        return await fetchSessionResults(sessionKey);
+    } catch (error) {
+        console.error(`[SERVICE] Error finding qualifying session for session ${sessionKey}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Get driver result for a session
+ */
+export async function getDriverSessionResult(sessionKey: number, driverNumber: number): Promise<SessionResult | null> {
+    try {
+        const sessionResult = await fetchSessionResults(sessionKey);
+        return sessionStorage.find(s => s.driver_number === driverNumber) || null;
+    } catch (error) {
+        console.error(`[SERVICE] Error finding qualifying session for session ${sessionKey}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Get session starting grid
+ */
+export async function getSessionStartingGrid(sessionKey: number): Promise<StartingGrid[] | null> {
+    try {
+        return await fetchSessionStartingGrid(sessionKey);
+    } catch (error) {
+        console.error(`[SERVICE] Error finding qualifying session for session ${sessionKey}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Get driver result for a session
+ */
+export async function getDriverSessionStartingGrid(sessionKey: number, driverNumber: number): Promise<StartingGrid | null> {
+    try {
+        const startingGrid =  await fetchSessionStartingGrid(sessionKey);
+        return startingGrid.find(s => s.driver_number === driverNumber) || null;
+    } catch (error) {
+        console.error(`[SERVICE] Error finding qualifying session for session ${sessionKey}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Get qualifying session for a meeting
  */
 export async function getQualifyingSession(meetingKey: number): Promise<Session | null> {
     try {
@@ -135,7 +187,7 @@ export async function getQualifyingSession(meetingKey: number): Promise<Session 
 }
 
 /**
- * Find race session for a meeting
+ * Get race session for a meeting
  */
 export async function getRaceSession(meetingKey: number): Promise<Session | null> {
     try {

@@ -139,3 +139,11 @@ export interface Stint {
     stint_number: number;
     tyre_age_at_start: number;
 }
+
+export interface StartingGrid {
+    position: number;
+    driver_number: number;
+    lap_duration: number;
+    meeting_key: number;
+    session_key: number;
+}
