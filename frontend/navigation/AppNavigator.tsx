@@ -6,6 +6,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import SessionsScreen from '../screen/SessionsScreen';
 import GPDetailsScreen from "../screen/GPDetailsScreen";
 import DriverOverviewScreen from "../screen/DriverRaceDetailsScreen";
+import GPScreen from "../screen/GPScreen";
+import FreePracticeScreen from "../screen/FreePracticeScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -36,6 +38,16 @@ function SessionsStack({navigation, route}: any) {
                 name="DriverOverview"
                 component={DriverOverviewScreen}
                 options={{ title: 'Driver Overview' }}
+            />
+            <Stack.Screen
+                name="GPScreen"
+                component={GPScreen}
+                options={{ title: 'Grand Prix' }}
+            />
+            <Stack.Screen
+                name="FreePracticeScreen"
+                component={FreePracticeScreen}
+                options={{ title: 'Free Practice' }}
             />
         </Stack.Navigator>
     );

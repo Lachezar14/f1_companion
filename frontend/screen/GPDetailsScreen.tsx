@@ -127,8 +127,44 @@ export default function GPDetailsScreen() {
         );
     }
 
-    const { meeting, pole, podium, drivers } = state.data;
+    const { meeting, pole, podium, drivers, raceResults } = state.data;
     const { refreshing, partialErrors } = state;
+
+    // Create a map of driver results for quick lookup
+    const resultsMap = new Map(
+        raceResults.map(result => [result.driver_number, result])
+    );
+
+    // Sort drivers by finishing position
+    const sortedDrivers = [...drivers].sort((a, b) => {
+        const resultA = resultsMap.get(a.driver_number);
+        const resultB = resultsMap.get(b.driver_number);
+
+        // If both have positions, sort by position
+        if (resultA?.position && resultB?.position) {
+            return resultA.position - resultB.position;
+        }
+
+        // Drivers with positions come first
+        if (resultA?.position && !resultB?.position) return -1;
+        if (!resultA?.position && resultB?.position) return 1;
+
+        // If neither has a position, maintain original order
+        return 0;
+    });
+
+    // Helper function to format result display
+    const formatResult = (result: any): string => {
+        if (!result) return '-';
+
+        if (result.dnf) return 'DNF';
+        if (result.dsq) return 'DSQ';
+        if (result.dns) return 'DNS';
+
+        if (result.position) return `P${result.position}`;
+
+        return '-';
+    };
 
     return (
         <ScrollView
@@ -211,49 +247,57 @@ export default function GPDetailsScreen() {
                         </TouchableOpacity>
                     </View>
                 ) : podium.length > 0 ? (
-                    podium.map(p => (
-                        <View
-                            key={p.position}
-                            style={[
-                                styles.podiumCard,
-                                p.position === 1 && styles.podiumCardFirst,
-                            ]}
-                        >
-                            <View style={styles.podiumPosition}>
-                                <Text style={styles.positionNumber}>
-                                    {p.position}
-                                </Text>
-                                {p.position === 1 && (
-                                    <Text style={styles.positionEmoji}>🥇</Text>
-                                )}
-                                {p.position === 2 && (
-                                    <Text style={styles.positionEmoji}>🥈</Text>
-                                )}
-                                {p.position === 3 && (
-                                    <Text style={styles.positionEmoji}>🥉</Text>
-                                )}
-                            </View>
-                            <View style={styles.podiumInfo}>
-                                <Text style={styles.podiumDriver}>{p.driver}</Text>
-                                <Text style={styles.podiumConstructor}>
-                                    {p.constructor}
-                                </Text>
-                                {p.time && (
-                                    <Text style={styles.podiumTime}>
-                                        {p.position === 1 ? '⏱️ ' : '+'}{p.time}
+                    podium.map(p => {
+                        // Find the driver by matching name (since podium has driver name, not number)
+                        const driver = drivers.find(d => d.full_name === p.driver);
+
+                        return (
+                            <TouchableOpacity
+                                key={p.position}
+                                style={[
+                                    styles.podiumCard,
+                                    p.position === 1 && styles.podiumCardFirst,
+                                ]}
+                                activeOpacity={0.8}
+                                onPress={() => driver && handleDriverPress(driver.driver_number)}
+                            >
+                                <View style={styles.podiumPosition}>
+                                    <Text style={styles.positionNumber}>
+                                        {p.position}
                                     </Text>
-                                )}
-                            </View>
-                        </View>
-                    ))
+                                    {p.position === 1 && (
+                                        <Text style={styles.positionEmoji}>🥇</Text>
+                                    )}
+                                    {p.position === 2 && (
+                                        <Text style={styles.positionEmoji}>🥈</Text>
+                                    )}
+                                    {p.position === 3 && (
+                                        <Text style={styles.positionEmoji}>🥉</Text>
+                                    )}
+                                </View>
+                                <View style={styles.podiumInfo}>
+                                    <Text style={styles.podiumDriver}>{p.driver}</Text>
+                                    <Text style={styles.podiumConstructor}>
+                                        {p.constructor}
+                                    </Text>
+                                    {p.time && (
+                                        <Text style={styles.podiumTime}>
+                                            {p.position === 1 ? '⏱️ ' : '+'}{p.time}
+                                        </Text>
+                                    )}
+                                </View>
+                                <Text style={styles.chevron}>›</Text>
+                            </TouchableOpacity>
+                        );
+                    })
                 ) : (
                     <Text style={styles.noData}>Race data not yet available</Text>
                 )}
             </View>
 
-            {/* Drivers Section */}
+            {/* Drivers Section - P4 onwards */}
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>👤 Drivers</Text>
+                <Text style={styles.sectionTitle}>👤 Full Results</Text>
 
                 {partialErrors.drivers ? (
                     <View style={styles.errorBox}>
@@ -267,34 +311,54 @@ export default function GPDetailsScreen() {
                             <Text style={styles.errorBoxButtonText}>Retry</Text>
                         </TouchableOpacity>
                     </View>
-                ) : drivers && drivers.length > 0 ? (
-                    drivers.map(driver => (
-                        <TouchableOpacity
-                            key={driver.driver_number}
-                            style={styles.driverCard}
-                            activeOpacity={0.8}
-                            onPress={() => handleDriverPress(driver.driver_number)}
-                        >
-                            {driver.driver_number && (
-                                <View style={styles.driverNumber}>
-                                    <Text style={styles.driverNumberText}>
-                                        {driver.driver_number}
-                                    </Text>
-                                </View>
-                            )}
+                ) : sortedDrivers && sortedDrivers.length > 0 ? (
+                    sortedDrivers
+                        .filter(driver => {
+                            const result = resultsMap.get(driver.driver_number);
+                            // Only show drivers from P4 onwards, or those without a position in top 3
+                            return !result?.position || result.position > 3;
+                        })
+                        .map(driver => {
+                            const result = resultsMap.get(driver.driver_number);
+                            const resultText = formatResult(result);
 
-                            <View style={styles.driverInfo}>
-                                <Text style={styles.driverName}>
-                                    {driver.full_name}
-                                </Text>
-                                <Text style={styles.driverConstructor}>
-                                    {driver.team_name}
-                                </Text>
-                            </View>
+                            return (
+                                <TouchableOpacity
+                                    key={driver.driver_number}
+                                    style={styles.driverCard}
+                                    activeOpacity={0.8}
+                                    onPress={() => handleDriverPress(driver.driver_number)}
+                                >
+                                    {driver.driver_number && (
+                                        <View style={styles.driverNumber}>
+                                            <Text style={styles.driverNumberText}>
+                                                {driver.driver_number}
+                                            </Text>
+                                        </View>
+                                    )}
 
-                            <Text style={styles.chevron}>›</Text>
-                        </TouchableOpacity>
-                    ))
+                                    <View style={styles.driverInfo}>
+                                        <Text style={styles.driverName}>
+                                            {driver.full_name}
+                                        </Text>
+                                        <Text style={styles.driverConstructor}>
+                                            {driver.team_name}
+                                        </Text>
+                                    </View>
+
+                                    <View style={styles.resultContainer}>
+                                        <Text style={[
+                                            styles.resultText,
+                                            (result?.dnf || result?.dsq || result?.dns) && styles.resultTextDNF,
+                                        ]}>
+                                            {resultText}
+                                        </Text>
+                                    </View>
+
+                                    <Text style={styles.chevron}>›</Text>
+                                </TouchableOpacity>
+                            );
+                        })
                 ) : (
                     <Text style={styles.noData}>
                         Driver list not available
@@ -523,6 +587,19 @@ const styles = StyleSheet.create({
     driverConstructor: {
         fontSize: 13,
         color: '#666',
+    },
+    resultContainer: {
+        marginRight: 8,
+        minWidth: 50,
+        alignItems: 'flex-end',
+    },
+    resultText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#666',
+    },
+    resultTextDNF: {
+        color: '#999',
     },
     chevron: {
         fontSize: 26,

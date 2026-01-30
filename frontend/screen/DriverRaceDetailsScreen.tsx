@@ -50,6 +50,23 @@ const getTyreStatus = (tyreAge: number): string => {
     return tyreAge > 1 ? `Used (${tyreAge})` : `New (${tyreAge})`;
 };
 
+// Helper function to format race result
+const formatRaceResult = (raceResult: any): string => {
+    if (!raceResult) return '-';
+
+    // Check for DNF, DSQ, DNS statuses (boolean flags)
+    if (raceResult.dnf) return 'DNF';
+    if (raceResult.dsq) return 'DSQ';
+    if (raceResult.dns) return 'DNS';
+
+    // Return position if available
+    if (raceResult.position) {
+        return `P${raceResult.position}`;
+    }
+
+    return '-';
+};
+
 // Helper function to calculate average lap time per compound
 const calculateAvgLapTimePerCompound = (
     laps: Lap[],
@@ -253,6 +270,8 @@ export default function DriverOverviewScreen() {
         driver_overview.stints
     );
 
+    const raceResult = formatRaceResult(driver_overview.raceResult);
+
     return (
         <ScrollView
             style={styles.container}
@@ -273,17 +292,25 @@ export default function DriverOverviewScreen() {
 
             {/* Overall Stats Section */}
             <View style={styles.statsContainer}>
-                <Text style={styles.statsTitle}>Overall Stats</Text>
+                <Text style={styles.statsTitle}>Race Stats</Text>
 
-                {/* Key Stats Row */}
-                <View style={styles.keyStatsRow}>
+                {/* Stats Row */}
+                <View style={styles.statsRow}>
+                    <View style={styles.statBox}>
+                        <Ionicons name="trophy" size={24} color="#E10600" />
+                        <Text style={styles.statValue}>{raceResult}</Text>
+                        <Text style={styles.statLabel}>Result</Text>
+                    </View>
+
+                    <View style={styles.statDividerVertical} />
+
                     <View style={styles.statBox}>
                         <Ionicons name="flag" size={24} color="#E10600" />
                         <Text style={styles.statValue}>{driver_overview.lap_count}</Text>
                         <Text style={styles.statLabel}>Laps</Text>
                     </View>
 
-                    <View style={styles.statDivider} />
+                    <View style={styles.statDividerVertical} />
 
                     <View style={styles.statBox}>
                         <Ionicons name="build" size={24} color="#E10600" />
@@ -469,7 +496,7 @@ const styles = StyleSheet.create({
         color: '#333',
         marginBottom: 16,
     },
-    keyStatsRow: {
+    statsRow: {
         flexDirection: 'row',
         justifyContent: 'space-around',
         alignItems: 'center',
@@ -480,7 +507,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 12,
     },
-    statDivider: {
+    statDividerVertical: {
         width: 1,
         height: 60,
         backgroundColor: '#E8E8E8',

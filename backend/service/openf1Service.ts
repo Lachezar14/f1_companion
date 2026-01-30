@@ -5,7 +5,7 @@ import {
     fetchSessionResults,
     fetchSessionsByMeeting,
     fetchStintsByDriverAndSession,
-    fetchSessionStartingGrid,
+    fetchLapsBySession
 } from '../api/openf1';
 import {Driver, Lap, Meeting, Session, SessionResult, StartingGrid, Stint} from '../types';
 
@@ -31,12 +31,14 @@ export type GPDetails = {
     pole: PoleSitter | null;
     podium: PodiumFinisher[];
     drivers: Driver[];
+    raceResults: SessionResult[];
 };
 
 export type PartialErrors = {
     pole?: string;
     podium?: string;
     drivers?: string;
+    raceResults?: string;
 };
 
 export type GPDetailsResult = {
@@ -55,6 +57,7 @@ export type DriverRaceOverview = {
     laps: Lap[];
     lap_count: number;
     stint_count: number;
+    raceResult: SessionResult | null;
 };
 
 
@@ -123,6 +126,10 @@ function normalizeDuration(
    SERVICE FUNCTIONS
 ========================= */
 
+/* =========================
+   Session Result
+========================= */
+
 /**
  * Get result for a session
  */
@@ -130,7 +137,7 @@ export async function getSessionResult(sessionKey: number): Promise<SessionResul
     try {
         return await fetchSessionResults(sessionKey);
     } catch (error) {
-        console.error(`[SERVICE] Error finding qualifying session for session ${sessionKey}:`, error);
+        console.error(`[SERVICE] Error fetching session results for session ${sessionKey}:`, error);
         return null;
     }
 }
@@ -141,37 +148,16 @@ export async function getSessionResult(sessionKey: number): Promise<SessionResul
 export async function getDriverSessionResult(sessionKey: number, driverNumber: number): Promise<SessionResult | null> {
     try {
         const sessionResult = await fetchSessionResults(sessionKey);
-        return sessionStorage.find(s => s.driver_number === driverNumber) || null;
+        return sessionResult.find(s => s.driver_number === driverNumber) || null;
     } catch (error) {
-        console.error(`[SERVICE] Error finding qualifying session for session ${sessionKey}:`, error);
+        console.error(`[SERVICE] Error fetching driver session result for session ${sessionKey}, driver ${driverNumber}:`, error);
         return null;
     }
 }
 
-/**
- * Get session starting grid
- */
-export async function getSessionStartingGrid(sessionKey: number): Promise<StartingGrid[] | null> {
-    try {
-        return await fetchSessionStartingGrid(sessionKey);
-    } catch (error) {
-        console.error(`[SERVICE] Error finding qualifying session for session ${sessionKey}:`, error);
-        return null;
-    }
-}
-
-/**
- * Get driver result for a session
- */
-export async function getDriverSessionStartingGrid(sessionKey: number, driverNumber: number): Promise<StartingGrid | null> {
-    try {
-        const startingGrid =  await fetchSessionStartingGrid(sessionKey);
-        return startingGrid.find(s => s.driver_number === driverNumber) || null;
-    } catch (error) {
-        console.error(`[SERVICE] Error finding qualifying session for session ${sessionKey}:`, error);
-        return null;
-    }
-}
+/* =========================
+   Session
+========================= */
 
 /**
  * Get qualifying session for a meeting
@@ -199,12 +185,32 @@ export async function getRaceSession(meetingKey: number): Promise<Session | null
     }
 }
 
+/* =========================
+   Driver
+========================= */
+
 /**
  * Get all drivers by session
  */
 export async function getDriversBySession(sessionKey: number): Promise<Driver[] | null> {
     try {
         return await fetchDriversBySession(sessionKey);
+    } catch (error) {
+        console.error(`[SERVICE] Error fetching drivers for session ${sessionKey}:`, error);
+        return null;
+    }
+}
+
+/* =========================
+   Lap
+========================= */
+
+/**
+ * Get all laps by session
+ */
+export async function getLapsBySession(sessionKey: number): Promise<Lap[] | null> {
+    try {
+        return await fetchLapsBySession(sessionKey);
     } catch (error) {
         console.error(`[SERVICE] Error fetching drivers for session ${sessionKey}:`, error);
         return null;
@@ -294,7 +300,7 @@ export async function getPodium(session: Session): Promise<PodiumFinisher[]> {
 }
 
 /**
- * Get complete GP details including meeting info, pole sitter, and podium
+ * Get complete GP details including meeting info, pole sitter, podium, starting grid, and race results
  * This is the main service method that orchestrates all data fetching
  */
 export async function getGPDetails(gpKey: number, year: number = 2025): Promise<GPDetailsResult> {
@@ -311,8 +317,8 @@ export async function getGPDetails(gpKey: number, year: number = 2025): Promise<
             };
         }
 
-        // 2. Fetch pole, podium and drivers in parallel
-        const [poleResult, podiumResult, driversResult] = await Promise.allSettled([
+        // 2. Fetch pole, podium, drivers, and race results in parallel
+        const [poleResult, podiumResult, driversResult, raceResultsResult] = await Promise.allSettled([
             (async () => {
                 const session = await getQualifyingSession(gpKey);
                 if (!session) return null;
@@ -338,6 +344,11 @@ export async function getGPDetails(gpKey: number, year: number = 2025): Promise<
 
                 return [];
             })(),
+            (async () => {
+                const session = await getRaceSession(gpKey);
+                if (!session) return [];
+                return getSessionResult(session.session_key) || [];
+            })(),
         ]);
 
 
@@ -350,6 +361,9 @@ export async function getGPDetails(gpKey: number, year: number = 2025): Promise<
 
         const drivers =
             driversResult.status === 'fulfilled' ? driversResult.value : [];
+
+        const raceResults =
+            raceResultsResult.status === 'fulfilled' ? raceResultsResult.value : [];
 
         const partialErrors: PartialErrors = {};
 
@@ -368,6 +382,11 @@ export async function getGPDetails(gpKey: number, year: number = 2025): Promise<
             partialErrors.drivers = 'Failed to load drivers';
         }
 
+        if (raceResultsResult.status === 'rejected') {
+            console.error('[SERVICE] Race results fetch failed:', raceResultsResult.reason);
+            partialErrors.raceResults = 'Failed to load race results';
+        }
+
 
         // 4. Return complete result
         return {
@@ -375,7 +394,8 @@ export async function getGPDetails(gpKey: number, year: number = 2025): Promise<
                 meeting,
                 pole,
                 podium,
-                drivers
+                drivers,
+                raceResults,
             },
             partialErrors,
             error: null,
@@ -407,12 +427,13 @@ export async function getDriverRaceOverview(
             return null;
         }
 
-        // Fetch stints and laps in parallel
-        const [stints, laps] = await Promise.all([
+        // Fetch stints, laps, and race result in parallel
+        const [stints, laps, raceResult] = await Promise.all([
             fetchStintsByDriverAndSession(sessionKey, driverNumber),
             fetchLapsByDriverAndSession(sessionKey, driverNumber),
+            getDriverSessionResult(sessionKey, driverNumber),
         ]);
-        
+
         return {
             driver: {
                 number: driver.driver_number,
@@ -422,7 +443,8 @@ export async function getDriverRaceOverview(
             stints,
             laps,
             lap_count: laps.length,
-            stint_count: stints.length
+            stint_count: stints.length,
+            raceResult,
         };
     } catch (error) {
         console.error(

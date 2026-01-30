@@ -209,6 +209,10 @@ async function cachedGet<T>(
    These are thin wrappers around HTTP calls
 ========================= */
 
+/* =========================
+   Meetings
+========================= */
+
 /**
  * Get all meetings (GPs) for a given year
  */
@@ -223,12 +227,20 @@ export async function fetchMeetingsByKey(meetingKey: number): Promise<Meeting[]>
     return cachedGet<Meeting[]>('/meetings', { meeting_key: meetingKey });
 }
 
+/* =========================
+   Sessions
+========================= */
+
 /**
  * Get all sessions for a meeting
  */
 export async function fetchSessionsByMeeting(meetingKey: number): Promise<Session[]> {
     return cachedGet<Session[]>('/sessions', { meeting_key: meetingKey });
 }
+
+/* =========================
+   Drivers
+========================= */
 
 /**
  * Get all drivers in a session
@@ -239,6 +251,10 @@ export async function fetchDriversBySession(
     return cachedGet<Driver[]>('/drivers', { session_key: sessionKey });
 }
 
+/* =========================
+   Session Results
+========================= */
+
 /**
  * Get session results
  */
@@ -246,12 +262,9 @@ export async function fetchSessionResults(sessionKey: number): Promise<SessionRe
     return cachedGet<SessionResult[]>('/session_result', { session_key: sessionKey });
 }
 
-/**
- * Get session starting grid
- */
-export async function fetchSessionStartingGrid(sessionKey: number): Promise<StartingGrid[]> {
-    return cachedGet<StartingGrid[]>('/starting_grid', { session_key: sessionKey });
-}
+/* =========================
+   Stints
+========================= */
 
 /**
  * Get all stints for a driver in a session
@@ -266,6 +279,10 @@ export async function fetchStintsByDriverAndSession(
     });
 }
 
+/* =========================
+   Laps
+========================= */
+
 /**
  * Get all laps for a driver in a session
  */
@@ -278,6 +295,21 @@ export async function fetchLapsByDriverAndSession(
         driver_number: driverNumber,
     });
 }
+
+/**
+ * Get all laps for a session
+ */
+export async function fetchLapsBySession(
+    sessionKey: number
+): Promise<Lap[]> {
+    return cachedGet<Lap[]>('/laps', {
+        session_key: sessionKey,
+    });
+}
+
+/* =========================
+   Car Data
+========================= */
 
 /**
  * Get telemetry / car data for a driver in a session

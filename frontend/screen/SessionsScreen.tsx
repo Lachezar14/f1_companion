@@ -29,7 +29,7 @@ export default function SessionsScreen() {
     const renderGP = ({ item }: { item: Meeting }) => (
         <TouchableOpacity
             style={styles.card}
-            onPress={() => navigation.navigate('SessionDetails', { gpKey: item.meeting_key })}
+            onPress={() => navigation.navigate('GPScreen', { gpKey: item.meeting_key })}
         >
             <View style={styles.cardHeader}>
                 <Image
