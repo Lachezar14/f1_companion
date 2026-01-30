@@ -11,7 +11,7 @@ import {
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { Session, Lap } from '../../backend/types';
 import {
-    getSessionResult,
+    getSessionResults,
     getDriversBySession,
     formatLapTime, getLapsBySession
 } from '../../backend/service/openf1Service';
@@ -76,7 +76,7 @@ export default function FreePracticeScreen() {
             try {
                 // Make only 3 API calls instead of 20+
                 const [sessionResults, drivers, allLaps] = await Promise.all([
-                    getSessionResult(sessionKey),
+                    getSessionResults(sessionKey),
                     getDriversBySession(sessionKey),
                     getLapsBySession(sessionKey),
                 ]);
