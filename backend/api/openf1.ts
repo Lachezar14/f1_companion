@@ -267,6 +267,17 @@ export async function fetchSessionResults(sessionKey: number): Promise<SessionRe
 ========================= */
 
 /**
+ * Get all stints for a session
+ */
+export async function fetchStintsBySession(
+    sessionKey: number
+): Promise<Stint[]> {
+    return cachedGet<Stint[]>('/stints', {
+        session_key: sessionKey,
+    });
+}
+
+/**
  * Get all stints for a driver in a session
  */
 export async function fetchStintsByDriverAndSession(

@@ -7,6 +7,7 @@ import {
     fetchSessionResults,
     fetchSessionsByMeeting,
     fetchStintsByDriverAndSession,
+    fetchStintsBySession,
     fetchCarDataByDriverAndSession,
 } from '../api/openf1';
 import { Driver, Lap, Meeting, Session, SessionResult, Stint } from '../types';
@@ -267,6 +268,63 @@ export async function getSessionResults(sessionKey: number): Promise<SessionResu
 }
 
 /**
+ * Get qualifying results for a meeting
+ * Optimized: fetches session and results in one go instead of filtering all sessions
+ */
+export async function getQualifyingSessionResults(meetingKey: number): Promise<SessionResult[] | null> {
+    try {
+        const qualiSession = await getQualifyingSession(meetingKey);
+        if (!qualiSession) {
+            console.log(`[SERVICE] No qualifying session found for meeting ${meetingKey}`);
+            return null;
+        }
+
+        return await fetchSessionResults(qualiSession.session_key);
+    } catch (error) {
+        console.error(`[SERVICE] Error fetching qualifying results for meeting ${meetingKey}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Get race results for a meeting
+ * Optimized: fetches session and results in one go instead of filtering all sessions
+ */
+export async function getRaceSessionResults(meetingKey: number): Promise<SessionResult[] | null> {
+    try {
+        const raceSession = await getRaceSession(meetingKey);
+        if (!raceSession) {
+            console.log(`[SERVICE] No race session found for meeting ${meetingKey}`);
+            return null;
+        }
+
+        return await fetchSessionResults(raceSession.session_key);
+    } catch (error) {
+        console.error(`[SERVICE] Error fetching race results for meeting ${meetingKey}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Get sprint results for a meeting
+ * Optimized: fetches session and results in one go instead of filtering all sessions
+ */
+export async function getSprintSessionResults(meetingKey: number): Promise<SessionResult[] | null> {
+    try {
+        const sprintSession = await getSprintSession(meetingKey);
+        if (!sprintSession) {
+            console.log(`[SERVICE] No sprint session found for meeting ${meetingKey}`);
+            return null;
+        }
+
+        return await fetchSessionResults(sprintSession.session_key);
+    } catch (error) {
+        console.error(`[SERVICE] Error fetching sprint results for meeting ${meetingKey}:`, error);
+        return null;
+    }
+}
+
+/**
  * Get a specific driver's result for a session
  */
 export async function getDriverSessionResult(
@@ -352,6 +410,18 @@ export async function getFastestLapInSession(sessionKey: number): Promise<{
 /* =========================
    STINTS SERVICE
 ========================= */
+
+/**
+ * Get all stints for a session
+ */
+export async function getStintsBySession(sessionKey: number): Promise<Stint[] | null> {
+    try {
+        return await fetchStintsBySession(sessionKey);
+    } catch (error) {
+        console.error(`[SERVICE] Error fetching stints for session ${sessionKey}:`, error);
+        return null;
+    }
+}
 
 /**
  * Get all stints for a driver in a session
