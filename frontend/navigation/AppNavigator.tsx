@@ -4,14 +4,17 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { getFocusedRouteNameFromRoute, NavigationContainer } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import SessionsScreen from '../screen/SessionsScreen';
+import DriversScreen from '../screen/DriversScreen';
 import DriverOverviewScreen from "../screen/DriverRaceDetailsScreen";
 import GPScreen from "../screen/GPScreen";
 import FreePracticeScreen from "../screen/FreePracticeScreen";
 import QualifyingScreen from "../screen/QualifyingScreen";
 import RaceScreen from "../screen/RaceScreen";
+import DriverSeasonScreen from "../screen/DriverSeasonScreen";
 
 const Tab = createBottomTabNavigator();
 const SessionsStackNavigator = createNativeStackNavigator();
+const DriversStackNavigator = createNativeStackNavigator();
 
 function SessionsStack({ navigation, route }: any) {
     /*React.useLayoutEffect(() => {
@@ -59,6 +62,23 @@ function SessionsStack({ navigation, route }: any) {
     );
 }
 
+function DriversStack() {
+    return (
+        <DriversStackNavigator.Navigator>
+            <DriversStackNavigator.Screen
+                name="DriversList"
+                component={DriversScreen}
+                options={{ title: 'Drivers' }}
+            />
+            <DriversStackNavigator.Screen
+                name="DriverSeasonDetails"
+                component={DriverSeasonScreen}
+                options={{ title: 'Drivers' }}
+            />
+        </DriversStackNavigator.Navigator>
+    );
+}
+
 export default function AppNavigator() {
     return (
         <NavigationContainer>
@@ -71,6 +91,20 @@ export default function AppNavigator() {
                         tabBarIcon: () => (
                             <MaterialCommunityIcons
                                 name="compass"
+                                size={24}
+                                color="black"
+                            />
+                        )
+                    }}
+                />
+                <Tab.Screen
+                    name="DriversTab"
+                    component={DriversStack}
+                    options={{
+                        title: 'Drivers',
+                        tabBarIcon: () => (
+                            <MaterialCommunityIcons
+                                name="account"
                                 size={24}
                                 color="black"
                             />

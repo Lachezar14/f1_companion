@@ -15,7 +15,7 @@ import {
     getDriversBySession,
     formatLapTime, getLapsBySession
 } from '../../backend/service/openf1Service';
-import DriverCard from "../component/session/DriverCard";
+import FreePracticeResultCard from "../component/session/FreePracticeResultCard";
 
 type RouteParams = {
     sessionKey: number;
@@ -231,9 +231,9 @@ export default function FreePracticeScreen() {
                             <Text style={styles.tableHeaderTime}>Best Time</Text>
                         </View>
 
-                        {/* Driver Rows - Now using DriverCard component */}
+                        {/* Driver Rows - Now using FreePracticeResultCard component */}
                         {state.drivers.map((driver) => (
-                            <DriverCard
+                            <FreePracticeResultCard
                                 key={driver.driverNumber}
                                 driver={driver}
                                 sessionKey={sessionKey}

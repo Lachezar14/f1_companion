@@ -24,7 +24,7 @@ interface DriverCardProps {
 
 type NavigationProp = NativeStackNavigationProp<any>;
 
-export default function DriverCard({ driver, sessionKey, isFirst = false }: DriverCardProps) {
+export default function FreePracticeResultCard({ driver, sessionKey, isFirst = false }: DriverCardProps) {
     const navigation = useNavigation<NavigationProp>();
 
     const formatPosition = (driver: DriverSessionData): string => {

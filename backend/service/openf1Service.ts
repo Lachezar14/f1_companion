@@ -303,6 +303,29 @@ export async function getDriversByMeeting(meetingKey: number): Promise<Driver[]>
 }
 
 /**
+ * Get the season driver lineup using the first meeting as reference
+ */
+export async function getSeasonDrivers(year: number): Promise<Driver[]> {
+    try {
+        const meetings = await fetchMeetingsByYear(year);
+        if (!meetings.length) {
+            console.warn(`[SERVICE] No meetings found for year ${year} when loading drivers`);
+            return [];
+        }
+
+        const sortedMeetings = [...meetings].sort(
+            (a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime()
+        );
+
+        const referenceMeeting = sortedMeetings[0];
+        return await getDriversByMeeting(referenceMeeting.meeting_key);
+    } catch (error) {
+        console.error(`[SERVICE] Failed to load season drivers for ${year}:`, error);
+        return [];
+    }
+}
+
+/**
  * Get a specific driver in a session
  */
 export async function getDriverByNumber(
