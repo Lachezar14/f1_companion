@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { fetchMeetingsByYear } from "../../backend/api/openf1";
 import { Meeting } from "../../backend/types";
+import GPCard from "../component/gp/GPCard";
 
 export default function SessionsScreen() {
     const [gps, setGps] = useState<Meeting[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const navigation = useNavigation();
 
     useEffect(() => {
         fetchGPs();
@@ -27,30 +26,24 @@ export default function SessionsScreen() {
     };
 
     const renderGP = ({ item }: { item: Meeting }) => (
-        <TouchableOpacity
-            style={styles.card}
-            onPress={() => navigation.navigate('GPScreen', { gpKey: item.meeting_key })}
-        >
-            <View style={styles.cardHeader}>
-                <Image
-                    source={{ uri: item.country_flag }}
-                    style={styles.flag}
-                />
-                <View style={styles.headerText}>
-                    <Text style={styles.name}>{item.meeting_name}</Text>
-                    <Text style={styles.details}>{item.circuit_short_name}</Text>
-                </View>
-            </View>
-
-            <View style={styles.cardFooter}>
-                <Text style={styles.date}>{item.location}</Text>
-                <Text style={styles.date}>{new Date(item.date_start).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
-            </View>
-        </TouchableOpacity>
+        <GPCard meeting={item} />
     );
 
-    if (loading) return <View style={styles.center}><Text style={styles.loadingText}>Loading GPs…</Text></View>;
-    if (error) return <View style={styles.center}><Text style={styles.errorText}>{error}</Text></View>;
+    if (loading) {
+        return (
+            <View style={styles.center}>
+                <Text style={styles.loadingText}>Loading GPs…</Text>
+            </View>
+        );
+    }
+
+    if (error) {
+        return (
+            <View style={styles.center}>
+                <Text style={styles.errorText}>{error}</Text>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -65,29 +58,21 @@ export default function SessionsScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFF' },
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    loadingText: { fontSize: 16, color: '#333' },
-    errorText: { fontSize: 16, color: '#FF3B30' },
-
-    card: {
+    container: {
+        flex: 1,
         backgroundColor: '#FFF',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
-        shadowColor: '#000',
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 3,
-        borderWidth: 1,
-        borderColor: '#EEE',
     },
-    cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-    flag: { width: 48, height: 32, borderRadius: 4, marginRight: 12 },
-    headerText: { flex: 1 },
-    name: { fontSize: 20, fontWeight: 'bold', color: '#E10600' },
-    details: { fontSize: 14, color: '#555', marginTop: 2 },
-    cardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-    date: { fontSize: 14, color: '#888' },
+    center: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    errorText: {
+        fontSize: 16,
+        color: '#FF3B30',
+    },
 });

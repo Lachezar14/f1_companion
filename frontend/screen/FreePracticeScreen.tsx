@@ -15,6 +15,7 @@ import {
     getDriversBySession,
     formatLapTime, getLapsBySession
 } from '../../backend/service/openf1Service';
+import DriverCard from "../component/session/DriverCard";
 
 type RouteParams = {
     sessionKey: number;
@@ -32,6 +33,7 @@ interface DriverSessionData {
     dnf: boolean;
     dns: boolean;
     dsq: boolean;
+    teamColor?: string;
 }
 
 interface FreePracticeData {
@@ -137,6 +139,7 @@ export default function FreePracticeScreen() {
                             dnf: result.dnf || false,
                             dns: result.dns || false,
                             dsq: result.dsq || false,
+                            teamColor: driver.team_colour,
                         };
                     })
                     .filter((d): d is DriverSessionData => d !== null);
@@ -176,22 +179,6 @@ export default function FreePracticeScreen() {
     const handleRetry = useCallback(() => {
         fetchDetails(false);
     }, [fetchDetails]);
-
-    const formatPosition = (driver: DriverSessionData): string => {
-        if (driver.dns) return 'DNS';
-        if (driver.dnf) return 'DNF';
-        if (driver.dsq) return 'DSQ';
-        if (driver.position) return `P${driver.position}`;
-        return '-';
-    };
-
-    const getPositionColor = (driver: DriverSessionData): string => {
-        if (driver.dns || driver.dnf || driver.dsq) return '#999';
-        if (driver.position === 1) return '#FFD700';
-        if (driver.position === 2) return '#C0C0C0';
-        if (driver.position === 3) return '#CD7F32';
-        return '#15151E';
-    };
 
     // Loading state
     if (state.loading) {
@@ -249,52 +236,14 @@ export default function FreePracticeScreen() {
                             <Text style={styles.tableHeaderTime}>Best Time</Text>
                         </View>
 
-                        {/* Driver Rows */}
+                        {/* Driver Rows - Now using DriverCard component */}
                         {state.drivers.map((driver) => (
-                            <View
+                            <DriverCard
                                 key={driver.driverNumber}
-                                style={[
-                                    styles.driverRow,
-                                    driver.position === 1 && styles.driverRowFirst,
-                                ]}
-                            >
-                                <View style={styles.positionCell}>
-                                    <Text
-                                        style={[
-                                            styles.positionText,
-                                            { color: getPositionColor(driver) },
-                                        ]}
-                                    >
-                                        {formatPosition(driver)}
-                                    </Text>
-                                </View>
-
-                                <View style={styles.driverCell}>
-                                    <View style={styles.driverNumber}>
-                                        <Text style={styles.driverNumberText}>
-                                            {driver.driverNumber}
-                                        </Text>
-                                    </View>
-                                    <View style={styles.driverInfo}>
-                                        <Text style={styles.driverName}>
-                                            {driver.driverName}
-                                        </Text>
-                                        <Text style={styles.teamName}>
-                                            {driver.teamName}
-                                        </Text>
-                                    </View>
-                                </View>
-
-                                <View style={styles.lapsCell}>
-                                    <Text style={styles.lapsText}>{driver.lapCount}</Text>
-                                </View>
-
-                                <View style={styles.timeCell}>
-                                    <Text style={styles.timeText}>
-                                        {driver.fastestLap || '-'}
-                                    </Text>
-                                </View>
-                            </View>
+                                driver={driver}
+                                sessionKey={sessionKey}
+                                isFirst={driver.position === 1}
+                            />
                         ))}
                     </>
                 ) : (
@@ -411,78 +360,6 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#666',
         textAlign: 'right',
-    },
-    driverRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FAFAFA',
-        padding: 12,
-        borderRadius: 8,
-        marginBottom: 6,
-        borderLeftWidth: 3,
-        borderLeftColor: '#E0E0E0',
-    },
-    driverRowFirst: {
-        backgroundColor: '#FFF9E6',
-        borderLeftColor: '#FFD700',
-    },
-    positionCell: {
-        width: 50,
-        alignItems: 'flex-start',
-    },
-    positionText: {
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    driverCell: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    driverNumber: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: '#15151E',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 10,
-    },
-    driverNumberText: {
-        color: '#FFF',
-        fontWeight: 'bold',
-        fontSize: 12,
-    },
-    driverInfo: {
-        flex: 1,
-    },
-    driverName: {
-        fontSize: 15,
-        fontWeight: 'bold',
-        color: '#15151E',
-        marginBottom: 2,
-    },
-    teamName: {
-        fontSize: 12,
-        color: '#666',
-    },
-    lapsCell: {
-        width: 50,
-        alignItems: 'center',
-    },
-    lapsText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#666',
-    },
-    timeCell: {
-        width: 80,
-        alignItems: 'flex-end',
-    },
-    timeText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#E10600',
     },
     noData: {
         fontSize: 14,
