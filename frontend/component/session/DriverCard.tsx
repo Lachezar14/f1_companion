@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+import { theme } from '../../../theme';
 
 interface DriverSessionData {
     position: number | null;
@@ -20,12 +22,52 @@ interface DriverCardProps {
     driver: DriverSessionData;
     sessionKey: number;
     isFirst?: boolean;
+    index?: number; // For staggered animations
 }
 
 type NavigationProp = NativeStackNavigationProp<any>;
 
-export default function DriverCard({ driver, sessionKey, isFirst = false }: DriverCardProps) {
+export default function DriverCard({
+                                       driver,
+                                       sessionKey,
+                                       isFirst = false,
+                                       index = 0,
+                                   }: DriverCardProps) {
     const navigation = useNavigation<NavigationProp>();
+    const scaleAnim = React.useRef(new Animated.Value(1)).current;
+    const fadeAnim = React.useRef(new Animated.Value(0)).current;
+
+    React.useEffect(() => {
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 400,
+            delay: index * 50,
+            useNativeDriver: true,
+        }).start();
+    }, []);
+
+    const handlePressIn = () => {
+        Animated.spring(scaleAnim, {
+            toValue: 0.98,
+            useNativeDriver: true,
+            speed: 50,
+        }).start();
+    };
+
+    const handlePressOut = () => {
+        Animated.spring(scaleAnim, {
+            toValue: 1,
+            useNativeDriver: true,
+            speed: 50,
+        }).start();
+    };
+
+    const handlePress = () => {
+        navigation.navigate('DriverOverview', {
+            driverNumber: driver.driverNumber,
+            sessionKey: sessionKey,
+        });
+    };
 
     const formatPosition = (driver: DriverSessionData): string => {
         if (driver.dns) return 'DNS';
@@ -36,160 +78,219 @@ export default function DriverCard({ driver, sessionKey, isFirst = false }: Driv
     };
 
     const getPositionColor = (driver: DriverSessionData): string => {
-        if (driver.dns || driver.dnf || driver.dsq) return '#999';
-        if (driver.position === 1) return '#FFD700';
-        if (driver.position === 2) return '#C0C0C0';
-        if (driver.position === 3) return '#CD7F32';
-        return '#15151E';
+        if (driver.dns || driver.dnf || driver.dsq) {
+            return theme.colors.neutral.gray;
+        }
+        if (driver.position === 1) return theme.colors.podium.gold;
+        if (driver.position === 2) return theme.colors.podium.silver;
+        if (driver.position === 3) return theme.colors.podium.bronze;
+        if (driver.position && driver.position <= 10) {
+            return theme.colors.semantic.info;
+        }
+        return theme.colors.text.primary;
     };
 
     const getLastName = (fullName: string): string => {
         const parts = fullName.split(' ');
-        return parts[parts.length - 1];
+        return parts[parts.length - 1].toUpperCase();
     };
 
     const getTeamColor = (): string => {
-        return driver.teamColor ? `#${driver.teamColor}` : '#15151E';
+        return driver.teamColor ? `#${driver.teamColor}` : theme.colors.primary.carbon;
     };
 
-    const handlePress = () => {
-        navigation.navigate('DriverOverview', {
-            driverNumber: driver.driverNumber,
-            sessionKey: sessionKey,
-        });
+    const getAccentColor = (): string => {
+        if (isFirst) return theme.colors.podium.gold;
+        if (driver.position === 2) return theme.colors.podium.silver;
+        if (driver.position === 3) return theme.colors.podium.bronze;
+        return theme.colors.border.light;
     };
 
     return (
-        <TouchableOpacity
+        <Animated.View
             style={[
-                styles.driverRow,
-                isFirst && styles.driverRowFirst,
+                {
+                    opacity: fadeAnim,
+                    transform: [{ scale: scaleAnim }],
+                },
             ]}
-            onPress={handlePress}
-            activeOpacity={0.7}
         >
-            <View style={styles.positionCell}>
-                <Text
-                    style={[
-                        styles.positionText,
-                        { color: getPositionColor(driver) },
-                    ]}
-                >
-                    {formatPosition(driver)}
-                </Text>
-            </View>
+            <TouchableOpacity
+                style={[
+                    styles.card,
+                    isFirst && styles.cardFirst,
+                ]}
+                onPress={handlePress}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                activeOpacity={1}
+            >
+                {/* Left accent bar */}
+                <View style={[styles.accentBar, { backgroundColor: getAccentColor() }]} />
 
-            <View style={styles.driverCell}>
-                <View style={[
-                    styles.driverNumber,
-                    { backgroundColor: getTeamColor() }
-                ]}>
-                    <Text style={styles.driverNumberText}>
-                        {driver.driverNumber}
+                {/* Position */}
+                <View style={styles.positionContainer}>
+                    <Text style={[styles.positionText, { color: getPositionColor(driver) }]}>
+                        {formatPosition(driver)}
                     </Text>
                 </View>
+
+                {/* Driver number badge */}
+                <View style={[styles.driverNumber, { backgroundColor: getTeamColor() }]}>
+                    <Text style={styles.driverNumberText}>{driver.driverNumber}</Text>
+                </View>
+
+                {/* Driver info */}
                 <View style={styles.driverInfo}>
-                    <Text
-                        style={styles.driverName}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                    >
+                    <Text style={styles.driverName} numberOfLines={1}>
                         {getLastName(driver.driverName)}
                     </Text>
-                    <Text
-                        style={styles.teamName}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                    >
+                    <Text style={styles.teamName} numberOfLines={1}>
                         {driver.teamName}
                     </Text>
                 </View>
-            </View>
 
-            <View style={styles.lapsCell}>
-                <Text style={styles.lapsText}>{driver.lapCount}</Text>
-            </View>
+                {/* Stats */}
+                <View style={styles.statsContainer}>
+                    {/* Lap count */}
+                    <View style={styles.statBox}>
+                        <Ionicons
+                            name="flag-outline"
+                            size={14}
+                            color={theme.colors.text.tertiary}
+                        />
+                        <Text style={styles.statValue}>{driver.lapCount}</Text>
+                    </View>
 
-            <View style={styles.timeCell}>
-                <Text style={styles.timeText}>
-                    {driver.fastestLap || '-'}
-                </Text>
-            </View>
-        </TouchableOpacity>
+                    {/* Fastest lap */}
+                    <View style={styles.statBox}>
+                        <Ionicons
+                            name="speedometer-outline"
+                            size={14}
+                            color={theme.colors.primary.red}
+                        />
+                        <Text style={styles.fastestLapText}>
+                            {driver.fastestLap || '-'}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Chevron */}
+                <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={theme.colors.text.tertiary}
+                />
+            </TouchableOpacity>
+        </Animated.View>
     );
 }
 
 const styles = StyleSheet.create({
-    driverRow: {
+    card: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FAFAFA',
-        padding: 12,
-        borderRadius: 8,
-        marginBottom: 6,
-        borderLeftWidth: 3,
-        borderLeftColor: '#E0E0E0',
+        backgroundColor: theme.colors.background.secondary,
+        padding: theme.spacing.md,
+        borderRadius: theme.borderRadius.lg,
+        marginBottom: theme.spacing.sm,
+        ...theme.shadows.sm,
+        borderWidth: 1,
+        borderColor: theme.colors.border.light,
+        position: 'relative',
+        overflow: 'hidden',
     },
-    driverRowFirst: {
-        backgroundColor: '#FFF9E6',
-        borderLeftColor: '#FFD700',
+
+    cardFirst: {
+        backgroundColor: theme.colors.podium.gold + '08', // 8% opacity
+        borderColor: theme.colors.podium.gold + '40', // 40% opacity
+        borderWidth: 2,
+        ...theme.shadows.md,
     },
-    positionCell: {
-        width: 50,
-        alignItems: 'flex-start',
+
+    accentBar: {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: 4,
     },
+
+    positionContainer: {
+        width: 52,
+        alignItems: 'center',
+        marginLeft: theme.spacing.xs,
+    },
+
     positionText: {
-        fontSize: 18,
-        fontWeight: 'bold',
+        fontSize: theme.typography.fontSize.xl,
+        fontWeight: theme.typography.fontWeight.black,
+        letterSpacing: theme.typography.letterSpacing.tight,
     },
-    driverCell: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
+
     driverNumber: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: '#15151E',
+        width: 40,
+        height: 40,
+        borderRadius: theme.borderRadius.md,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 10,
+        marginRight: theme.spacing.md,
+        ...theme.shadows.sm,
     },
+
     driverNumberText: {
-        color: '#000000',
-        fontWeight: "bold",
-        fontSize: 14,
+        color: theme.colors.neutral.white,
+        fontWeight: theme.typography.fontWeight.black,
+        fontSize: theme.typography.fontSize.base,
+        textShadowColor: 'rgba(0, 0, 0, 0.3)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
     },
+
     driverInfo: {
         flex: 1,
+        marginRight: theme.spacing.sm,
     },
+
     driverName: {
-        fontSize: 15,
-        fontWeight: 'bold',
-        color: '#15151E',
+        fontSize: theme.typography.fontSize.lg,
+        fontWeight: theme.typography.fontWeight.bold,
+        color: theme.colors.text.primary,
         marginBottom: 2,
+        letterSpacing: theme.typography.letterSpacing.tight,
     },
+
     teamName: {
-        fontSize: 12,
-        color: '#666',
+        fontSize: theme.typography.fontSize.xs,
+        color: theme.colors.text.secondary,
+        fontWeight: theme.typography.fontWeight.medium,
+        textTransform: 'uppercase',
+        letterSpacing: theme.typography.letterSpacing.wide,
     },
-    lapsCell: {
-        width: 50,
+
+    statsContainer: {
+        flexDirection: 'row',
+        gap: theme.spacing.md,
+        marginRight: theme.spacing.sm,
+    },
+
+    statBox: {
+        flexDirection: 'row',
         alignItems: 'center',
+        gap: theme.spacing.xs,
     },
-    lapsText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#666',
+
+    statValue: {
+        fontSize: theme.typography.fontSize.sm,
+        fontWeight: theme.typography.fontWeight.semibold,
+        color: theme.colors.text.secondary,
+        fontVariant: ['tabular-nums'],
     },
-    timeCell: {
-        width: 80,
-        alignItems: 'flex-end',
-    },
-    timeText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#E10600',
+
+    fastestLapText: {
+        fontSize: theme.typography.fontSize.sm,
+        fontWeight: theme.typography.fontWeight.bold,
+        color: theme.colors.primary.red,
+        fontVariant: ['tabular-nums'],
     },
 });

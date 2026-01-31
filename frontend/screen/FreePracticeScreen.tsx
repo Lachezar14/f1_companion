@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -8,14 +8,18 @@ import {
     RefreshControl,
     TouchableOpacity,
 } from 'react-native';
-import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
-import { Session, Lap } from '../../backend/types';
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Session } from '../../backend/types';
 import {
     getSessionResults,
     getDriversBySession,
-    formatLapTime, getLapsBySession
+    formatLapTime,
+    getLapsBySession,
 } from '../../backend/service/openf1Service';
-import DriverCard from "../component/session/DriverCard";
+import DriverCard from '../component/session/DriverCard';
+import { theme } from '../../theme';
 
 type RouteParams = {
     sessionKey: number;
@@ -30,6 +34,7 @@ interface DriverSessionData {
     teamName: string;
     lapCount: number;
     fastestLap: string | null;
+    fastestLapRaw: number | null;
     dnf: boolean;
     dns: boolean;
     dsq: boolean;
@@ -47,7 +52,6 @@ interface FreePracticeData {
 export default function FreePracticeScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const { sessionKey, sessionName, meetingName } = route.params;
-    const navigation = useNavigation();
 
     const [state, setState] = useState<FreePracticeData>({
         session: null,
@@ -127,7 +131,8 @@ export default function FreePracticeScreen() {
 
                         const lapData = lapsByDriver.get(result.driver_number);
                         const lapCount = lapData?.count || 0;
-                        const fastestLap = lapData?.fastest ? formatLapTime(lapData.fastest) : null;
+                        const fastestLapRaw = lapData?.fastest ?? null;
+                        const fastestLap = fastestLapRaw ? formatLapTime(fastestLapRaw) : null;
 
                         return {
                             position: result.position,
@@ -136,6 +141,7 @@ export default function FreePracticeScreen() {
                             teamName: driver.team_name,
                             lapCount,
                             fastestLap,
+                            fastestLapRaw,
                             dnf: result.dnf || false,
                             dns: result.dns || false,
                             dsq: result.dsq || false,
@@ -180,11 +186,51 @@ export default function FreePracticeScreen() {
         fetchDetails(false);
     }, [fetchDetails]);
 
+    const sessionStats = useMemo(() => {
+        if (!state.drivers.length) {
+            return {
+                totalDrivers: 0,
+                totalLaps: 0,
+                averageLaps: 0,
+                bestLapRaw: null as number | null,
+                bestLapDriver: null as string | null,
+            };
+        }
+
+        let totalLaps = 0;
+        let bestLapRaw: number | null = null;
+        let bestLapDriver: string | null = null;
+
+        state.drivers.forEach(driver => {
+            totalLaps += driver.lapCount;
+
+            if (
+                driver.fastestLapRaw !== null &&
+                (bestLapRaw === null || driver.fastestLapRaw < bestLapRaw)
+            ) {
+                bestLapRaw = driver.fastestLapRaw;
+                bestLapDriver = driver.driverName;
+            }
+        });
+
+        return {
+            totalDrivers: state.drivers.length,
+            totalLaps,
+            averageLaps: totalLaps / state.drivers.length,
+            bestLapRaw,
+            bestLapDriver,
+        };
+    }, [state.drivers]);
+
+    const formattedBestLap = sessionStats.bestLapRaw
+        ? formatLapTime(sessionStats.bestLapRaw)
+        : null;
+
     // Loading state
     if (state.loading) {
         return (
             <View style={styles.center}>
-                <ActivityIndicator size="large" color="#E10600" />
+                <ActivityIndicator size="large" color={theme.colors.primary.red} />
                 <Text style={styles.loadingText}>Loading session details...</Text>
             </View>
         );
@@ -194,6 +240,11 @@ export default function FreePracticeScreen() {
     if (state.error) {
         return (
             <View style={styles.center}>
+                <Ionicons
+                    name="alert-circle"
+                    size={36}
+                    color={theme.colors.semantic.danger}
+                />
                 <Text style={styles.errorTitle}>Unable to Load Data</Text>
                 <Text style={styles.errorMessage}>{state.error}</Text>
                 <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
@@ -206,52 +257,127 @@ export default function FreePracticeScreen() {
     return (
         <ScrollView
             style={styles.container}
+            contentContainerStyle={styles.content}
             refreshControl={
                 <RefreshControl
                     refreshing={state.refreshing}
                     onRefresh={handleRefresh}
-                    tintColor="#E10600"
+                    tintColor={theme.colors.primary.red}
+                    colors={[theme.colors.primary.red]}
                 />
             }
         >
-            {/* Session Header */}
-            <View style={styles.header}>
-                <Text style={styles.title}>{sessionName}</Text>
-                {meetingName && (
-                    <Text style={styles.meetingName}>{meetingName}</Text>
-                )}
+            {/* Hero Section */}
+            <LinearGradient
+                colors={[theme.colors.primary.red, theme.colors.primary.darkRed]}
+                style={styles.hero}
+            >
+                <View style={styles.heroBadge}>
+                    <Ionicons
+                        name="flash"
+                        size={14}
+                        color={theme.colors.neutral.white}
+                    />
+                    <Text style={styles.heroBadgeText}>FREE PRACTICE</Text>
+                </View>
+
+                <Text style={styles.heroTitle}>{sessionName}</Text>
+                {meetingName && <Text style={styles.heroSubtitle}>{meetingName}</Text>}
+
+                <View style={styles.heroMetaRow}>
+                    <View style={styles.heroMetaItem}>
+                        <Ionicons
+                            name="people"
+                            size={16}
+                            color={theme.colors.neutral.white}
+                        />
+                        <Text style={styles.heroMetaText}>
+                            {sessionStats.totalDrivers} Drivers
+                        </Text>
+                    </View>
+                    <View style={styles.heroMetaDivider} />
+                    <View style={styles.heroMetaItem}>
+                        <Ionicons
+                            name="flag"
+                            size={16}
+                            color={theme.colors.neutral.white}
+                        />
+                        <Text style={styles.heroMetaText}>
+                            {sessionStats.totalLaps} Total Laps
+                        </Text>
+                    </View>
+                </View>
+            </LinearGradient>
+
+            {/* Stats Section */}
+            <View style={styles.statsRow}>
+                <View style={styles.statCard}>
+                    <View style={[styles.statIcon, { backgroundColor: theme.colors.semantic.info }] }>
+                        <Ionicons name="speedometer" size={16} color={theme.colors.neutral.white} />
+                    </View>
+                    <Text style={styles.statLabel}>Average Laps</Text>
+                    <Text style={styles.statValue}>
+                        {sessionStats.averageLaps ? sessionStats.averageLaps.toFixed(1) : '-'}
+                    </Text>
+                </View>
+                <View style={styles.statCard}>
+                    <View style={[styles.statIcon, { backgroundColor: theme.colors.semantic.success }] }>
+                        <Ionicons name="timer" size={16} color={theme.colors.neutral.white} />
+                    </View>
+                    <Text style={styles.statLabel}>Best Lap</Text>
+                    <Text style={styles.statValue}>{formattedBestLap || '-'}</Text>
+                    {sessionStats.bestLapDriver && (
+                        <Text style={styles.statMeta}>{sessionStats.bestLapDriver}</Text>
+                    )}
+                </View>
             </View>
 
             {/* Driver Timetable */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>📊 Session Results</Text>
+            <View style={styles.sectionCard}>
+                <View style={styles.sectionHeader}>
+                    <View style={styles.sectionTitleRow}>
+                        <Ionicons
+                            name="analytics"
+                            size={18}
+                            color={theme.colors.primary.red}
+                        />
+                        <Text style={styles.sectionTitle}>Session Results</Text>
+                    </View>
+                    <Text style={styles.sectionSubtitle}>Tap a driver to inspect laps</Text>
+                </View>
 
                 {state.drivers.length > 0 ? (
                     <>
                         {/* Table Header */}
                         <View style={styles.tableHeader}>
-                            <Text style={styles.tableHeaderPos}>Pos</Text>
-                            <Text style={styles.tableHeaderDriver}>Driver</Text>
-                            <Text style={styles.tableHeaderLaps}>Laps</Text>
-                            <Text style={styles.tableHeaderTime}>Best Time</Text>
+                            <Text style={[styles.tableHeaderText, styles.tableHeaderPos]}>Pos</Text>
+                            <Text style={[styles.tableHeaderText, styles.tableHeaderDriver]}>Driver</Text>
+                            <Text style={[styles.tableHeaderText, styles.tableHeaderLaps]}>Laps</Text>
+                            <Text style={[styles.tableHeaderText, styles.tableHeaderTime]}>Best</Text>
                         </View>
 
-                        {/* Driver Rows - Now using DriverCard component */}
-                        {state.drivers.map((driver) => (
+                        {state.drivers.map((driver, index) => (
                             <DriverCard
                                 key={driver.driverNumber}
                                 driver={driver}
                                 sessionKey={sessionKey}
                                 isFirst={driver.position === 1}
+                                index={index}
                             />
                         ))}
                     </>
                 ) : (
-                    <Text style={styles.noData}>No session data available</Text>
+                    <View style={styles.noDataCard}>
+                        <Ionicons
+                            name="information-circle"
+                            size={20}
+                            color={theme.colors.text.tertiary}
+                        />
+                        <Text style={styles.noData}>No session data available</Text>
+                    </View>
                 )}
             </View>
 
-            {/* Pull to refresh hint */}
             <Text style={styles.refreshHint}>Pull down to refresh</Text>
         </ScrollView>
     );
@@ -260,118 +386,211 @@ export default function FreePracticeScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F2F2F2',
+        backgroundColor: theme.colors.background.primary,
+    },
+    content: {
+        paddingBottom: theme.spacing['3xl'],
     },
     center: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 24,
-        backgroundColor: '#F2F2F2',
+        padding: theme.spacing['2xl'],
+        backgroundColor: theme.colors.background.primary,
     },
     loadingText: {
-        marginTop: 12,
-        fontSize: 16,
-        color: '#666',
+        marginTop: theme.spacing.sm,
+        fontSize: theme.typography.fontSize.base,
+        color: theme.colors.text.secondary,
     },
     errorTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#E10600',
-        marginBottom: 8,
+        marginTop: theme.spacing.md,
+        fontSize: theme.typography.fontSize.lg,
+        fontWeight: theme.typography.fontWeight.bold,
+        color: theme.colors.text.primary,
+        marginBottom: theme.spacing.xs,
     },
     errorMessage: {
-        fontSize: 16,
-        color: '#666',
+        fontSize: theme.typography.fontSize.base,
+        color: theme.colors.text.secondary,
         textAlign: 'center',
-        marginBottom: 24,
+        marginBottom: theme.spacing.lg,
     },
     retryButton: {
-        backgroundColor: '#E10600',
-        paddingHorizontal: 32,
-        paddingVertical: 12,
-        borderRadius: 8,
+        backgroundColor: theme.colors.primary.red,
+        paddingHorizontal: theme.spacing['2xl'],
+        paddingVertical: theme.spacing.md,
+        borderRadius: theme.borderRadius.lg,
     },
     retryButtonText: {
-        color: '#FFF',
-        fontSize: 16,
-        fontWeight: 'bold',
+        color: theme.colors.neutral.white,
+        fontSize: theme.typography.fontSize.base,
+        fontWeight: theme.typography.fontWeight.bold,
     },
-    header: {
-        padding: 16,
-        backgroundColor: '#FFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0',
+    hero: {
+        margin: theme.spacing.base,
+        borderRadius: theme.borderRadius['2xl'],
+        padding: theme.spacing['2xl'],
+        ...theme.shadows.md,
     },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#15151E',
-        marginBottom: 4,
+    heroBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        paddingHorizontal: theme.spacing.sm,
+        paddingVertical: theme.spacing.xs,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        borderRadius: theme.borderRadius.full,
+        marginBottom: theme.spacing.sm,
     },
-    meetingName: {
-        fontSize: 14,
-        color: '#666',
+    heroBadgeText: {
+        color: theme.colors.neutral.white,
+        fontSize: theme.typography.fontSize.xs,
+        fontWeight: theme.typography.fontWeight.semibold,
+        marginLeft: theme.spacing.xs,
+        letterSpacing: theme.typography.letterSpacing.wide,
     },
-    section: {
-        backgroundColor: '#FFF',
-        padding: 16,
-        marginTop: 12,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: '#E0E0E0',
+    heroTitle: {
+        fontSize: theme.typography.fontSize['4xl'],
+        fontWeight: theme.typography.fontWeight.black,
+        color: theme.colors.neutral.white,
+        letterSpacing: theme.typography.letterSpacing.tight,
+    },
+    heroSubtitle: {
+        fontSize: theme.typography.fontSize.base,
+        color: 'rgba(255,255,255,0.85)',
+        marginTop: theme.spacing.xs,
+    },
+    heroMetaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: theme.spacing.lg,
+    },
+    heroMetaItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: theme.spacing.xs,
+    },
+    heroMetaText: {
+        color: theme.colors.neutral.white,
+        fontSize: theme.typography.fontSize.sm,
+        fontWeight: theme.typography.fontWeight.medium,
+    },
+    heroMetaDivider: {
+        width: 1,
+        height: 20,
+        backgroundColor: 'rgba(255,255,255,0.3)',
+        marginHorizontal: theme.spacing.base,
+    },
+    statsRow: {
+        flexDirection: 'row',
+        gap: theme.spacing.base,
+        paddingHorizontal: theme.spacing.base,
+        marginTop: theme.spacing.sm,
+    },
+    statCard: {
+        flex: 1,
+        backgroundColor: theme.colors.background.secondary,
+        borderRadius: theme.borderRadius.xl,
+        padding: theme.spacing.lg,
+        borderWidth: 1,
+        borderColor: theme.colors.border.light,
+        ...theme.shadows.sm,
+    },
+    statIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: theme.spacing.sm,
+    },
+    statLabel: {
+        fontSize: theme.typography.fontSize.sm,
+        color: theme.colors.text.tertiary,
+        marginBottom: theme.spacing.xs,
+    },
+    statValue: {
+        fontSize: theme.typography.fontSize['2xl'],
+        fontWeight: theme.typography.fontWeight.bold,
+        color: theme.colors.text.primary,
+    },
+    statMeta: {
+        marginTop: theme.spacing.xs,
+        fontSize: theme.typography.fontSize.sm,
+        color: theme.colors.text.secondary,
+    },
+    sectionCard: {
+        marginTop: theme.spacing['2xl'],
+        marginHorizontal: theme.spacing.base,
+        backgroundColor: theme.colors.background.secondary,
+        borderRadius: theme.borderRadius['2xl'],
+        padding: theme.spacing.base,
+        borderWidth: 1,
+        borderColor: theme.colors.border.light,
+        ...theme.shadows.md,
+    },
+    sectionHeader: {
+        marginBottom: theme.spacing.lg,
+    },
+    sectionTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: theme.spacing.sm,
     },
     sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#15151E',
-        marginBottom: 12,
+        fontSize: theme.typography.fontSize.xl,
+        fontWeight: theme.typography.fontWeight.bold,
+        color: theme.colors.text.primary,
+    },
+    sectionSubtitle: {
+        marginTop: theme.spacing.xs,
+        fontSize: theme.typography.fontSize.sm,
+        color: theme.colors.text.secondary,
     },
     tableHeader: {
         flexDirection: 'row',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        backgroundColor: '#F8F8F8',
-        borderRadius: 6,
-        marginBottom: 8,
+        alignItems: 'center',
+        backgroundColor: theme.colors.background.tertiary,
+        borderRadius: theme.borderRadius.lg,
+        paddingVertical: theme.spacing.sm,
+        paddingHorizontal: theme.spacing.base,
+        marginBottom: theme.spacing.md,
+    },
+    tableHeaderText: {
+        fontSize: theme.typography.fontSize.xs,
+        fontWeight: theme.typography.fontWeight.semibold,
+        color: theme.colors.text.secondary,
     },
     tableHeaderPos: {
         width: 50,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#666',
     },
     tableHeaderDriver: {
         flex: 1,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#666',
     },
     tableHeaderLaps: {
-        width: 50,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#666',
+        width: 60,
         textAlign: 'center',
     },
     tableHeaderTime: {
-        width: 80,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#666',
+        width: 70,
         textAlign: 'right',
     },
+    noDataCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: theme.spacing.sm,
+        paddingVertical: theme.spacing.lg,
+    },
     noData: {
-        fontSize: 14,
-        color: '#999',
-        fontStyle: 'italic',
-        textAlign: 'center',
-        paddingVertical: 12,
+        fontSize: theme.typography.fontSize.base,
+        color: theme.colors.text.secondary,
     },
     refreshHint: {
-        fontSize: 12,
-        color: '#CCC',
+        marginTop: theme.spacing['2xl'],
         textAlign: 'center',
-        paddingVertical: 24,
+        fontSize: theme.typography.fontSize.sm,
+        color: theme.colors.text.tertiary,
     },
 });

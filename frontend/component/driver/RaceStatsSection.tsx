@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatLapTime } from '../../../backend/service/openf1Service';
 import { Lap, Stint } from '../../../backend/types';
+import { theme } from '../../../theme'
 
 interface RaceStatsSectionProps {
     raceResult: any;
@@ -17,17 +18,17 @@ const getCompoundColor = (compound: string): string => {
     const compoundLower = compound.toLowerCase();
     switch (compoundLower) {
         case 'soft':
-            return '#E10600';
+            return theme.colors.tyres.soft;
         case 'medium':
-            return '#d8b031';
+            return theme.colors.tyres.medium;
         case 'hard':
-            return '#9E9E9E';
+            return theme.colors.tyres.hard;
         case 'intermediate':
-            return '#4CAF50';
+            return theme.colors.tyres.intermediate;
         case 'wet':
-            return '#2196F3';
+            return theme.colors.tyres.wet;
         default:
-            return '#666';
+            return theme.colors.neutral.gray;
     }
 };
 
@@ -88,162 +89,331 @@ export default function RaceStatsSection({
                                              laps,
                                              stints,
                                          }: RaceStatsSectionProps) {
+    const fadeAnim = React.useRef(new Animated.Value(0)).current;
+    const slideAnim = React.useRef(new Animated.Value(30)).current;
+
+    React.useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 500,
+                useNativeDriver: true,
+            }),
+            Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 500,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    }, []);
+
     // Calculate stats internally
     const pitStops = Math.max(0, stintCount - 1);
     const avgLapTimesPerCompound = calculateAvgLapTimePerCompound(laps, stints);
     const formattedRaceResult = formatRaceResult(raceResult);
+
+    // Determine result color
+    const getResultColor = () => {
+        if (!raceResult) return theme.colors.neutral.gray;
+        if (raceResult === 1) return theme.colors.podium.gold;
+        if (raceResult === 2) return theme.colors.podium.silver;
+        if (raceResult === 3) return theme.colors.podium.bronze;
+        if (raceResult <= 10) return theme.colors.semantic.info;
+        return theme.colors.text.secondary;
+    };
+
     return (
-        <View style={styles.statsContainer}>
-            <Text style={styles.statsTitle}>Race Stats</Text>
+        <Animated.View
+            style={[
+                styles.container,
+                {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }],
+                },
+            ]}
+        >
+            {/* Header */}
+            <View style={styles.header}>
+                <View style={styles.headerLeft}>
+                    <View style={styles.headerIcon}>
+                        <Ionicons
+                            name="stats-chart"
+                            size={20}
+                            color={theme.colors.primary.red}
+                        />
+                    </View>
+                    <Text style={styles.title}>Race Statistics</Text>
+                </View>
+            </View>
 
-            {/* Stats Row */}
-            <View style={styles.statsRow}>
-                <View style={styles.statBox}>
-                    <Ionicons name="trophy" size={24} color="#E10600" />
-                    <Text style={styles.statValue}>{formattedRaceResult}</Text>
-                    <Text style={styles.statLabel}>Result</Text>
+            {/* Stats Grid */}
+            <View style={styles.statsGrid}>
+                {/* Result */}
+                <View style={styles.statCard}>
+                    <View style={styles.statIconContainer}>
+                        <Ionicons
+                            name="trophy"
+                            size={28}
+                            color={getResultColor()}
+                        />
+                    </View>
+                    <Text style={[styles.statValue, { color: getResultColor() }]}>
+                        {formattedRaceResult}
+                    </Text>
+                    <Text style={styles.statLabel}>Final Position</Text>
                 </View>
 
-                <View style={styles.statDividerVertical} />
-
-                <View style={styles.statBox}>
-                    <Ionicons name="flag" size={24} color="#E10600" />
+                {/* Laps */}
+                <View style={styles.statCard}>
+                    <View style={styles.statIconContainer}>
+                        <Ionicons
+                            name="flag"
+                            size={28}
+                            color={theme.colors.semantic.info}
+                        />
+                    </View>
                     <Text style={styles.statValue}>{lapCount}</Text>
-                    <Text style={styles.statLabel}>Laps</Text>
+                    <Text style={styles.statLabel}>Laps Completed</Text>
                 </View>
 
-                <View style={styles.statDividerVertical} />
-
-                <View style={styles.statBox}>
-                    <Ionicons name="build" size={24} color="#E10600" />
+                {/* Pit Stops */}
+                <View style={styles.statCard}>
+                    <View style={styles.statIconContainer}>
+                        <Ionicons
+                            name="build"
+                            size={28}
+                            color={theme.colors.semantic.warning}
+                        />
+                    </View>
                     <Text style={styles.statValue}>{pitStops}</Text>
                     <Text style={styles.statLabel}>Pit Stops</Text>
                 </View>
             </View>
 
-            {/* Average Lap Time Per Compound */}
+            {/* Compound Performance Section */}
             {avgLapTimesPerCompound.length > 0 && (
-                <View style={styles.compoundStatsContainer}>
-                    <Text style={styles.compoundStatsTitle}>Average Lap Time by Compound</Text>
-                    {avgLapTimesPerCompound.map((stat, idx) => (
-                        <View key={idx} style={styles.compoundStatRow}>
-                            <View style={styles.compoundStatLeft}>
-                                <View
-                                    style={[
-                                        styles.compoundDot,
-                                        { backgroundColor: getCompoundColor(stat.compound) }
-                                    ]}
-                                />
-                                <Text style={styles.compoundStatLabel}>
-                                    {stat.compound}
-                                </Text>
-                                <Text style={styles.compoundStatLapCount}>
-                                    ({stat.lapCount} laps)
-                                </Text>
+                <View style={styles.compoundSection}>
+                    {/* Section Header */}
+                    <View style={styles.compoundHeader}>
+                        <Ionicons
+                            name="speedometer"
+                            size={18}
+                            color={theme.colors.text.secondary}
+                        />
+                        <Text style={styles.compoundTitle}>Tyre Performance</Text>
+                    </View>
+
+                    {/* Compound Stats */}
+                    {avgLapTimesPerCompound.map((stat, idx) => {
+                        const compoundColor = getCompoundColor(stat.compound);
+
+                        return (
+                            <View key={idx} style={styles.compoundRow}>
+                                {/* Left: Compound info */}
+                                <View style={styles.compoundLeft}>
+                                    <View
+                                        style={[
+                                            styles.compoundIndicator,
+                                            { backgroundColor: compoundColor },
+                                        ]}
+                                    />
+                                    <View style={styles.compoundInfo}>
+                                        <Text style={styles.compoundName}>
+                                            {stat.compound.charAt(0).toUpperCase() +
+                                                stat.compound.slice(1)}
+                                        </Text>
+                                        <Text style={styles.compoundLaps}>
+                                            {stat.lapCount} lap{stat.lapCount !== 1 ? 's' : ''}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                {/* Right: Lap time */}
+                                <View style={styles.compoundRight}>
+                                    <Text style={styles.compoundTime}>
+                                        {formatLapTime(stat.avgTime)}
+                                    </Text>
+                                    <Text style={styles.compoundTimeLabel}>avg</Text>
+                                </View>
                             </View>
-                            <Text style={styles.compoundStatTime}>
-                                {formatLapTime(stat.avgTime)}
-                            </Text>
-                        </View>
-                    ))}
+                        );
+                    })}
                 </View>
             )}
-        </View>
+
+            {/* Bottom decorative element */}
+            <View style={styles.bottomAccent} />
+        </Animated.View>
     );
 }
 
 const styles = StyleSheet.create({
-    statsContainer: {
-        margin: 16,
-        backgroundColor: '#FFF',
-        borderRadius: 12,
-        padding: 16,
-        shadowColor: '#000',
-        shadowOpacity: 0.08,
-        shadowOffset: { width: 0, height: 2 },
-        shadowRadius: 8,
-        elevation: 3,
+    container: {
+        margin: theme.spacing.base,
+        backgroundColor: theme.colors.background.secondary,
+        borderRadius: theme.borderRadius.xl,
+        overflow: 'hidden',
+        ...theme.shadows.lg,
+        borderWidth: 1,
+        borderColor: theme.colors.border.light,
     },
-    statsTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#333',
-        marginBottom: 16,
-    },
-    statsRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    statBox: {
-        flex: 1,
-        alignItems: 'center',
-        paddingVertical: 12,
-    },
-    statDividerVertical: {
-        width: 1,
-        height: 60,
-        backgroundColor: '#E8E8E8',
-    },
-    statValue: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: '#333',
-        marginTop: 8,
-        marginBottom: 4,
-    },
-    statLabel: {
-        fontSize: 14,
-        color: '#666',
-        fontWeight: '500',
-    },
-    compoundStatsContainer: {
-        borderTopWidth: 1,
-        borderTopColor: '#F0F0F0',
-        paddingTop: 16,
-    },
-    compoundStatsTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 12,
-    },
-    compoundStatRow: {
+
+    header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 8,
-        backgroundColor: '#FAFAFA',
-        borderRadius: 8,
-        marginBottom: 8,
+        padding: theme.spacing.base,
+        paddingBottom: theme.spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border.light,
     },
-    compoundStatLeft: {
+
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+
+    headerIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: theme.borderRadius.md,
+        backgroundColor: theme.colors.primary.red + '15', // 15% opacity
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: theme.spacing.sm,
+    },
+
+    title: {
+        fontSize: theme.typography.fontSize['2xl'],
+        fontWeight: theme.typography.fontWeight.bold,
+        color: theme.colors.text.primary,
+        letterSpacing: theme.typography.letterSpacing.tight,
+    },
+
+    statsGrid: {
+        flexDirection: 'row',
+        padding: theme.spacing.base,
+        gap: theme.spacing.md,
+    },
+
+    statCard: {
+        flex: 1,
+        alignItems: 'center',
+        backgroundColor: theme.colors.background.tertiary,
+        padding: theme.spacing.base,
+        borderRadius: theme.borderRadius.lg,
+        borderWidth: 1,
+        borderColor: theme.colors.border.light,
+    },
+
+    statIconContainer: {
+        marginBottom: theme.spacing.sm,
+    },
+
+    statValue: {
+        fontSize: theme.typography.fontSize['3xl'],
+        fontWeight: theme.typography.fontWeight.black,
+        color: theme.colors.text.primary,
+        marginBottom: theme.spacing.xs,
+        letterSpacing: theme.typography.letterSpacing.tight,
+    },
+
+    statLabel: {
+        fontSize: theme.typography.fontSize.xs,
+        fontWeight: theme.typography.fontWeight.semibold,
+        color: theme.colors.text.tertiary,
+        textAlign: 'center',
+        textTransform: 'uppercase',
+        letterSpacing: theme.typography.letterSpacing.wide,
+    },
+
+    compoundSection: {
+        padding: theme.spacing.base,
+        paddingTop: theme.spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: theme.colors.border.light,
+    },
+
+    compoundHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: theme.spacing.md,
+    },
+
+    compoundTitle: {
+        fontSize: theme.typography.fontSize.lg,
+        fontWeight: theme.typography.fontWeight.semibold,
+        color: theme.colors.text.secondary,
+        marginLeft: theme.spacing.sm,
+        letterSpacing: theme.typography.letterSpacing.tight,
+    },
+
+    compoundRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: theme.colors.background.tertiary,
+        padding: theme.spacing.md,
+        borderRadius: theme.borderRadius.md,
+        marginBottom: theme.spacing.sm,
+        borderWidth: 1,
+        borderColor: theme.colors.border.light,
+    },
+
+    compoundLeft: {
         flexDirection: 'row',
         alignItems: 'center',
         flex: 1,
     },
-    compoundDot: {
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        marginRight: 10,
+
+    compoundIndicator: {
+        width: 14,
+        height: 14,
+        borderRadius: theme.borderRadius.full,
+        marginRight: theme.spacing.md,
+        ...theme.shadows.sm,
     },
-    compoundStatLabel: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#333',
-        textTransform: 'capitalize',
+
+    compoundInfo: {
+        flex: 1,
     },
-    compoundStatLapCount: {
-        fontSize: 13,
-        color: '#999',
-        marginLeft: 6,
+
+    compoundName: {
+        fontSize: theme.typography.fontSize.base,
+        fontWeight: theme.typography.fontWeight.semibold,
+        color: theme.colors.text.primary,
+        marginBottom: 2,
     },
-    compoundStatTime: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#E10600',
+
+    compoundLaps: {
+        fontSize: theme.typography.fontSize.xs,
+        color: theme.colors.text.tertiary,
+        fontWeight: theme.typography.fontWeight.medium,
+    },
+
+    compoundRight: {
+        alignItems: 'flex-end',
+    },
+
+    compoundTime: {
+        fontSize: theme.typography.fontSize.xl,
+        fontWeight: theme.typography.fontWeight.bold,
+        color: theme.colors.primary.red,
+        fontVariant: ['tabular-nums'],
+    },
+
+    compoundTimeLabel: {
+        fontSize: theme.typography.fontSize.xs,
+        color: theme.colors.text.tertiary,
+        fontWeight: theme.typography.fontWeight.medium,
+        textTransform: 'uppercase',
+        letterSpacing: theme.typography.letterSpacing.wide,
+    },
+
+    bottomAccent: {
+        height: 4,
+        backgroundColor: theme.colors.primary.red,
+        borderBottomLeftRadius: theme.borderRadius.xl,
+        borderBottomRightRadius: theme.borderRadius.xl,
     },
 });
