@@ -251,6 +251,13 @@ export async function fetchDriversBySession(
     return cachedGet<Driver[]>('/drivers', { session_key: sessionKey });
 }
 
+/**
+ * Get all drivers for a meeting
+ */
+export async function fetchDriversByMeetingKey(meetingKey: number): Promise<Driver[]> {
+    return cachedGet<Driver[]>('/drivers', { meeting_key: meetingKey });
+}
+
 /* =========================
    Session Results
 ========================= */
@@ -260,6 +267,27 @@ export async function fetchDriversBySession(
  */
 export async function fetchSessionResults(sessionKey: number): Promise<SessionResult[]> {
     return cachedGet<SessionResult[]>('/session_result', { session_key: sessionKey });
+}
+
+export type SessionResultFilters = {
+    driver_number?: number;
+    session_key?: number;
+    meeting_key?: number;
+    session_type?: string;
+    year?: number;
+    limit?: number;
+};
+
+/**
+ * Get session results using flexible filters
+ */
+export async function fetchSessionResultsByFilters(
+    filters: SessionResultFilters
+): Promise<SessionResult[]> {
+    const params = Object.fromEntries(
+        Object.entries(filters).filter(([, value]) => value !== undefined && value !== null)
+    );
+    return cachedGet<SessionResult[]>('/session_result', params);
 }
 
 /* =========================
@@ -332,5 +360,20 @@ export async function fetchCarDataByDriverAndSession(
     return cachedGet<any[]>('/car_data', {
         session_key: sessionKey,
         driver_number: driverNumber,
+    });
+}
+
+/* =========================
+   Starting Grid
+========================= */
+
+/**
+ * Get starting grid positions for a session
+ */
+export async function fetchStartingGridBySession(
+    sessionKey: number
+): Promise<StartingGrid[]> {
+    return cachedGet<StartingGrid[]>('/starting_grid', {
+        session_key: sessionKey,
     });
 }

@@ -1,16 +1,31 @@
 import {
     fetchDriversBySession,
+    fetchDriversByMeetingKey,
     fetchLapsByDriverAndSession,
     fetchLapsBySession,
     fetchMeetingsByYear,
     fetchMeetingsByKey,
     fetchSessionResults,
+    fetchSessionResultsByFilters,
     fetchSessionsByMeeting,
     fetchStintsByDriverAndSession,
     fetchStintsBySession,
     fetchCarDataByDriverAndSession,
+    fetchStartingGridBySession,
 } from '../api/openf1';
-import { Driver, Lap, Meeting, Session, SessionResult, Stint } from '../types';
+import {
+    Driver,
+    Lap,
+    Meeting,
+    Session,
+    SessionResult,
+    Stint,
+    StartingGrid,
+    QualifyingDriverClassification,
+    RaceDriverClassification,
+    DriverSeasonStats,
+    DriverSeasonContext,
+} from '../types';
 
 /* =========================
    TYPE DEFINITIONS
@@ -117,6 +132,46 @@ function normalizeDuration(
         // Race: total duration
         return formatRaceTime(duration);
     }
+}
+
+const calculateAverage = (values: number[]): number | null => {
+    if (!values.length) return null;
+    const sum = values.reduce((total, value) => total + value, 0);
+    return sum / values.length;
+};
+
+/**
+ * Format a gap value into a readable string
+ */
+function formatGapValue(
+    gap: number | string | number[] | null | undefined
+): string | null {
+    if (gap == null) return null;
+
+    if (Array.isArray(gap)) {
+        const valid = gap.filter(
+            (value): value is number => typeof value === 'number' && !Number.isNaN(value)
+        );
+        if (!valid.length) return null;
+        return `+${valid[valid.length - 1].toFixed(3)}s`;
+    }
+
+    if (typeof gap === 'number') {
+        const prefix = gap >= 0 ? '+' : '';
+        return `${prefix}${gap.toFixed(3)}s`;
+    }
+
+    return typeof gap === 'string' ? gap : null;
+}
+
+/**
+ * Derive a textual status from a session result
+ */
+function resultStatusLabel(result: SessionResult, defaultLabel: string | null = 'Finished'): string | null {
+    if (result.dsq) return 'DSQ';
+    if (result.dnf) return 'DNF';
+    if (result.dns) return 'DNS';
+    return defaultLabel;
 }
 
 /* =========================
@@ -229,6 +284,21 @@ export async function getDriversBySession(sessionKey: number): Promise<Driver[] 
     } catch (error) {
         console.error(`[SERVICE] Error fetching drivers for session ${sessionKey}:`, error);
         return null;
+    }
+}
+
+/**
+ * Get all drivers participating in a season
+ */
+export async function getDriversByMeeting(meetingKey: number): Promise<Driver[]> {
+    try {
+        return await fetchDriversByMeetingKey(meetingKey);
+    } catch (error) {
+        console.error(
+            `[SERVICE] Error fetching drivers for meeting ${meetingKey}:`,
+            error
+        );
+        return [];
     }
 }
 
@@ -520,7 +590,10 @@ export async function getPodium(session: Session): Promise<PodiumFinisher[]> {
 
         // Filter top 3 and map to podium finishers
         const podium = results
-            .filter(r => r.position && r.position <= 3)
+            .filter(
+                (r): r is SessionResult & { position: number } =>
+                    typeof r.position === 'number' && r.position <= 3
+            )
             .sort((a, b) => a.position - b.position)
             .map(r => {
                 const driver = driverMap.get(r.driver_number);
@@ -605,8 +678,10 @@ export async function getGPDetails(gpKey: number, year: number = 2025): Promise<
         // 3. Extract results and track errors
         const pole = poleResult.status === 'fulfilled' ? poleResult.value : null;
         const podium = podiumResult.status === 'fulfilled' ? podiumResult.value : [];
-        const drivers = driversResult.status === 'fulfilled' ? driversResult.value : [];
-        const raceResults = raceResultsResult.status === 'fulfilled' ? raceResultsResult.value : [];
+        const drivers =
+            driversResult.status === 'fulfilled' ? driversResult.value ?? [] : [];
+        const raceResults =
+            raceResultsResult.status === 'fulfilled' ? raceResultsResult.value ?? [] : [];
 
         const partialErrors: PartialErrors = {};
 
@@ -692,6 +767,264 @@ export async function getDriverRaceOverview(
     } catch (error) {
         console.error(
             `[SERVICE] Failed to fetch race overview for driver ${driverNumber} in session ${sessionKey}:`,
+            error
+        );
+        return null;
+    }
+}
+
+/* =========================
+   CLASSIFICATION HELPERS
+========================= */
+
+const isValidLapValue = (value: number | null | undefined): value is number =>
+    typeof value === 'number' && value > 0;
+
+const formatLapSegment = (value: number | null | undefined): string | null =>
+    isValidLapValue(value) ? formatLapTime(value) : null;
+
+export async function getQualifyingClassification(
+    sessionKey: number
+): Promise<QualifyingDriverClassification[] | null> {
+    try {
+        const [results, drivers] = await Promise.all([
+            fetchSessionResults(sessionKey),
+            fetchDriversBySession(sessionKey),
+        ]);
+
+        const driverMap = new Map(drivers.map(driver => [driver.driver_number, driver]));
+
+        const rows: QualifyingDriverClassification[] = [];
+
+        results.forEach(result => {
+            const driver = driverMap.get(result.driver_number);
+            if (!driver) {
+                console.warn(
+                    `[SERVICE] Driver ${result.driver_number} missing for qualifying classification in session ${sessionKey}`
+                );
+                return;
+            }
+
+            const durations = Array.isArray(result.duration) ? result.duration : [];
+            const bestSeconds = durations.filter(isValidLapValue);
+            const best = bestSeconds.length ? formatLapTime(Math.min(...bestSeconds)) : null;
+            const gapToPole =
+                result.position === 1 ? 'Pole' : formatGapValue(result.gap_to_leader);
+
+            rows.push({
+                position: typeof result.position === 'number' ? result.position : null,
+                driverNumber: result.driver_number,
+                driverName: driver.full_name,
+                teamName: driver.team_name,
+                teamColor: driver.team_colour,
+                q1: formatLapSegment(durations[0]),
+                q2: formatLapSegment(durations[1]),
+                q3: formatLapSegment(durations[2]),
+                best,
+                gapToPole,
+                status: resultStatusLabel(result, null),
+            });
+        });
+
+        rows.sort((a, b) => {
+            if (a.position === null && b.position === null) return 0;
+            if (a.position === null) return 1;
+            if (b.position === null) return -1;
+            return a.position - b.position;
+        });
+
+        return rows;
+    } catch (error) {
+        console.error(
+            `[SERVICE] Error building qualifying classification for session ${sessionKey}:`,
+            error
+        );
+        return null;
+    }
+}
+
+export async function getRaceClassification(
+    sessionKey: number
+): Promise<RaceDriverClassification[] | null> {
+    try {
+        const [results, drivers] = await Promise.all([
+            fetchSessionResults(sessionKey),
+            fetchDriversBySession(sessionKey),
+        ]);
+
+        let startingGrid: StartingGrid[] = [];
+        let stints: Stint[] = [];
+
+        try {
+            startingGrid = await fetchStartingGridBySession(sessionKey);
+        } catch (error) {
+            console.warn(
+                `[SERVICE] Starting grid unavailable for session ${sessionKey}:`,
+                error
+            );
+        }
+
+        try {
+            stints = await fetchStintsBySession(sessionKey);
+        } catch (error) {
+            console.warn(`[SERVICE] Stints unavailable for session ${sessionKey}:`, error);
+        }
+
+        const driverMap = new Map(drivers.map(driver => [driver.driver_number, driver]));
+        const gridMap = new Map(startingGrid.map(entry => [entry.driver_number, entry.position]));
+
+        const stintCounts = new Map<number, number>();
+        stints.forEach(stint => {
+            stintCounts.set(stint.driver_number, (stintCounts.get(stint.driver_number) || 0) + 1);
+        });
+
+        const rows: RaceDriverClassification[] = [];
+
+        results.forEach(result => {
+            const driver = driverMap.get(result.driver_number);
+            if (!driver) {
+                console.warn(
+                    `[SERVICE] Driver ${result.driver_number} missing for race classification in session ${sessionKey}`
+                );
+                return;
+            }
+
+            const totalTime =
+                typeof result.duration === 'number' ? formatRaceTime(result.duration) : null;
+
+            const pitStintCount = stintCounts.get(result.driver_number);
+            const pitStops =
+                typeof pitStintCount === 'number' ? Math.max(pitStintCount - 1, 0) : null;
+
+            const baseStatus = resultStatusLabel(result, 'Finished') || 'Finished';
+            const normalizedStatus =
+                result.position === 1 && baseStatus === 'Finished' ? 'Winner' : baseStatus;
+
+            rows.push({
+                position: typeof result.position === 'number' ? result.position : null,
+                driverNumber: result.driver_number,
+                driverName: driver.full_name,
+                teamName: driver.team_name,
+                teamColor: driver.team_colour,
+                gridPosition: gridMap.get(result.driver_number) ?? null,
+                laps: result.number_of_laps,
+                totalTime,
+                gapToLeader:
+                    result.position === 1 ? 'Winner' : formatGapValue(result.gap_to_leader),
+                pitStops,
+                status: normalizedStatus,
+            });
+        });
+
+        rows.sort((a, b) => {
+            if (a.position === null && b.position === null) return 0;
+            if (a.position === null) return 1;
+            if (b.position === null) return -1;
+            return a.position - b.position;
+        });
+
+        return rows;
+    } catch (error) {
+        console.error(
+            `[SERVICE] Error building race classification for session ${sessionKey}:`,
+            error
+        );
+        return null;
+    }
+}
+
+const toNumericPosition = (value: number | null | undefined): number | null =>
+    typeof value === 'number' && value > 0 ? value : null;
+
+const averagePositionOrNull = (values: number[]): number | null => {
+    const average = calculateAverage(values);
+    return average === null ? null : Number(average.toFixed(2));
+};
+
+/**
+ * Aggregate season-long statistics for a driver
+ */
+export async function getDriverSeasonStats(
+    driverNumber: number,
+    year: number,
+    context?: DriverSeasonContext
+): Promise<DriverSeasonStats | null> {
+    try {
+        const [raceResults, qualifyingResults] = await Promise.all([
+            fetchSessionResultsByFilters({
+                driver_number: driverNumber,
+                year,
+                session_type: 'Race',
+            }),
+            fetchSessionResultsByFilters({
+                driver_number: driverNumber,
+                year,
+                session_type: 'Qualifying',
+            }),
+        ]);
+
+        let supplementalDriver: Driver | null = null;
+
+        const needsSupplementalProfile =
+            !context?.name || !context?.team || !context?.teamColor || !context?.headshotUrl;
+
+        if (needsSupplementalProfile) {
+            const referenceSessionKey =
+                raceResults[0]?.session_key ?? qualifyingResults[0]?.session_key ?? null;
+
+            if (referenceSessionKey) {
+                try {
+                    const sessionDrivers = await fetchDriversBySession(referenceSessionKey);
+                    supplementalDriver =
+                        sessionDrivers.find(driver => driver.driver_number === driverNumber) ?? null;
+                } catch (profileError) {
+                    console.warn(
+                        `[SERVICE] Unable to supplement driver profile for session ${referenceSessionKey}:`,
+                        profileError
+                    );
+                }
+            }
+        }
+
+        const racePositions = raceResults
+            .map(result => toNumericPosition(result.position))
+            .filter((position): position is number => position !== null);
+
+        const qualifyingPositions = qualifyingResults
+            .map(result => toNumericPosition(result.position))
+            .filter((position): position is number => position !== null);
+
+        const wins = racePositions.filter(position => position === 1).length;
+        const podiums = racePositions.filter(position => position >= 1 && position <= 3).length;
+
+        const bestRaceResult = racePositions.length ? Math.min(...racePositions) : null;
+        const bestQualifyingResult = qualifyingPositions.length
+            ? Math.min(...qualifyingPositions)
+            : null;
+
+        return {
+            season: year,
+            driver: {
+                number: driverNumber,
+                name: context?.name ?? supplementalDriver?.full_name ?? 'Unknown Driver',
+                team: context?.team ?? supplementalDriver?.team_name ?? 'Unknown Team',
+                teamColor: context?.teamColor ?? supplementalDriver?.team_colour,
+                headshotUrl: context?.headshotUrl ?? supplementalDriver?.headshot_url,
+            },
+            totals: {
+                wins,
+                podiums,
+                races: racePositions.length,
+                averageRacePosition: averagePositionOrNull(racePositions),
+                averageQualifyingPosition: averagePositionOrNull(qualifyingPositions),
+                bestRaceResult,
+                bestQualifyingResult,
+                qualifyingSessions: qualifyingPositions.length,
+            },
+        };
+    } catch (error) {
+        console.error(
+            `[SERVICE] Failed to build season stats for driver ${driverNumber} in year ${year}:`,
             error
         );
         return null;

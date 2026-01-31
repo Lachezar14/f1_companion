@@ -47,7 +47,7 @@ export type Session = {
 };
 
 export type SessionResult = {
-    position: number;
+    position: number | null;
 
     driver_number: number;
 
@@ -147,3 +147,59 @@ export interface StartingGrid {
     meeting_key: number;
     session_key: number;
 }
+
+export type QualifyingDriverClassification = {
+    position: number | null;
+    driverNumber: number;
+    driverName: string;
+    teamName: string;
+    teamColor?: string;
+    q1: string | null;
+    q2: string | null;
+    q3: string | null;
+    best: string | null;
+    gapToPole: string | null;
+    status: string | null;
+};
+
+export type RaceDriverClassification = {
+    position: number | null;
+    driverNumber: number;
+    driverName: string;
+    teamName: string;
+    teamColor?: string;
+    gridPosition: number | null;
+    laps: number;
+    totalTime: string | null;
+    gapToLeader: string | null;
+    pitStops: number | null;
+    status: string;
+};
+
+export type DriverSeasonStats = {
+    season: number;
+    driver: {
+        number: number;
+        name: string;
+        team: string;
+        teamColor?: string;
+        headshotUrl?: string;
+    };
+    totals: {
+        wins: number;
+        podiums: number;
+        races: number;
+        averageRacePosition: number | null;
+        averageQualifyingPosition: number | null;
+        bestRaceResult: number | null;
+        bestQualifyingResult: number | null;
+        qualifyingSessions: number;
+    };
+};
+
+export type DriverSeasonContext = {
+    name?: string;
+    team?: string;
+    teamColor?: string;
+    headshotUrl?: string;
+};

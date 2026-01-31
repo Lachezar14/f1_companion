@@ -10,6 +10,7 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getGPDetails, GPDetails, PartialErrors, getRaceSession } from '../../backend/service/openf1Service';
 
 
@@ -23,10 +24,12 @@ interface GPDetailsState {
     partialErrors: PartialErrors;
 }
 
+type NavigationProp = NativeStackNavigationProp<any>;
+
 export default function GPDetailsScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const { gpKey } = route.params;
-    const navigation = useNavigation();
+    const navigation = useNavigation<NavigationProp>();
     const [raceSessionKey, setRaceSessionKey] = useState<number | null>(null);
 
     const [state, setState] = useState<GPDetailsState>({
@@ -80,10 +83,10 @@ export default function GPDetailsScreen() {
                 return;
             }
 
-            navigation.navigate('DriverOverview' as never, {
+            navigation.navigate('DriverOverview', {
                 driverNumber,
                 sessionKey: raceSessionKey,
-            } as never);
+            });
         },
         [navigation, raceSessionKey]
     );

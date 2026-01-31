@@ -7,11 +7,12 @@ import { Session } from '../../../backend/types';
 interface SessionCardProps {
     session: Session;
     meetingName?: string;
+    onPress?: (session: Session) => void;
 }
 
 type NavigationProp = NativeStackNavigationProp<any>;
 
-export default function SessionCard({ session, meetingName }: SessionCardProps) {
+export default function SessionCard({ session, meetingName, onPress }: SessionCardProps) {
     const navigation = useNavigation<NavigationProp>();
 
     /**
@@ -41,6 +42,11 @@ export default function SessionCard({ session, meetingName }: SessionCardProps) 
     };
 
     const handlePress = () => {
+        if (onPress) {
+            onPress(session);
+            return;
+        }
+
         navigation.navigate('FreePracticeScreen', {
             sessionKey: session.session_key,
             sessionName: session.session_name,

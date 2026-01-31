@@ -83,7 +83,7 @@ export default function FreePracticeScreen() {
                     getLapsBySession(sessionKey),
                 ]);
 
-                if (!sessionResults || !drivers) {
+                if (!sessionResults || !drivers || !allLaps) {
                     setState({
                         session: null,
                         drivers: [],
@@ -116,41 +116,36 @@ export default function FreePracticeScreen() {
                     }
                 });
 
-                // Build driver data array
-                const driverData = sessionResults
-                    .map(result => {
-                        const driver = driverMap.get(result.driver_number);
+                const driverData: DriverSessionData[] = [];
+                sessionResults.forEach(result => {
+                    const driver = driverMap.get(result.driver_number);
+                    if (!driver) {
+                        return;
+                    }
 
-                        if (!driver) {
-                            return null;
-                        }
+                    const lapData = lapsByDriver.get(result.driver_number);
+                    const lapCount = lapData?.count || 0;
+                    const fastestLap = lapData?.fastest ? formatLapTime(lapData.fastest) : null;
 
-                        const lapData = lapsByDriver.get(result.driver_number);
-                        const lapCount = lapData?.count || 0;
-                        const fastestLap = lapData?.fastest ? formatLapTime(lapData.fastest) : null;
-
-                        return {
-                            position: result.position,
-                            driverNumber: result.driver_number,
-                            driverName: driver.full_name,
-                            teamName: driver.team_name,
-                            lapCount,
-                            fastestLap,
-                            dnf: result.dnf || false,
-                            dns: result.dns || false,
-                            dsq: result.dsq || false,
-                            teamColor: driver.team_colour,
-                        };
-                    })
-                    .filter((d): d is DriverSessionData => d !== null);
+                    driverData.push({
+                        position: result.position,
+                        driverNumber: result.driver_number,
+                        driverName: driver.full_name,
+                        teamName: driver.team_name,
+                        lapCount,
+                        fastestLap,
+                        dnf: result.dnf || false,
+                        dns: result.dns || false,
+                        dsq: result.dsq || false,
+                        teamColor: driver.team_colour || undefined,
+                    });
+                });
 
                 // Sort by position
-                driverData.sort((a, b) => {
-                    if (a.position === null && b.position === null) return 0;
-                    if (a.position === null) return 1;
-                    if (b.position === null) return -1;
-                    return a.position - b.position;
-                });
+                const normalizePosition = (driver: DriverSessionData) =>
+                    driver.position ?? Number.MAX_SAFE_INTEGER;
+
+                driverData.sort((a, b) => normalizePosition(a) - normalizePosition(b));
 
                 setState({
                     session: null,

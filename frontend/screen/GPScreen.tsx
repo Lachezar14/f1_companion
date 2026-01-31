@@ -10,6 +10,7 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { fetchMeetingsByYear, fetchSessionsByMeeting } from '../../backend/api/openf1';
 import { Meeting, Session } from '../../backend/types';
 import { getRaceSession, getPodium, PodiumFinisher } from '../../backend/service/openf1Service';
@@ -28,10 +29,30 @@ interface GPScreenState {
     podiumError: string | null;
 }
 
+type SessionScreenTarget = 'FreePracticeScreen' | 'QualifyingScreen' | 'RaceScreen';
+
+const resolveSessionScreen = (session: Session): SessionScreenTarget => {
+    const normalized = `${session.session_type || ''} ${session.session_name}`.toLowerCase();
+
+    if (normalized.includes('shootout') || normalized.includes('qualifying')) {
+        return 'QualifyingScreen';
+    }
+
+    if (
+        normalized.includes('race') ||
+        normalized.includes('grand prix') ||
+        (normalized.includes('sprint') && !normalized.includes('shootout'))
+    ) {
+        return 'RaceScreen';
+    }
+
+    return 'FreePracticeScreen';
+};
+
 export default function GPScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const { gpKey, year = 2025 } = route.params;
-    const navigation = useNavigation();
+    const navigation = useNavigation<NativeStackNavigationProp<any>>();
 
     const [state, setState] = useState<GPScreenState>({
         meeting: null,
@@ -42,6 +63,7 @@ export default function GPScreen() {
         error: null,
         podiumError: null,
     });
+    const meetingNameForNav = state.meeting?.meeting_official_name || null;
 
     useEffect(() => {
         fetchDetails();
@@ -130,6 +152,19 @@ export default function GPScreen() {
         fetchDetails(false);
     }, [fetchDetails]);
 
+    const handleSessionPress = useCallback(
+        (session: Session) => {
+            const targetScreen = resolveSessionScreen(session);
+
+            navigation.navigate(targetScreen, {
+                sessionKey: session.session_key,
+                sessionName: session.session_name,
+                meetingName: meetingNameForNav ?? session.session_name,
+            });
+        },
+        [navigation, meetingNameForNav]
+    );
+
     /**
      * Sort sessions chronologically
      */
@@ -217,6 +252,7 @@ export default function GPScreen() {
                             key={session.session_key}
                             session={session}
                             meetingName={meeting.meeting_official_name}
+                            onPress={handleSessionPress}
                         />
                     ))
                 ) : (
