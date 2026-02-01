@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -73,6 +73,26 @@ export default function FreePracticeScreen() {
             return posA - posB;
         });
 
+    const bestLapSeconds = useMemo(() => {
+        let best: number | null = null;
+        driverEntries.forEach(entry => {
+            entry.laps.forEach(lap => {
+                if (!lap.lap_duration || lap.lap_duration <= 0) return;
+                if (best === null || lap.lap_duration < best) {
+                    best = lap.lap_duration;
+                }
+            });
+        });
+        return best;
+    }, [driverEntries]);
+
+    const bestLapLabel = bestLapSeconds ? formatLapTime(bestLapSeconds) : '—';
+
+    const totalLaps = useMemo(
+        () => driverEntries.reduce((total, entry) => total + entry.laps.length, 0),
+        [driverEntries]
+    );
+
     // Loading state
     if (loading) {
         return (
@@ -96,32 +116,52 @@ export default function FreePracticeScreen() {
         );
     }
 
+    const sessionDetail = data;
+
     return (
         <ScrollView
             style={styles.container}
             refreshControl={
-                <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={refresh}
-                    tintColor="#E10600"
-                />
+                <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#E10600" />
             }
         >
-            {/* Session Header */}
-            <View style={styles.header}>
-                <Text style={styles.title}>{sessionName}</Text>
-                {meetingName && (
-                    <Text style={styles.meetingName}>{meetingName}</Text>
-                )}
+            <View style={styles.heroCard}>
+                <View>
+                    <Text style={styles.heroSubtitle}>{meetingName || sessionDetail?.location}</Text>
+                    <Text style={styles.heroTitle}>{sessionName}</Text>
+                    {sessionDetail?.date_start && (
+                        <Text style={styles.heroDate}>
+                            {new Date(sessionDetail.date_start).toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                month: 'long',
+                                day: 'numeric',
+                            })}
+                        </Text>
+                    )}
+                </View>
+                <View style={styles.heroStats}>
+                    <View style={styles.heroStat}>
+                        <Text style={styles.heroStatValue}>{drivers.length}</Text>
+                        <Text style={styles.heroStatLabel}>Drivers</Text>
+                    </View>
+                    <View style={styles.heroDivider} />
+                    <View style={styles.heroStat}>
+                        <Text style={styles.heroStatValue}>{bestLapLabel}</Text>
+                        <Text style={styles.heroStatLabel}>Fastest Lap</Text>
+                    </View>
+                    <View style={styles.heroDivider} />
+                    <View style={styles.heroStat}>
+                        <Text style={styles.heroStatValue}>{totalLaps}</Text>
+                        <Text style={styles.heroStatLabel}>Total Laps</Text>
+                    </View>
+                </View>
             </View>
 
-            {/* Driver Timetable */}
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>📊 Session Results</Text>
+                <Text style={styles.sectionTitle}>Session Results</Text>
 
                 {drivers.length > 0 ? (
                     <>
-                        {/* Table Header */}
                         <View style={styles.tableHeader}>
                             <Text style={styles.tableHeaderPos}>Pos</Text>
                             <Text style={styles.tableHeaderDriver}>Driver</Text>
@@ -129,7 +169,6 @@ export default function FreePracticeScreen() {
                             <Text style={styles.tableHeaderTime}>Best Time</Text>
                         </View>
 
-                        {/* Driver Rows - Now using FreePracticeResultCard component */}
                         {drivers.map(driver => (
                             <FreePracticeResultCard
                                 key={driver.driverNumber}
@@ -144,7 +183,6 @@ export default function FreePracticeScreen() {
                 )}
             </View>
 
-            {/* Pull to refresh hint */}
             <Text style={styles.refreshHint}>Pull down to refresh</Text>
         </ScrollView>
     );
@@ -153,7 +191,7 @@ export default function FreePracticeScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F2F2F2',
+        backgroundColor: '#F5F5F7',
     },
     center: {
         flex: 1,
@@ -190,29 +228,74 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: 'bold',
     },
-    header: {
-        padding: 16,
-        backgroundColor: '#FFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0',
+    heroCard: {
+        backgroundColor: '#15151E',
+        borderRadius: 24,
+        padding: 20,
+        margin: 16,
+        shadowColor: '#000',
+        shadowOpacity: 0.18,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 6,
     },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#15151E',
-        marginBottom: 4,
-    },
-    meetingName: {
+    heroSubtitle: {
+        color: 'rgba(255,255,255,0.7)',
         fontSize: 14,
-        color: '#666',
+        letterSpacing: 0.5,
+    },
+    heroTitle: {
+        fontSize: 24,
+        color: '#FFF',
+        fontWeight: '700',
+        marginTop: 6,
+    },
+    heroDate: {
+        color: 'rgba(255,255,255,0.7)',
+        marginTop: 4,
+    },
+    heroStats: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 18,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        borderRadius: 18,
+        paddingVertical: 12,
+    },
+    heroStat: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    heroStatValue: {
+        color: '#FFF',
+        fontSize: 20,
+        fontWeight: '700',
+    },
+    heroStatLabel: {
+        color: 'rgba(255,255,255,0.65)',
+        fontSize: 12,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginTop: 4,
+    },
+    heroDivider: {
+        width: 1,
+        height: 36,
+        backgroundColor: 'rgba(255,255,255,0.2)',
     },
     section: {
         backgroundColor: '#FFF',
         padding: 16,
-        marginTop: 12,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: '#E0E0E0',
+        marginHorizontal: 16,
+        marginTop: 16,
+        borderRadius: 20,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E3E3E3',
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 2,
     },
     sectionTitle: {
         fontSize: 18,
@@ -225,7 +308,7 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         paddingHorizontal: 12,
         backgroundColor: '#F8F8F8',
-        borderRadius: 6,
+        borderRadius: 10,
         marginBottom: 8,
     },
     tableHeaderPos: {

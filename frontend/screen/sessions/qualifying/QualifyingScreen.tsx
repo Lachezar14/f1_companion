@@ -85,13 +85,36 @@ const QualifyingScreen = () => {
                 />
             }
         >
-            <View style={styles.header}>
-                <Text style={styles.title}>{sessionName}</Text>
-                {meetingName && <Text style={styles.meetingName}>{meetingName}</Text>}
+            <View style={styles.heroCard}>
+                <View>
+                    <Text style={styles.heroSubtitle}>{meetingName}</Text>
+                    <Text style={styles.heroTitle}>{sessionName}</Text>
+                    {data?.date_start && (
+                        <Text style={styles.heroDate}>
+                            {new Date(data.date_start).toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                month: 'long',
+                                day: 'numeric',
+                            })}
+                        </Text>
+                    )}
+                </View>
+                <View style={styles.heroChipRow}>
+                    {data?.circuit_short_name ? (
+                        <View style={styles.heroChip}>
+                            <Text style={styles.heroChipText}>{data.circuit_short_name}</Text>
+                        </View>
+                    ) : null}
+                    <View style={styles.heroChip}>
+                        <Text style={styles.heroChipText}>{rows.length} Drivers</Text>
+                    </View>
+                </View>
             </View>
 
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>⏱️ Qualifying Classification</Text>
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Qualifying Classification</Text>
+                </View>
                 {rows.length === 0 ? (
                     <Text style={styles.noData}>No classification available</Text>
                 ) : (
@@ -115,7 +138,7 @@ export default QualifyingScreen;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F2F2F2',
+        backgroundColor: '#F5F5F7',
     },
     center: {
         flex: 1,
@@ -150,42 +173,80 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontWeight: 'bold',
     },
-    header: {
-        padding: 16,
-        backgroundColor: '#FFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0',
+    heroCard: {
+        backgroundColor: '#15151E',
+        margin: 16,
+        borderRadius: 24,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOpacity: 0.18,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 6,
     },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#15151E',
+    heroSubtitle: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 14,
+        letterSpacing: 0.5,
     },
-    meetingName: {
-        marginTop: 4,
-        color: '#666',
+    heroTitle: {
+        fontSize: 26,
+        fontWeight: '700',
+        color: '#FFF',
+        marginTop: 6,
+    },
+    heroDate: {
+        color: 'rgba(255,255,255,0.72)',
+        marginTop: 6,
+    },
+    heroChipRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginTop: 14,
+        marginHorizontal: -4,
+    },
+    heroChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        marginHorizontal: 4,
+        marginBottom: 6,
+    },
+    heroChipText: {
+        color: '#FFF',
+        fontSize: 12,
+        fontWeight: '600',
+        letterSpacing: 0.4,
     },
     section: {
-        marginTop: 12,
+        margin: 16,
         backgroundColor: '#FFF',
         padding: 16,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: '#E0E0E0',
+        borderRadius: 20,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E3E3E3',
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 2,
+    },
+    sectionHeader: {
+        marginBottom: 12,
     },
     sectionTitle: {
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: '700',
         color: '#15151E',
-        marginBottom: 12,
     },
     noData: {
         textAlign: 'center',
         color: '#999',
     },
     refreshHint: {
-        paddingVertical: 24,
+        paddingVertical: 28,
         textAlign: 'center',
-        color: '#AAA',
+        color: '#9A9A9A',
     },
 });

@@ -233,7 +233,7 @@ export default function DriverOverviewScreen() {
                         <View style={[styles.lapRow, styles.lapHeaderRow]}>
                             <Text style={[styles.lapCell, styles.headerText]}>Lap</Text>
                             <Text style={[styles.compoundHeaderCell, styles.headerText]}>
-                                Compound
+                                Tyre
                             </Text>
                             <Text style={[styles.timeCell, styles.headerText]}>Time</Text>
                             <Text style={[styles.noteHeaderCell, styles.headerText]}>Note</Text>

@@ -31,7 +31,13 @@ This document captures the current design language used across the newly refresh
 ## 6. Asset Fallbacks
 - When images (flags/headshots) are missing, use neutral placeholders; wrap backgrounds with overlays to maintain legibility.
 
-## 7. Implementation Tips
+## 7. Session Screens
+- Race/Practice detail screens now use the same hero card concept: left-aligned session info + chips, right-aligned (or bottom) stat row showing counts (drivers, SC laps, total laps, fastest lap).
+- Section cards for classifications/tables use white backgrounds, 16–20 px radius, light borders, and subtle shadows. List headers (tables) get rounded backgrounds as well.
+- Keep ScrollView backgrounds light gray and spacing symmetrical (16 px margins) so cards float consistently across tabs.
+- Driver classification rows (practice/race) share a single-row pattern: left column for position/status, compact driver badge with number + acronym centered, and a right column for the primary metric (fastest lap or gap). No per-row stat stacks to keep the list dense on mobile widths.
+
+## 8. Implementation Tips
 - Centralize colors and spacing tokens as constants if more screens adopt the style.
 - Extract chip/tile components if repetition grows (currently each hero defines simple `chip` styles).
 - Keep the hero summary logic (stats, upcoming counts) modular so other screens (e.g., Drivers list) can reuse it.

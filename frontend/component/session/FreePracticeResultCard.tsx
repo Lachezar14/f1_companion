@@ -45,9 +45,22 @@ export default function FreePracticeResultCard({ driver, sessionKey, isFirst = f
         return '#15151E';
     };
 
-    const getLastName = (fullName: string): string => {
-        const parts = fullName.split(' ');
-        return parts[parts.length - 1];
+    const deriveCodeFromName = (fullName: string): string => {
+        const parts = fullName.trim().split(' ');
+        const target = (parts[parts.length - 1] || fullName).replace(/[^A-Za-z]/g, '');
+        const upper = target.toUpperCase();
+        if (upper.length >= 3) return upper.slice(0, 3);
+        if (upper.length === 0 && fullName) {
+            return fullName.slice(0, 3).toUpperCase();
+        }
+        const lastChar = upper.charAt(upper.length - 1) || fullName.charAt(0).toUpperCase() || 'X';
+        return upper.padEnd(3, lastChar);
+    };
+
+    const getDriverCode = (): string => {
+        const shortCode = driver.driverEntry?.driver.shortName?.trim();
+        if (shortCode) return shortCode.toUpperCase();
+        return deriveCodeFromName(driver.driverName);
     };
 
     const getTeamColor = (): string => {
@@ -64,135 +77,109 @@ export default function FreePracticeResultCard({ driver, sessionKey, isFirst = f
 
     return (
         <TouchableOpacity
-            style={[
-                styles.driverRow,
-                isFirst && styles.driverRowFirst,
-            ]}
+            style={[styles.card, isFirst && styles.cardLeader]}
             onPress={handlePress}
-            activeOpacity={0.7}
+            activeOpacity={0.82}
         >
-            <View style={styles.positionCell}>
-                <Text
-                    style={[
-                        styles.positionText,
-                        { color: getPositionColor(driver) },
-                    ]}
-                >
+            <View style={styles.positionColumn}>
+                <Text style={[styles.positionText, { color: getPositionColor(driver) }]}>
                     {formatPosition(driver)}
                 </Text>
             </View>
 
-            <View style={styles.driverCell}>
-                <View style={[
-                    styles.driverNumber,
-                    { backgroundColor: getTeamColor() }
-                ]}>
-                    <Text style={styles.driverNumberText}>
-                        {driver.driverNumber}
-                    </Text>
+            <View style={styles.driverColumn}>
+                <View style={[styles.driverBubble, { backgroundColor: getTeamColor() }]}>
+                    <Text style={styles.driverBubbleText}>{driver.driverNumber}</Text>
                 </View>
                 <View style={styles.driverInfo}>
-                    <Text
-                        style={styles.driverName}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                    >
-                        {getLastName(driver.driverName)}
-                    </Text>
-                    <Text
-                        style={styles.teamName}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                    >
+                    <Text style={styles.driverCode}>{getDriverCode()}</Text>
+                    <Text style={styles.teamName} numberOfLines={1}>
                         {driver.teamName}
                     </Text>
                 </View>
             </View>
 
-            <View style={styles.lapsCell}>
-                <Text style={styles.lapsText}>{driver.lapCount}</Text>
-            </View>
-
-            <View style={styles.timeCell}>
-                <Text style={styles.timeText}>
-                    {driver.fastestLap || '-'}
-                </Text>
+            <View style={styles.valueColumn}>
+                <Text style={styles.valueLabel}>Best</Text>
+                <Text style={styles.valueText}>{driver.fastestLap || '—'}</Text>
             </View>
         </TouchableOpacity>
     );
 }
 
 const styles = StyleSheet.create({
-    driverRow: {
+    card: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FAFAFA',
-        padding: 12,
-        borderRadius: 8,
-        marginBottom: 6,
-        borderLeftWidth: 3,
-        borderLeftColor: '#E0E0E0',
+        backgroundColor: '#FFF',
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        borderRadius: 16,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: '#E7E7E7',
+        shadowColor: '#000',
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 1,
     },
-    driverRowFirst: {
-        backgroundColor: '#FFF9E6',
+    cardLeader: {
+        borderLeftWidth: 3,
         borderLeftColor: '#FFD700',
     },
-    positionCell: {
-        width: 50,
-        alignItems: 'flex-start',
+    positionColumn: {
+        width: 52,
     },
     positionText: {
-        fontSize: 18,
-        fontWeight: 'bold',
+        fontSize: 15,
+        fontWeight: '700',
     },
-    driverCell: {
+    driverColumn: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
+        marginRight: 12,
     },
-    driverNumber: {
+    driverBubble: {
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#15151E',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 10,
     },
-    driverNumberText: {
-        color: '#000000',
-        fontWeight: "bold",
-        fontSize: 14,
+    driverBubbleText: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 13,
     },
     driverInfo: {
         flex: 1,
     },
-    driverName: {
-        fontSize: 15,
-        fontWeight: 'bold',
+    driverCode: {
+        fontSize: 16,
+        fontWeight: '700',
         color: '#15151E',
-        marginBottom: 2,
     },
     teamName: {
-        fontSize: 12,
-        color: '#666',
+        fontSize: 13,
+        color: '#777',
     },
-    lapsCell: {
-        width: 50,
-        alignItems: 'center',
-    },
-    lapsText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#666',
-    },
-    timeCell: {
-        width: 80,
+    valueColumn: {
         alignItems: 'flex-end',
+        width: 100,
     },
-    timeText: {
-        fontSize: 14,
-        fontWeight: '600',
+    valueLabel: {
+        fontSize: 11,
+        color: '#8B8B8B',
+        letterSpacing: 0.5,
+        textTransform: 'uppercase',
+    },
+    valueText: {
+        fontSize: 15,
+        fontWeight: '700',
         color: '#E10600',
+        marginTop: 2,
     },
 });

@@ -21,21 +21,29 @@ const RaceResultCard: React.FC<RaceResultCardProps> = ({ data, onPress, style })
         }
     };
 
-    const formatPosition = (): string => {
-        return data.position ? `P${data.position}` : '-';
+    const deriveCodeFromName = (fullName: string): string => {
+        const parts = fullName.trim().split(' ');
+        const target = (parts[parts.length - 1] || fullName).replace(/[^A-Za-z]/g, '');
+        const upper = target.toUpperCase();
+        if (upper.length >= 3) return upper.slice(0, 3);
+        if (upper.length === 0 && fullName) {
+            return fullName.slice(0, 3).toUpperCase();
+        }
+        const fallback = upper.charAt(upper.length - 1) || fullName.charAt(0).toUpperCase() || 'X';
+        return upper.padEnd(3, fallback);
     };
 
-    const statusColor = (): string => {
-        switch (data.status) {
-            case 'Winner':
-                return '#FFD700';
-            case 'DNF':
-            case 'DNS':
-            case 'DSQ':
-                return '#E10600';
-            default:
-                return '#666';
+    const getDriverCode = (): string => deriveCodeFromName(data.driverName);
+
+    const positionDisplay = (): string => {
+        const status = data.status?.toUpperCase();
+        if (status === 'DNF' || status === 'DNS' || status === 'DSQ') {
+            return status;
         }
+        if (typeof data.position === 'number' && data.position > 0) {
+            return `P${data.position}`;
+        }
+        return status || '-';
     };
 
     const formatTimeDisplay = (): string => {
@@ -46,132 +54,115 @@ const RaceResultCard: React.FC<RaceResultCardProps> = ({ data, onPress, style })
     };
 
     return (
-        <TouchableOpacity
-            style={[styles.resultCard, data.position === 1 && styles.winnerCard, style]}
-            activeOpacity={0.8}
-            onPress={handlePress}
-        >
-            <View style={styles.rowHeader}>
-                <View style={styles.positionBadge}>
-                    <Text style={styles.positionText}>{formatPosition()}</Text>
-                    {data.gridPosition != null && (
-                        <Text style={styles.gridText}>Grid P{data.gridPosition}</Text>
-                    )}
-                </View>
+        <TouchableOpacity style={[styles.card, style]} activeOpacity={0.82} onPress={handlePress}>
+            <View style={styles.positionColumn}>
+                <Text style={styles.positionText}>{positionDisplay()}</Text>
+                {data.gridPosition != null && (
+                    <Text style={styles.gridText}>Grid {data.gridPosition}</Text>
+                )}
+            </View>
 
-                <View style={styles.driverCell}>
-                    <View
-                        style={[
-                            styles.driverNumber,
-                            { backgroundColor: data.teamColor ? `#${data.teamColor}` : '#15151E' },
-                        ]}
-                    >
-                        <Text style={styles.driverNumberText}>{data.driverNumber}</Text>
-                    </View>
-                    <View style={styles.driverInfo}>
-                        <Text style={styles.driverName}>{data.driverName}</Text>
-                        <Text style={styles.teamName}>{data.teamName}</Text>
-                    </View>
+            <View style={styles.driverColumn}>
+                <View
+                    style={[
+                        styles.driverBubble,
+                        { backgroundColor: data.teamColor ? `#${data.teamColor}` : '#15151E' },
+                    ]}
+                >
+                    <Text style={styles.driverBubbleText}>{data.driverNumber}</Text>
                 </View>
-
-                <View style={styles.timeCell}>
-                    <Text style={styles.timeLabel}>
-                        {data.position === 1 ? 'Total Time' : 'Gap'}
+                <View style={styles.driverInfo}>
+                    <Text style={styles.driverCode}>{getDriverCode()}</Text>
+                    <Text style={styles.teamName} numberOfLines={1}>
+                        {data.teamName}
                     </Text>
-                    <Text style={styles.timeValue}>{formatTimeDisplay()}</Text>
                 </View>
             </View>
 
-            <View style={styles.metaRow}>
-                <Text style={styles.metaText}>Laps: {data.laps}</Text>
-                <Text style={styles.metaText}>Pit Stops: {data.pitStops ?? '-'}</Text>
-                <Text style={[styles.metaText, { color: statusColor() }]}>{data.status}</Text>
+            <View style={styles.valueColumn}>
+                <Text style={styles.valueLabel}>{data.position === 1 ? 'Total' : 'Gap'}</Text>
+                <Text style={styles.valueText}>{formatTimeDisplay()}</Text>
             </View>
         </TouchableOpacity>
     );
 };
 
 const styles = StyleSheet.create({
-    resultCard: {
-        marginBottom: 12,
-        padding: 14,
-        backgroundColor: '#F9F9F9',
-        borderRadius: 10,
-        borderLeftWidth: 4,
-        borderLeftColor: '#15151E',
-    },
-    winnerCard: {
-        borderLeftColor: '#FFD700',
-        backgroundColor: '#FFF9E6',
-    },
-    rowHeader: {
+    card: {
+        backgroundColor: '#FFF',
         flexDirection: 'row',
         alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        borderRadius: 16,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: '#E7E7E7',
+        shadowColor: '#000',
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 1,
     },
-    positionBadge: {
-        width: 70,
+    positionColumn: {
+        width: 56,
     },
     positionText: {
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: '700',
         color: '#15151E',
     },
     gridText: {
-        fontSize: 12,
-        color: '#666',
         marginTop: 2,
+        fontSize: 11,
+        color: '#7B7B7B',
     },
-    driverCell: {
+    driverColumn: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        marginHorizontal: 8,
+        marginRight: 12,
     },
-    driverNumber: {
-        width: 34,
-        height: 34,
-        borderRadius: 17,
+    driverBubble: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 10,
     },
-    driverNumberText: {
-        color: '#000',
-        fontWeight: 'bold',
+    driverBubbleText: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 13,
     },
     driverInfo: {
         flex: 1,
     },
-    driverName: {
+    driverCode: {
         fontSize: 16,
-        fontWeight: 'bold',
+        fontWeight: '700',
         color: '#15151E',
     },
     teamName: {
-        fontSize: 12,
-        color: '#666',
+        fontSize: 13,
+        color: '#7A7A7A',
     },
-    timeCell: {
+    valueColumn: {
         width: 110,
         alignItems: 'flex-end',
     },
-    timeLabel: {
+    valueLabel: {
         fontSize: 11,
-        color: '#666',
+        color: '#8B8B8B',
+        letterSpacing: 0.5,
+        textTransform: 'uppercase',
     },
-    timeValue: {
+    valueText: {
         fontSize: 15,
-        fontWeight: '600',
+        fontWeight: '700',
         color: '#E10600',
-    },
-    metaRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 10,
-    },
-    metaText: {
-        fontSize: 12,
-        color: '#666',
+        marginTop: 2,
     },
 });
 

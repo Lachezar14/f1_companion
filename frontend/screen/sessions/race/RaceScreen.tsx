@@ -81,24 +81,58 @@ const RaceScreen = () => {
         );
     }
 
+    const session = data;
+    const heroDate =
+        session &&
+        new Date(session.date_start).toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+        });
+
+    const heroStats = [
+        { label: 'Drivers', value: driverEntries.length || '–' },
+        { label: 'SC Laps', value: safetyCarLaps.length || '0' },
+        { label: 'Laps', value: rows[0]?.laps ?? '–' },
+    ];
+
     return (
         <ScrollView
             style={styles.container}
             refreshControl={
-                <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={refresh}
-                    tintColor="#E10600"
-                />
+                <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#E10600" />
             }
         >
-            <View style={styles.header}>
-                <Text style={styles.title}>{sessionName}</Text>
-                {meetingName && <Text style={styles.meetingName}>{meetingName}</Text>}
+            <View style={styles.heroCard}>
+                <View style={styles.heroContent}>
+                    <Text style={styles.heroSubtitle}>{meetingName || session?.location}</Text>
+                    <Text style={styles.heroTitle}>{sessionName}</Text>
+                    {heroDate && <Text style={styles.heroDate}>{heroDate}</Text>}
+                    <View style={styles.chipRow}>
+                        {session?.circuit_short_name ? (
+                            <View style={styles.chip}>
+                                <Text style={styles.chipText}>{session.circuit_short_name}</Text>
+                            </View>
+                        ) : null}
+                        {session?.country_name ? (
+                            <View style={styles.chip}>
+                                <Text style={styles.chipText}>{session.country_name}</Text>
+                            </View>
+                        ) : null}
+                    </View>
+                </View>
+                <View style={styles.heroStats}>
+                    {heroStats.map(stat => (
+                        <View key={stat.label} style={styles.heroStat}>
+                            <Text style={styles.heroStatValue}>{stat.value}</Text>
+                            <Text style={styles.heroStatLabel}>{stat.label}</Text>
+                        </View>
+                    ))}
+                </View>
             </View>
 
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🏁 Race Classification</Text>
+                <Text style={styles.sectionTitle}>Race Classification</Text>
                 {rows.length === 0 ? (
                     <Text style={styles.noData}>No classification available</Text>
                 ) : (
@@ -122,7 +156,7 @@ export default RaceScreen;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F2F2F2',
+        backgroundColor: '#F5F5F7',
     },
     center: {
         flex: 1,
@@ -157,32 +191,92 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontWeight: 'bold',
     },
-    header: {
-        padding: 16,
-        backgroundColor: '#FFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0',
+    heroCard: {
+        backgroundColor: '#1C1C27',
+        margin: 16,
+        borderRadius: 24,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOpacity: 0.18,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 6,
     },
-    title: {
+    heroContent: {
+        marginBottom: 16,
+    },
+    heroSubtitle: {
+        color: 'rgba(255,255,255,0.75)',
+        fontSize: 14,
+        letterSpacing: 0.5,
+    },
+    heroTitle: {
         fontSize: 24,
-        fontWeight: 'bold',
-        color: '#15151E',
-    },
-    meetingName: {
+        fontWeight: '700',
+        color: '#FFF',
         marginTop: 4,
-        color: '#666',
+    },
+    heroDate: {
+        color: 'rgba(255,255,255,0.75)',
+        marginTop: 6,
+    },
+    chipRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginTop: 12,
+    },
+    chip: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+    },
+    chipText: {
+        color: '#FFF',
+        fontSize: 12,
+        fontWeight: '600',
+        letterSpacing: 0.4,
+    },
+    heroStats: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        borderRadius: 18,
+        paddingVertical: 12,
+    },
+    heroStat: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    heroStatValue: {
+        color: '#FFF',
+        fontSize: 20,
+        fontWeight: '700',
+    },
+    heroStatLabel: {
+        color: 'rgba(255,255,255,0.65)',
+        fontSize: 12,
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+        marginTop: 4,
     },
     section: {
-        marginTop: 12,
+        margin: 16,
         backgroundColor: '#FFF',
         padding: 16,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: '#E0E0E0',
+        borderRadius: 20,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E3E3E3',
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 2,
     },
     sectionTitle: {
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: '700',
         color: '#15151E',
         marginBottom: 12,
     },

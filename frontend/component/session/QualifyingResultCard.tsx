@@ -19,11 +19,12 @@ const QualifyingResultCard: React.FC<QualifyingResultCardProps> = ({
     onPress,
     style,
 }) => {
-    const handlePress = () => {
+
+    /*const handlePress = () => {
         if (onPress) {
             onPress(data.driverNumber);
         }
-    };
+    };*/
 
     const formatPosition = (): string => {
         if (data.status) return data.status;
@@ -41,7 +42,6 @@ const QualifyingResultCard: React.FC<QualifyingResultCardProps> = ({
         <TouchableOpacity
             style={[styles.driverRow, style]}
             activeOpacity={0.75}
-            onPress={handlePress}
         >
             <View style={styles.rowHeader}>
                 <View style={styles.positionCell}>
