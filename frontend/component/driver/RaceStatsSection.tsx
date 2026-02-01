@@ -10,6 +10,7 @@ interface RaceStatsSectionProps {
     stintCount: number;
     laps: Lap[];
     stints: Stint[];
+    safetyCarLapSet?: Set<number>;
 }
 
 const getCompoundColor = (compound: string): string => {
@@ -68,13 +69,15 @@ const formatRaceResult = (raceResult: any): string => {
 // Helper function to calculate average lap time per compound
 const calculateAvgLapTimePerCompound = (
     laps: Lap[],
-    stints: Stint[]
+    stints: Stint[],
+    safetyCarLapSet?: Set<number>
 ): { compound: string; avgTime: number; lapCount: number }[] => {
     const compoundMap = new Map<string, { totalTime: number; count: number }>();
 
     laps.forEach(lap => {
         // Skip pit out laps and laps without duration
         if (lap.is_pit_out_lap || !lap.lap_duration) return;
+        if (safetyCarLapSet?.has(lap.lap_number)) return;
 
         // Find the stint for this lap
         const stint = stints.find(
@@ -104,10 +107,15 @@ export default function RaceStatsSection({
                                              stintCount,
                                              laps,
                                              stints,
+                                             safetyCarLapSet,
                                          }: RaceStatsSectionProps) {
     // Calculate stats internally
     const pitStops = Math.max(0, stintCount - 1);
-    const avgLapTimesPerCompound = calculateAvgLapTimePerCompound(laps, stints).sort(
+    const avgLapTimesPerCompound = calculateAvgLapTimePerCompound(
+        laps,
+        stints,
+        safetyCarLapSet
+    ).sort(
         (a, b) => b.lapCount - a.lapCount
     );
     const formattedRaceResult = formatRaceResult(raceResult);

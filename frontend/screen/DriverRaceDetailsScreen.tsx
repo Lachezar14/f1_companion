@@ -17,7 +17,12 @@ import { formatLapTime } from '../../shared/time';
 type RouteParams = {
     driverNumber: number;
     sessionKey: number;
+    safetyCarLaps?: number[];
+    safetyCarIntervals?: { start: number; end: number }[];
 };
+
+const EMPTY_SAFETY_CAR_LAPS: number[] = [];
+const EMPTY_SAFETY_CAR_INTERVALS: { start: number; end: number }[] = [];
 
 interface DriverState {
     data: DriverRaceOverview | null;
@@ -46,7 +51,14 @@ const getDriverInitials = (name: string): string => {
 
 export default function DriverOverviewScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
-    const { driverNumber, sessionKey } = route.params;
+    const {
+        driverNumber,
+        sessionKey,
+        safetyCarLaps: safetyCarParam,
+        safetyCarIntervals: safetyCarIntervalsParam,
+    } = route.params;
+    const safetyCarLaps = safetyCarParam ?? EMPTY_SAFETY_CAR_LAPS;
+    const safetyCarIntervals = safetyCarIntervalsParam ?? EMPTY_SAFETY_CAR_INTERVALS;
 
     const [state, setState] = useState<DriverState>({
         data: null,
@@ -106,6 +118,8 @@ export default function DriverOverviewScreen() {
         return [...stints].sort((a, b) => a.lap_start - b.lap_start);
     }, [state.data?.stints]);
 
+    const safetyCarLapSet = useMemo(() => new Set(safetyCarLaps), [safetyCarLaps]);
+
     const lapRows = useMemo(() => {
         const laps = state.data?.laps ?? [];
         return laps.map((lap: Lap) => {
@@ -121,15 +135,17 @@ export default function DriverOverviewScreen() {
                 Boolean(currentStint) && hasNextStint && lap.lap_number === currentStint.lap_end;
 
             const compound = currentStint?.compound ?? 'Unknown';
+            const isSafetyCar = safetyCarLapSet.has(lap.lap_number);
 
             return {
                 lap,
                 compound,
                 isPitOut: lap.is_pit_out_lap,
                 isPitIn,
+                isSafetyCar,
             };
         });
-    }, [state.data?.laps, sortedStints]);
+    }, [state.data?.laps, sortedStints, safetyCarLapSet]);
 
     if (state.loading) {
         return (
@@ -195,6 +211,7 @@ export default function DriverOverviewScreen() {
                 stintCount={driver_overview.stint_count}
                 laps={driver_overview.laps}
                 stints={driver_overview.stints}
+                safetyCarLapSet={safetyCarLapSet}
             />
 
             {/* Lap Timeline */}
@@ -210,12 +227,12 @@ export default function DriverOverviewScreen() {
                             <Text style={[styles.timeCell, styles.headerText]}>Time</Text>
                             <Text style={[styles.noteHeaderCell, styles.headerText]}>Note</Text>
                         </View>
-                        {lapRows.map(({ lap, compound, isPitOut, isPitIn }) => (
+                        {lapRows.map(({ lap, compound, isPitOut, isPitIn, isSafetyCar }) => (
                             <View
                                 key={lap.lap_number}
                                 style={[
                                     styles.lapRow,
-                                    (isPitOut || isPitIn) && styles.pitLapRow
+                                    isSafetyCar && styles.safetyCarRow,
                                 ]}
                             >
                                 <Text style={styles.lapCell}>#{lap.lap_number}</Text>
@@ -231,30 +248,37 @@ export default function DriverOverviewScreen() {
                                         </Text>
                                     </View>
                                 </View>
-                                    <Text style={styles.timeCell}>
-                                        {formatLapTime(lap.lap_duration)}
-                                    </Text>
-                                    <View style={styles.noteCell}>
-                                        {isPitOut && (
-                                            <View style={[styles.badge, styles.pitOutBadge]}>
-                                                <Text style={[styles.badgeText, styles.pitOutText]}>
-                                                    Pit Out
-                                                </Text>
-                                            </View>
-                                        )}
-                                        {isPitIn && (
-                                            <View style={[styles.badge, styles.pitInBadge]}>
-                                                <Text style={[styles.badgeText, styles.pitInText]}>
-                                                    Pit In
-                                                </Text>
-                                            </View>
-                                        )}
-                                        {!isPitOut && !isPitIn && (
-                                            <Text style={styles.noBadge}>-</Text>
-                                        )}
-                                    </View>
+                                <Text style={styles.timeCell}>
+                                    {formatLapTime(lap.lap_duration)}
+                                </Text>
+                                <View style={styles.noteCell}>
+                                    {isSafetyCar && (
+                                        <View style={[styles.badge, styles.safetyCarBadge]}>
+                                            <Text style={[styles.badgeText, styles.safetyCarText]}>
+                                                SC
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {isPitOut && (
+                                        <View style={[styles.badge, styles.pitOutBadge]}>
+                                            <Text style={[styles.badgeText, styles.pitOutText]}>
+                                                Pit Out
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {isPitIn && (
+                                        <View style={[styles.badge, styles.pitInBadge]}>
+                                            <Text style={[styles.badgeText, styles.pitInText]}>
+                                                Pit In
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {!isSafetyCar && !isPitOut && !isPitIn && (
+                                        <Text style={styles.noBadge}>-</Text>
+                                    )}
                                 </View>
-                            ))}
+                            </View>
+                        ))}
                     </View>
                 ) : (
                     <Text style={styles.noData}>Lap times not available</Text>
@@ -432,6 +456,7 @@ const styles = StyleSheet.create({
     compoundHeaderCell: {
         flex: 1,
         fontWeight: '600',
+        textAlign: 'center',
     },
     noteHeaderCell: {
         flex: 1,
@@ -477,12 +502,21 @@ const styles = StyleSheet.create({
     pitInText: {
         color: '#1565C0',
     },
+    safetyCarBadge: {
+        backgroundColor: '#FFF3CD',
+        borderWidth: 1,
+        borderColor: '#FFEE58',
+    },
+    safetyCarText: {
+        color: '#8D6E00',
+    },
     noBadge: {
         fontSize: 13,
         color: '#999',
     },
-    pitLapRow: {
-        backgroundColor: '#FDF6EC',
+    safetyCarRow: {
+        backgroundColor: '#FFF8DC',
+        borderColor: '#FFE082',
     },
     noData: {
         fontSize: 14,

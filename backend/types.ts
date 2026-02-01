@@ -111,6 +111,7 @@ export type Lap = {
     st_speed: number | null;
 
     is_pit_out_lap: boolean;
+    is_safety_car?: boolean;
 
     meeting_key: number;
     session_key: number;
@@ -223,4 +224,18 @@ export type DriverSeasonContext = {
     team?: string;
     teamColor?: string;
     headshotUrl?: string;
+};
+
+export type RaceControl = {
+    category: string;
+    date: string;
+    driverNumber?: number | null;
+    flag?: string | null;
+    lapNumber?: number | null;
+    meetingKey: number;
+    sessionKey: number;
+    message: string;
+    qualifyingPhase?: number | null;
+    scope?: string | null;
+    sector?: number | null;
 };

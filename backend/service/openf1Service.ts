@@ -6,7 +6,7 @@ import {
     fetchLapsBySession,
     fetchMeetingsByKey,
     fetchMeetingsByYear,
-    fetchQualifyingSessionsByYear,
+    fetchQualifyingSessionsByYear, fetchRaceControlBySession,
     fetchRaceSessionsByYear,
     fetchSessionResults,
     fetchSessionResultsByDriver,
@@ -22,7 +22,7 @@ import {
     DriverSeasonStats,
     Lap,
     Meeting,
-    QualifyingDriverClassification,
+    QualifyingDriverClassification, RaceControl,
     RaceDriverClassification,
     Session,
     SessionResult,
@@ -440,6 +440,55 @@ export function getCarDataByDriverAndSession(
     return withServiceError(
         `Failed to fetch car data for driver ${driverNumber} in session ${sessionKey}`,
         () => fetchCarDataByDriverAndSession(sessionKey, driverNumber)
+    );
+}
+
+/* =========================
+   RACE CONTROL SERVICE
+========================= */
+
+/**
+ * Get race control messages for a session
+ */
+type RaceControlApiResponse = {
+    category: string;
+    date: string;
+    driver_number?: number | null;
+    flag?: string | null;
+    lap_number?: number | null;
+    meeting_key: number;
+    session_key: number;
+    message: string;
+    qualifying_phase?: number | null;
+    scope?: string | null;
+    sector?: number | null;
+};
+
+function normalizeRaceControl(entry: RaceControlApiResponse): RaceControl {
+    return {
+        category: entry.category,
+        date: entry.date,
+        driverNumber: entry.driver_number ?? null,
+        flag: entry.flag ?? null,
+        lapNumber: entry.lap_number ?? null,
+        meetingKey: entry.meeting_key,
+        sessionKey: entry.session_key,
+        message: entry.message,
+        qualifyingPhase: entry.qualifying_phase ?? null,
+        scope: entry.scope ?? null,
+        sector: entry.sector ?? null,
+    };
+}
+
+export async function getRaceControlBySession(
+    sessionKey: number
+): Promise<RaceControl[]> {
+    return withServiceError(
+        `Failed to fetch race control for session ${sessionKey}`,
+        async () => {
+            const raw = await fetchRaceControlBySession(sessionKey);
+            return raw.map(normalizeRaceControl);
+        }
     );
 }
 
