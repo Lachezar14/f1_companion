@@ -15,11 +15,7 @@ import { Meeting, Session } from '../../backend/types';
 import {
     getMeetingByKey,
     getSessionsByMeeting,
-    getRaceSession,
-    getPodium,
-    PodiumFinisher,
 } from '../../backend/service/openf1Service';
-import RaceResultSection from '../component/session/RaceResultSection';
 import SessionCard from '../component/session/SessionCard';
 import { useServiceRequest } from '../hooks/useServiceRequest';
 import { DEFAULT_MEETING_YEAR } from '../config/appConfig';
@@ -49,8 +45,6 @@ const resolveSessionScreen = (session: Session): SessionScreenTarget => {
 type MeetingDetails = {
     meeting: Meeting;
     sessions: Session[];
-    podium: PodiumFinisher[];
-    podiumError: string | null;
 };
 
 export default function GPScreen() {
@@ -65,22 +59,7 @@ export default function GPScreen() {
         }
 
         const sessions = await getSessionsByMeeting(gpKey);
-
-        let podium: PodiumFinisher[] = [];
-        let podiumError: string | null = null;
-
-        const raceSession = await getRaceSession(gpKey);
-        if (raceSession) {
-            try {
-                podium = await getPodium(raceSession);
-            } catch (error) {
-                console.error('[GPScreen] Error fetching podium:', error);
-                podiumError =
-                    error instanceof Error ? error.message : 'Failed to load podium data';
-            }
-        }
-
-        return { meeting, sessions, podium, podiumError };
+        return { meeting, sessions };
     }, [gpKey, year]);
 
     const {
@@ -138,7 +117,56 @@ export default function GPScreen() {
         );
     }
 
-    const { meeting, podium, podiumError } = data;
+    const { meeting } = data;
+
+    const formatDateRange = (startIso: string, endIso: string): string => {
+        const startDate = new Date(startIso);
+        const endDate = new Date(endIso);
+        if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+            return 'TBC';
+        }
+
+        if (startDate.toDateString() === endDate.toDateString()) {
+            return startDate.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+            });
+        }
+
+        const startLabel = startDate.toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+        });
+        const endLabel = endDate.toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+        });
+        return `${startLabel} - ${endLabel}`;
+    };
+
+    const dateRange = formatDateRange(meeting.date_start, meeting.date_end);
+
+    const detailRows = [
+        {
+            label: 'Location',
+            value: `${meeting.location}, ${meeting.country_name}`,
+        },
+        {
+            label: 'Circuit',
+            value: meeting.circuit_short_name || meeting.circuit_type || '—',
+        },
+        {
+            label: 'Circuit Type',
+            value: meeting.circuit_type || 'N/A',
+        },
+        {
+            label: 'Dates',
+            value: dateRange,
+        },
+    ];
 
     return (
         <ScrollView
@@ -147,33 +175,53 @@ export default function GPScreen() {
                 <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#E10600" />
             }
         >
-            {meeting.circuit_image && (
-                <Image
-                    source={{ uri: meeting.circuit_image }}
-                    style={styles.trackImage}
-                    resizeMode="contain"
-                />
-            )}
-
-            <View style={styles.header}>
-                <Text style={styles.title}>{meeting.meeting_official_name}</Text>
-                <Text style={styles.details}>
-                    {meeting.circuit_short_name} · {meeting.location}, {meeting.country_name}
-                </Text>
-                <Text style={styles.date}>
-                    {new Date(meeting.date_start).toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                    })}
-                </Text>
+            <View style={styles.heroCard}>
+                <View style={styles.heroContent}>
+                    <View style={styles.flagRow}>
+                        {meeting.country_flag ? (
+                            <Image source={{ uri: meeting.country_flag }} style={styles.flag} />
+                        ) : null}
+                        <Text style={styles.countryCode}>{meeting.country_code}</Text>
+                    </View>
+                    <Text style={styles.heroTitle}>{meeting.meeting_official_name}</Text>
+                    <Text style={styles.heroSubtitle}>{meeting.location}</Text>
+                    <Text style={styles.heroDates}>{dateRange}</Text>
+                    <View style={styles.chipRow}>
+                        {meeting.circuit_short_name ? (
+                            <View style={styles.chip}>
+                                <Text style={styles.chipText}>{meeting.circuit_short_name}</Text>
+                            </View>
+                        ) : null}
+                        {meeting.circuit_type ? (
+                            <View style={styles.chip}>
+                                <Text style={styles.chipText}>{meeting.circuit_type}</Text>
+                            </View>
+                        ) : null}
+                    </View>
+                </View>
+                {meeting.circuit_image ? (
+                    <Image
+                        source={{ uri: meeting.circuit_image }}
+                        style={styles.heroImage}
+                        resizeMode="contain"
+                    />
+                ) : null}
             </View>
 
-            <RaceResultSection podium={podium} podiumError={podiumError} onRetry={reload} />
+            <View style={styles.detailsCard}>
+                <Text style={styles.detailsTitle}>Grand Prix Details</Text>
+                <View style={styles.detailsGrid}>
+                    {detailRows.map(row => (
+                        <View key={row.label} style={styles.detailItem}>
+                            <Text style={styles.detailLabel}>{row.label}</Text>
+                            <Text style={styles.detailValue}>{row.value || '—'}</Text>
+                        </View>
+                    ))}
+                </View>
+            </View>
 
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>📅 Sessions</Text>
+                <Text style={styles.sectionTitle}>Weekend Schedule</Text>
                 {sortedSessions.length > 0 ? (
                     sortedSessions.map(session => (
                         <SessionCard
@@ -233,39 +281,125 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: 'bold',
     },
-    trackImage: {
-        width: '100%',
-        height: 200,
-        backgroundColor: '#FFF',
+    heroCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#15151E',
+        marginHorizontal: 12,
+        marginTop: 16,
+        borderRadius: 18,
+        padding: 20,
+        overflow: 'hidden',
     },
-    header: {
-        padding: 16,
-        backgroundColor: '#FFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0',
+    heroContent: {
+        flex: 1,
     },
-    title: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#15151E',
+    heroTitle: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#FFF',
         marginBottom: 6,
     },
-    details: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 4,
+    heroSubtitle: {
+        fontSize: 16,
+        color: 'rgba(255,255,255,0.8)',
+        marginBottom: 6,
     },
-    date: {
-        fontSize: 13,
-        color: '#999',
+    heroDates: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.7)',
+        marginBottom: 12,
+    },
+    heroImage: {
+        width: 130,
+        height: 110,
+        marginLeft: 16,
+        opacity: 0.9,
+    },
+    chipRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    chip: {
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
+    chipText: {
+        color: '#FFF',
+        fontWeight: '600',
+        fontSize: 12,
+        letterSpacing: 0.3,
+        textTransform: 'uppercase',
+    },
+    flagRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+        gap: 12,
+    },
+    flag: {
+        width: 36,
+        height: 24,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.4)',
+    },
+    countryCode: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 16,
+        letterSpacing: 1,
+    },
+    detailsCard: {
+        backgroundColor: '#FFF',
+        marginTop: 16,
+        marginHorizontal: 12,
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E6E6E6',
+    },
+    detailsTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#15151E',
+        marginBottom: 16,
+    },
+    detailsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+    },
+    detailItem: {
+        width: '48%',
+        paddingBottom: 12,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: '#EFEFEF',
+        marginBottom: 12,
+    },
+    detailLabel: {
+        fontSize: 12,
+        color: '#777',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    detailValue: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#15151E',
+        marginTop: 4,
     },
     section: {
         backgroundColor: '#FFF',
         padding: 16,
-        marginTop: 12,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: '#E0E0E0',
+        marginTop: 16,
+        borderRadius: 16,
+        marginHorizontal: 12,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E6E6E6',
     },
     sectionTitle: {
         fontSize: 18,

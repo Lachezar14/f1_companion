@@ -1,129 +1,108 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { Session } from '../../../backend/types';
 
 interface SessionCardProps {
     session: Session;
-    meetingName?: string;
     onPress?: (session: Session) => void;
 }
 
-type NavigationProp = NativeStackNavigationProp<any>;
+type SessionTheme = {
+    icon: keyof typeof Ionicons.glyphMap;
+    accent: string;
+    tint: string;
+};
 
-export default function SessionCard({ session, meetingName, onPress }: SessionCardProps) {
-    const navigation = useNavigation<NavigationProp>();
+const THEMES: Record<'practice' | 'qualifying' | 'sprint' | 'race' | 'default', SessionTheme> = {
+    practice: { icon: 'speedometer', accent: '#3EC5FF', tint: 'rgba(62,197,255,0.15)' },
+    qualifying: { icon: 'stopwatch', accent: '#FF8A5C', tint: 'rgba(255,138,92,0.15)' },
+    sprint: { icon: 'flag', accent: '#AC8CFF', tint: 'rgba(172,140,255,0.15)' },
+    race: { icon: 'trophy', accent: '#6DE19C', tint: 'rgba(109,225,156,0.15)' },
+    default: { icon: 'document-text', accent: '#9BA3AE', tint: 'rgba(155,163,174,0.15)' },
+};
 
-    /**
-     * Get icon for session type
-     */
-    const getSessionIcon = (sessionName: string): string => {
-        const name = sessionName.toLowerCase();
-        if (name.includes('practice')) return '🏎️';
-        if (name.includes('qualifying') || name.includes('sprint shootout')) return '⏱️';
-        if (name.includes('sprint')) return '🏁';
-        if (name.includes('race')) return '🏆';
-        return '📋';
-    };
+const resolveTheme = (sessionName: string): SessionTheme => {
+    const name = sessionName.toLowerCase();
+    if (name.includes('practice')) return THEMES.practice;
+    if (name.includes('qualifying') || name.includes('shootout')) return THEMES.qualifying;
+    if (name.includes('sprint')) return THEMES.sprint;
+    if (name.includes('race')) return THEMES.race;
+    return THEMES.default;
+};
 
-    /**
-     * Format session date/time
-     */
-    const formatSessionDateTime = (dateStart: string): string => {
-        const date = new Date(dateStart);
-        return date.toLocaleDateString('en-US', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-    };
+const formatDateTime = (session: Session): string => {
+    const date = new Date(session.date_start);
+    return `${date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    })}${session.gmt_offset ? ` · ${session.gmt_offset}` : ''}`;
+};
 
-    const handlePress = () => {
-        if (onPress) {
-            onPress(session);
-            return;
-        }
-
-        navigation.navigate('FreePracticeScreen', {
-            sessionKey: session.session_key,
-            sessionName: session.session_name,
-            meetingName: meetingName,
-        });
-    };
+export default function SessionCard({ session, onPress }: SessionCardProps) {
+    const theme = useMemo(() => resolveTheme(session.session_name), [session.session_name]);
 
     return (
         <TouchableOpacity
-            style={styles.sessionCard}
-            activeOpacity={0.7}
-            onPress={handlePress}
+            style={[styles.card, { borderLeftColor: theme.accent }]}
+            activeOpacity={0.85}
+            onPress={() => onPress?.(session)}
         >
-            <View style={styles.sessionIcon}>
-                <Text style={styles.sessionIconText}>
-                    {getSessionIcon(session.session_name)}
-                </Text>
+            <View style={[styles.iconCircle, { backgroundColor: theme.tint }]}>
+                <Ionicons name={theme.icon} size={22} color={theme.accent} />
             </View>
 
-            <View style={styles.sessionInfo}>
-                <Text style={styles.sessionName}>
+            <View style={styles.info}>
+                <Text style={styles.name} numberOfLines={1}>
                     {session.session_name}
                 </Text>
-                <Text style={styles.sessionDateTime}>
-                    {formatSessionDateTime(session.date_start)}
-                </Text>
+                <Text style={styles.date}>{formatDateTime(session)}</Text>
             </View>
 
-            <Text style={styles.chevron}>›</Text>
+            <Ionicons name="chevron-forward" size={20} color="#B8B8B8" />
         </TouchableOpacity>
     );
 }
 
 const styles = StyleSheet.create({
-    sessionCard: {
+    card: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F8F8F8',
-        padding: 16,
-        borderRadius: 8,
-        marginBottom: 8,
-        borderLeftWidth: 4,
-        borderLeftColor: '#E10600',
-    },
-    sessionIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
         backgroundColor: '#FFF',
+        padding: 16,
+        borderRadius: 18,
+        marginBottom: 12,
+        borderLeftWidth: 4,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#ECECEC',
+        shadowColor: '#000',
+        shadowOpacity: 0.07,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 2,
+    },
+    iconCircle: {
+        width: 52,
+        height: 52,
+        borderRadius: 26,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
     },
-    sessionIconText: {
-        fontSize: 24,
-    },
-    sessionInfo: {
+    info: {
         flex: 1,
     },
-    sessionName: {
+    name: {
         fontSize: 16,
-        fontWeight: 'bold',
+        fontWeight: '600',
         color: '#15151E',
         marginBottom: 4,
     },
-    sessionDateTime: {
+    date: {
         fontSize: 13,
-        color: '#666',
-    },
-    chevron: {
-        fontSize: 26,
-        color: '#CCC',
-        marginLeft: 8,
+        color: '#777',
     },
 });
