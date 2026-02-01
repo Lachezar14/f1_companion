@@ -12,10 +12,10 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { getSeasonDrivers } from '../../backend/service/openf1Service';
-import type { Driver } from '../../backend/types';
-import { useServiceRequest } from '../hooks/useServiceRequest';
-import { DEFAULT_SEASON_YEAR } from '../config/appConfig';
+import { getSeasonDrivers } from '../../../backend/service/openf1Service';
+import type { Driver } from '../../../backend/types';
+import { useServiceRequest } from '../../hooks/useServiceRequest';
+import { DEFAULT_SEASON_YEAR } from '../../config/appConfig';
 
 const DriversScreen = () => {
     const navigation = useNavigation<NativeStackNavigationProp<any>>();

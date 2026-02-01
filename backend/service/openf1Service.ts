@@ -22,9 +22,16 @@ import {
     DriverSeasonStats,
     Lap,
     Meeting,
-    QualifyingDriverClassification, RaceControl,
+    PracticeSessionDetail,
+    QualifyingDriverClassification,
+    QualifyingSessionDetail,
+    RaceControl,
+    RaceControlSummary,
     RaceDriverClassification,
+    RaceSessionDetail,
+    SafetyCarInterval,
     Session,
+    SessionDriverData,
     SessionResult,
     StartingGrid,
     Stint,
@@ -32,32 +39,58 @@ import {
 import {OpenF1ServiceError} from './errors';
 import {formatLapTime, formatRaceTime} from '../../shared/time';
 
+/**
+ * Service layout primer so new contributors know where to look:
+ *  - Primitive fetchers wrap the OpenF1 API with error handling (getMeetingsByYear, getDriversBySession, etc.).
+ *  - Session detail builders (getRace/Qualifying/PracticeSessionDetail) compose those primitives, denormalise
+ *    everything once, and are the main entry points used by the UI today alongside getSeasonDrivers,
+ *    getDriverSeasonStats, getMeetingByKey, getSessionsByMeeting, getRaceSession, getPodium, and getMeetingsByYear.
+ *  - Legacy helpers that no screen calls anymore are kept for now but flagged with NOTE comments so we know what can
+ *    be removed when we are confident nothing else depends on them.
+ */
+
 type SessionClassificationGroup = 'Race' | 'Qualifying';
 
 /* =========================
    TYPE DEFINITIONS
 ========================= */
 
+const SAFETY_CAR_START_KEYWORDS = [
+    'deploy',
+    'deployed',
+    'deployment',
+    'enters the track',
+    'appears',
+    'out on track',
+];
+
+const SAFETY_CAR_END_KEYWORDS = [
+    'in this lap',
+    'returns to the pit',
+    'returning to the pits',
+    'ending',
+    'withdrawn',
+    'coming in',
+    'finished',
+];
+
+const isSafetyCarStartMessage = (message: string | undefined | null): boolean => {
+    if (!message) return false;
+    const lower = message.toLowerCase();
+    return SAFETY_CAR_START_KEYWORDS.some(keyword => lower.includes(keyword));
+};
+
+const isSafetyCarEndMessage = (message: string | undefined | null): boolean => {
+    if (!message) return false;
+    const lower = message.toLowerCase();
+    return SAFETY_CAR_END_KEYWORDS.some(keyword => lower.includes(keyword));
+};
+
 export type PodiumFinisher = {
     position: number;
     driver: string;
     constructor: string;
     time: string | null;
-};
-
-export type DriverRaceOverview = {
-    driver: {
-        number: number;
-        name: string;
-        team: string;
-        teamColor?: string | null;
-        headshotUrl?: string | null;
-    };
-    stints: Stint[];
-    laps: Lap[];
-    lap_count: number;
-    stint_count: number;
-    raceResult: SessionResult | null;
 };
 
 async function withServiceError<T>(message: string, fn: () => Promise<T>): Promise<T> {
@@ -135,12 +168,172 @@ function resultStatusLabel(result: SessionResult, defaultLabel: string | null = 
     return defaultLabel;
 }
 
+const getMaxLapCount = (results: SessionResult[]): number =>
+    results.reduce((max, entry) => Math.max(max, entry.number_of_laps ?? 0), 0);
+
+/**
+ * Build lap-based summaries from race control entries (used on every session detail payload).
+ */
+function summarizeRaceControl(
+    entries: RaceControl[],
+    maxLap: number
+): RaceControlSummary {
+    const intervals: SafetyCarInterval[] = [];
+    const safetyMessages = entries
+        .filter(entry => entry.category === 'SafetyCar' && typeof entry.lapNumber === 'number')
+        .sort((a, b) => (a.lapNumber ?? 0) - (b.lapNumber ?? 0));
+
+    let activeStart: number | null = null;
+    safetyMessages.forEach(message => {
+        const lap = message.lapNumber ?? 0;
+        if (isSafetyCarStartMessage(message.message)) {
+            activeStart = lap;
+        }
+
+        if (activeStart != null && isSafetyCarEndMessage(message.message)) {
+            const endLap = Math.max(lap, activeStart);
+            intervals.push({ start: activeStart, end: endLap });
+            activeStart = null;
+        }
+    });
+
+    if (activeStart != null) {
+        const finalLap = maxLap > 0 ? maxLap : activeStart;
+        intervals.push({ start: activeStart, end: finalLap });
+    }
+
+    const lapSet = new Set<number>();
+    intervals.forEach(({ start, end }) => {
+        for (let lap = start; lap <= end; lap++) {
+            lapSet.add(lap);
+        }
+    });
+
+    return {
+        safetyCarIntervals: intervals,
+        safetyCarLaps: Array.from(lapSet).sort((a, b) => a - b),
+    };
+}
+
+/**
+ * Inflate the base OpenF1 responses into the driver-centric shape consumed by the UI.
+ */
+function buildSessionDriverData(
+    drivers: Driver[],
+    laps: Lap[],
+    stints: Stint[],
+    results: SessionResult[]
+): SessionDriverData[] {
+    const lapsByDriver = new Map<number, Lap[]>();
+    laps.forEach(lap => {
+        if (!lapsByDriver.has(lap.driver_number)) {
+            lapsByDriver.set(lap.driver_number, []);
+        }
+        lapsByDriver.get(lap.driver_number)!.push(lap);
+    });
+    lapsByDriver.forEach(list => list.sort((a, b) => a.lap_number - b.lap_number));
+
+    const stintsByDriver = new Map<number, Stint[]>();
+    stints.forEach(stint => {
+        if (!stintsByDriver.has(stint.driver_number)) {
+            stintsByDriver.set(stint.driver_number, []);
+        }
+        stintsByDriver.get(stint.driver_number)!.push(stint);
+    });
+    stintsByDriver.forEach(list => list.sort((a, b) => a.lap_start - b.lap_start));
+
+    const resultMap = new Map(results.map(result => [result.driver_number, result]));
+
+    return drivers.map(driver => ({
+        driverNumber: driver.driver_number,
+        driver: {
+            number: driver.driver_number,
+            name: driver.full_name,
+            shortName: driver.name_acronym,
+            team: driver.team_name,
+            teamColor: driver.team_colour,
+            headshotUrl: driver.headshot_url,
+        },
+        laps: lapsByDriver.get(driver.driver_number) ?? [],
+        stints: stintsByDriver.get(driver.driver_number) ?? [],
+        sessionResult: resultMap.get(driver.driver_number) ?? null,
+    }));
+}
+
+async function assembleSingleDriverEntry(
+    sessionKey: number,
+    driverNumber: number
+): Promise<SessionDriverData | null> {
+    const driver = await getDriverByNumber(sessionKey, driverNumber);
+    if (!driver) {
+        console.warn(
+            `[SERVICE] Driver ${driverNumber} not found in session ${sessionKey} when building single-driver detail`
+        );
+        return null;
+    }
+
+    const [laps, stints, sessionResult] = await Promise.all([
+        getLapsByDriverAndSession(sessionKey, driverNumber),
+        getStintsByDriverAndSession(sessionKey, driverNumber),
+        getDriverSessionResult(sessionKey, driverNumber),
+    ]);
+
+    const driverEntries = buildSessionDriverData(
+        [driver],
+        laps,
+        stints,
+        sessionResult ? [sessionResult] : []
+    );
+
+    return driverEntries[0] ?? null;
+}
+
+async function resolveSessionMetadata(
+    sessionKey: number,
+    drivers: Driver[],
+    results: SessionResult[]
+): Promise<Session> {
+    const meetingKey =
+        drivers[0]?.meeting_key ??
+        results[0]?.meeting_key ??
+        null;
+
+    if (meetingKey == null) {
+        throw new Error(`Unable to determine meeting for session ${sessionKey}`);
+    }
+
+    const sessions = await getSessionsByMeeting(meetingKey);
+    const session = sessions.find(entry => entry.session_key === sessionKey);
+    if (session) {
+        return session;
+    }
+
+    const now = new Date();
+    return {
+        session_key: sessionKey,
+        session_name: `Session ${sessionKey}`,
+        session_type: 'Unknown',
+        meeting_key: meetingKey,
+        circuit_key: 0,
+        circuit_short_name: '',
+        location: '',
+        country_key: 0,
+        country_code: '',
+        country_name: '',
+        date_start: now.toISOString(),
+        date_end: now.toISOString(),
+        gmt_offset: '+00:00',
+        year: now.getUTCFullYear(),
+    };
+}
+
 /* =========================
    MEETINGS SERVICE
 ========================= */
 
 /**
  * Get all meetings for a year
+ * Used by: SessionsScreen (season calendar list)
  */
 export function getMeetingsByYear(year: number): Promise<Meeting[]> {
     return withServiceError(
@@ -151,6 +344,7 @@ export function getMeetingsByYear(year: number): Promise<Meeting[]> {
 
 /**
  * Get meeting by key
+ * Used by: GPScreen (event overview) to render hero info.
  */
 export async function getMeetingByKey(meetingKey: number): Promise<Meeting | null> {
     const meetings = await withServiceError(
@@ -166,6 +360,7 @@ export async function getMeetingByKey(meetingKey: number): Promise<Meeting | nul
 
 /**
  * Get all sessions for a meeting
+ * Used by: GPScreen to display the weekend schedule.
  */
 export function getSessionsByMeeting(meetingKey: number): Promise<Session[]> {
     return withServiceError(
@@ -184,6 +379,7 @@ export async function getQualifyingSession(meetingKey: number): Promise<Session 
 
 /**
  * Get race session for a meeting
+ * Used by: GPScreen to look up podium for the traditional race session.
  */
 export async function getRaceSession(meetingKey: number): Promise<Session | null> {
     const sessions = await getSessionsByMeeting(meetingKey);
@@ -200,6 +396,9 @@ export async function getSprintSession(meetingKey: number): Promise<Session | nu
 
 /**
  * Get all practice sessions for a meeting
+ */
+/**
+ * NOTE: Not used by the UI anymore; kept temporarily for parity with other session helpers.
  */
 export async function getPracticeSessions(meetingKey: number): Promise<Session[]> {
     const sessions = await getSessionsByMeeting(meetingKey);
@@ -246,6 +445,7 @@ export function getDriversByMeeting(meetingKey: number): Promise<Driver[]> {
 
 /**
  * Get the season driver lineup using the first meeting as reference
+ * Used by: DriversScreen (full roster list).
  */
 export async function getSeasonDrivers(year: number): Promise<Driver[]> {
     const meetings = await getMeetingsByYear(year);
@@ -264,6 +464,7 @@ export async function getSeasonDrivers(year: number): Promise<Driver[]> {
 
 /**
  * Get a specific driver in a session
+ * Used by: per-driver fallback detail helpers.
  */
 export async function getDriverByNumber(
     sessionKey: number,
@@ -300,6 +501,10 @@ export function getSessionResultsByDriver(driverNumber: number): Promise<Session
 /**
  * Get qualifying results for a meeting
  */
+/**
+ * NOTE: Legacy helper kept for backwards compatibility. Qualifying flows now call
+ * getQualifyingSessionDetail instead, so this can be removed once external callers are gone.
+ */
 export async function getQualifyingSessionResults(meetingKey: number): Promise<SessionResult[] | null> {
     const qualiSession = await getQualifyingSession(meetingKey);
     if (!qualiSession) {
@@ -312,6 +517,9 @@ export async function getQualifyingSessionResults(meetingKey: number): Promise<S
 
 /**
  * Get race results for a meeting
+ */
+/**
+ * NOTE: Legacy helper superseded by getRaceSessionDetail (which includes classification + laps).
  */
 export async function getRaceSessionResults(meetingKey: number): Promise<SessionResult[] | null> {
     const raceSession = await getRaceSession(meetingKey);
@@ -326,6 +534,9 @@ export async function getRaceSessionResults(meetingKey: number): Promise<Session
 /**
  * Get sprint results for a meeting
  */
+/**
+ * NOTE: Legacy helper – no screen consumes sprint data right now.
+ */
 export async function getSprintSessionResults(meetingKey: number): Promise<SessionResult[] | null> {
     const sprintSession = await getSprintSession(meetingKey);
     if (!sprintSession) {
@@ -338,6 +549,7 @@ export async function getSprintSessionResults(meetingKey: number): Promise<Sessi
 
 /**
  * Get a specific driver's result for a session
+ * Used by: per-driver fallback detail fetchers (race/practice/qualy).
  */
 export async function getDriverSessionResult(
     sessionKey: number,
@@ -363,6 +575,7 @@ export function getLapsBySession(sessionKey: number): Promise<Lap[]> {
 
 /**
  * Get all laps for a driver in a session
+ * Used by: per-driver fallback detail fetchers when a screen refreshes independently.
  */
 export function getLapsByDriverAndSession(
     sessionKey: number,
@@ -376,6 +589,9 @@ export function getLapsByDriverAndSession(
 
 /**
  * Get fastest lap in a session (across all drivers)
+ */
+/**
+ * NOTE: Not currently surfaced in the UI. Keep until we expose "session fastest lap" again.
  */
 export async function getFastestLapInSession(sessionKey: number): Promise<{
     lap: Lap;
@@ -415,6 +631,7 @@ export function getStintsBySession(sessionKey: number): Promise<Stint[]> {
 
 /**
  * Get all stints for a driver in a session
+ * Used by: per-driver fallback detail fetchers.
  */
 export function getStintsByDriverAndSession(
     sessionKey: number,
@@ -432,6 +649,9 @@ export function getStintsByDriverAndSession(
 
 /**
  * Get car telemetry data for a driver in a session
+ */
+/**
+ * NOTE: Telemetry views are not built yet; leave this helper until we confirm it is safe to delete.
  */
 export function getCarDataByDriverAndSession(
     sessionKey: number,
@@ -499,6 +719,7 @@ export async function getRaceControlBySession(
 
 /**
  * Build podium data from race session
+ * Used by: GPScreen header hero.
  */
 export function getPodium(session: Session): Promise<PodiumFinisher[]> {
     return withServiceError(
@@ -545,45 +766,6 @@ export function getPodium(session: Session): Promise<PodiumFinisher[]> {
  * Fetch detailed race overview for a driver in a session
  * Includes stints, laps, and race result
  */
-export function getDriverRaceOverview(
-    sessionKey: number,
-    driverNumber: number
-): Promise<DriverRaceOverview | null> {
-    return withServiceError(
-        `Failed to load race overview for driver ${driverNumber} in session ${sessionKey}`,
-        async () => {
-            const drivers = await getDriversBySession(sessionKey);
-            const driver = drivers.find(d => d.driver_number === driverNumber);
-
-            if (!driver) {
-                console.warn(`[SERVICE] Driver ${driverNumber} not found in session ${sessionKey}`);
-                return null;
-            }
-
-            const [stints, laps, raceResult] = await Promise.all([
-                getStintsByDriverAndSession(sessionKey, driverNumber),
-                getLapsByDriverAndSession(sessionKey, driverNumber),
-                getDriverSessionResult(sessionKey, driverNumber),
-            ]);
-
-            return {
-                driver: {
-                    number: driver.driver_number,
-                    name: driver.full_name,
-                    team: driver.team_name,
-                    teamColor: driver.team_colour || null,
-                    headshotUrl: driver.headshot_url || null,
-                },
-                stints,
-                laps,
-                lap_count: laps.length,
-                stint_count: stints.length,
-                raceResult,
-            };
-        }
-    );
-}
-
 /* =========================
    CLASSIFICATION HELPERS
 ========================= */
@@ -594,6 +776,9 @@ const isValidLapValue = (value: number | null | undefined): value is number =>
 const formatLapSegment = (value: number | null | undefined): string | null =>
     isValidLapValue(value) ? formatLapTime(value) : null;
 
+/**
+ * NOTE: Superseded by getQualifyingSessionDetail (UI calls that instead).
+ */
 export function getQualifyingClassification(
     sessionKey: number
 ): Promise<QualifyingDriverClassification[]> {
@@ -604,53 +789,62 @@ export function getQualifyingClassification(
                 fetchSessionResults(sessionKey),
                 fetchDriversBySession(sessionKey),
             ]);
-
-            const driverMap = new Map(drivers.map(driver => [driver.driver_number, driver]));
-
-            const rows: QualifyingDriverClassification[] = [];
-
-            results.forEach(result => {
-                const driver = driverMap.get(result.driver_number);
-                if (!driver) {
-                    console.warn(
-                        `[SERVICE] Driver ${result.driver_number} missing for qualifying classification in session ${sessionKey}`
-                    );
-                    return;
-                }
-
-                const durations = Array.isArray(result.duration) ? result.duration : [];
-                const bestSeconds = durations.filter(isValidLapValue);
-                const best = bestSeconds.length ? formatLapTime(Math.min(...bestSeconds)) : null;
-                const gapToPole =
-                    result.position === 1 ? 'Pole' : formatGapValue(result.gap_to_leader);
-
-                rows.push({
-                    position: typeof result.position === 'number' ? result.position : null,
-                    driverNumber: result.driver_number,
-                    driverName: driver.full_name,
-                    teamName: driver.team_name,
-                    teamColor: driver.team_colour,
-                    q1: formatLapSegment(durations[0]),
-                    q2: formatLapSegment(durations[1]),
-                    q3: formatLapSegment(durations[2]),
-                    best,
-                    gapToPole,
-                    status: resultStatusLabel(result, null),
-                });
-            });
-
-            rows.sort((a, b) => {
-                if (a.position === null && b.position === null) return 0;
-                if (a.position === null) return 1;
-                if (b.position === null) return -1;
-                return a.position - b.position;
-            });
-
-            return rows;
+            return buildQualifyingClassificationFromData(results, drivers, sessionKey);
         }
     );
 }
 
+function buildQualifyingClassificationFromData(
+    results: SessionResult[],
+    drivers: Driver[],
+    sessionKey: number
+): QualifyingDriverClassification[] {
+    const driverMap = new Map(drivers.map(driver => [driver.driver_number, driver]));
+
+    const rows: QualifyingDriverClassification[] = [];
+
+    results.forEach(result => {
+        const driver = driverMap.get(result.driver_number);
+        if (!driver) {
+            console.warn(
+                `[SERVICE] Driver ${result.driver_number} missing for qualifying classification in session ${sessionKey}`
+            );
+            return;
+        }
+
+        const durations = Array.isArray(result.duration) ? result.duration : [];
+        const bestSeconds = durations.filter(isValidLapValue);
+        const best = bestSeconds.length ? formatLapTime(Math.min(...bestSeconds)) : null;
+        const gapToPole = result.position === 1 ? 'Pole' : formatGapValue(result.gap_to_leader);
+
+        rows.push({
+            position: typeof result.position === 'number' ? result.position : null,
+            driverNumber: result.driver_number,
+            driverName: driver.full_name,
+            teamName: driver.team_name,
+            teamColor: driver.team_colour,
+            q1: formatLapSegment(durations[0]),
+            q2: formatLapSegment(durations[1]),
+            q3: formatLapSegment(durations[2]),
+            best,
+            gapToPole,
+            status: resultStatusLabel(result, null),
+        });
+    });
+
+    rows.sort((a, b) => {
+        if (a.position === null && b.position === null) return 0;
+        if (a.position === null) return 1;
+        if (b.position === null) return -1;
+        return a.position - b.position;
+    });
+
+    return rows;
+}
+
+/**
+ * NOTE: Superseded by getRaceSessionDetail; kept for any legacy callers that only need classification rows.
+ */
 export function getRaceClassification(
     sessionKey: number
 ): Promise<RaceDriverClassification[]> {
@@ -680,61 +874,226 @@ export function getRaceClassification(
                 console.warn(`[SERVICE] Stints unavailable for session ${sessionKey}:`, error);
             }
 
-            const driverMap = new Map(drivers.map(driver => [driver.driver_number, driver]));
-            const gridMap = new Map(startingGrid.map(entry => [entry.driver_number, entry.position]));
-
-            const stintCounts = new Map<number, number>();
-            stints.forEach(stint => {
-                stintCounts.set(stint.driver_number, (stintCounts.get(stint.driver_number) || 0) + 1);
-            });
-
-            const rows: RaceDriverClassification[] = [];
-
-            results.forEach(result => {
-                const driver = driverMap.get(result.driver_number);
-                if (!driver) {
-                    console.warn(
-                        `[SERVICE] Driver ${result.driver_number} missing for race classification in session ${sessionKey}`
-                    );
-                    return;
-                }
-
-                const totalTime =
-                    typeof result.duration === 'number' ? formatRaceTime(result.duration) : null;
-
-                const pitStintCount = stintCounts.get(result.driver_number);
-                const pitStops =
-                    typeof pitStintCount === 'number' ? Math.max(pitStintCount - 1, 0) : null;
-
-                const baseStatus = resultStatusLabel(result, 'Finished') || 'Finished';
-                const normalizedStatus =
-                    result.position === 1 && baseStatus === 'Finished' ? 'Winner' : baseStatus;
-
-                rows.push({
-                    position: typeof result.position === 'number' ? result.position : null,
-                    driverNumber: result.driver_number,
-                    driverName: driver.full_name,
-                    teamName: driver.team_name,
-                    teamColor: driver.team_colour,
-                    gridPosition: gridMap.get(result.driver_number) ?? null,
-                    laps: result.number_of_laps,
-                    totalTime,
-                    gapToLeader:
-                        result.position === 1 ? 'Winner' : formatGapValue(result.gap_to_leader),
-                    pitStops,
-                    status: normalizedStatus,
-                });
-            });
-
-            rows.sort((a, b) => {
-                if (a.position === null && b.position === null) return 0;
-                if (a.position === null) return 1;
-                if (b.position === null) return -1;
-                return a.position - b.position;
-            });
-
-            return rows;
+            return buildRaceClassificationFromData(results, drivers, startingGrid, stints, sessionKey);
         }
+    );
+}
+
+function buildRaceClassificationFromData(
+    results: SessionResult[],
+    drivers: Driver[],
+    startingGrid: StartingGrid[],
+    stints: Stint[],
+    sessionKey: number
+): RaceDriverClassification[] {
+    const driverMap = new Map(drivers.map(driver => [driver.driver_number, driver]));
+    const gridMap = new Map(startingGrid.map(entry => [entry.driver_number, entry.position]));
+
+    const stintCounts = new Map<number, number>();
+    stints.forEach(stint => {
+        stintCounts.set(stint.driver_number, (stintCounts.get(stint.driver_number) || 0) + 1);
+    });
+
+    const rows: RaceDriverClassification[] = [];
+
+    results.forEach(result => {
+        const driver = driverMap.get(result.driver_number);
+        if (!driver) {
+            console.warn(
+                `[SERVICE] Driver ${result.driver_number} missing for race classification in session ${sessionKey}`
+            );
+            return;
+        }
+
+        const totalTime = typeof result.duration === 'number' ? formatRaceTime(result.duration) : null;
+
+        const pitStintCount = stintCounts.get(result.driver_number);
+        const pitStops =
+            typeof pitStintCount === 'number' ? Math.max(pitStintCount - 1, 0) : null;
+
+        const baseStatus = resultStatusLabel(result, 'Finished') || 'Finished';
+        const normalizedStatus =
+            result.position === 1 && baseStatus === 'Finished' ? 'Winner' : baseStatus;
+
+        rows.push({
+            position: typeof result.position === 'number' ? result.position : null,
+            driverNumber: result.driver_number,
+            driverName: driver.full_name,
+            teamName: driver.team_name,
+            teamColor: driver.team_colour,
+            gridPosition: gridMap.get(result.driver_number) ?? null,
+            laps: result.number_of_laps,
+            totalTime,
+            gapToLeader: result.position === 1 ? 'Winner' : formatGapValue(result.gap_to_leader),
+            pitStops,
+            status: normalizedStatus,
+        });
+    });
+
+    rows.sort((a, b) => {
+        if (a.position === null && b.position === null) return 0;
+        if (a.position === null) return 1;
+        if (b.position === null) return -1;
+        return a.position - b.position;
+    });
+
+    return rows;
+}
+
+type SessionDetailResources = {
+    session: Session;
+    drivers: Driver[];
+    laps: Lap[];
+    stints: Stint[];
+    results: SessionResult[];
+    raceControl: RaceControl[];
+    raceControlSummary: RaceControlSummary;
+    driverEntries: SessionDriverData[];
+};
+
+/**
+ * Core aggregation step shared across race/qualy/practice detail endpoints.
+ * Fetches every primitive needed for the UI once so downstream screens can just pick from the payload.
+ */
+async function assembleSessionDetailResources(sessionKey: number): Promise<SessionDetailResources> {
+    const [drivers, laps, stints, results, raceControl] = await Promise.all([
+        getDriversBySession(sessionKey),
+        getLapsBySession(sessionKey),
+        getStintsBySession(sessionKey),
+        getSessionResults(sessionKey),
+        getRaceControlBySession(sessionKey),
+    ]);
+
+    const session = await resolveSessionMetadata(sessionKey, drivers, results);
+    const raceControlSummary = summarizeRaceControl(raceControl, getMaxLapCount(results));
+    const driverEntries = buildSessionDriverData(drivers, laps, stints, results);
+
+    return {
+        session,
+        drivers,
+        laps,
+        stints,
+        results,
+        raceControl,
+        raceControlSummary,
+        driverEntries,
+    };
+}
+
+/**
+ * Used by RaceScreen + DriverRaceDetailsScreen. Provides classification, driver data, and safety car info in one call.
+ */
+export function getRaceSessionDetail(sessionKey: number): Promise<RaceSessionDetail> {
+    return withServiceError(
+        `Failed to build race session detail for ${sessionKey}`,
+        async () => {
+            const resources = await assembleSessionDetailResources(sessionKey);
+
+            let startingGrid: StartingGrid[] = [];
+            try {
+                startingGrid = await fetchStartingGridBySession(sessionKey);
+            } catch (error) {
+                console.warn(
+                    `[SERVICE] Starting grid unavailable for session ${sessionKey}:`,
+                    error
+                );
+            }
+
+            const classification = buildRaceClassificationFromData(
+                resources.results,
+                resources.drivers,
+                startingGrid,
+                resources.stints,
+                sessionKey
+            );
+
+            return {
+                ...resources.session,
+                detailType: 'race',
+                drivers: resources.driverEntries,
+                raceControl: resources.raceControl,
+                raceControlSummary: resources.raceControlSummary,
+                classification,
+            };
+        }
+    );
+}
+
+/**
+ * Used by QualifyingScreen (and any driver detail screens that opt-in later).
+ */
+export function getQualifyingSessionDetail(sessionKey: number): Promise<QualifyingSessionDetail> {
+    return withServiceError(
+        `Failed to build qualifying session detail for ${sessionKey}`,
+        async () => {
+            const resources = await assembleSessionDetailResources(sessionKey);
+            const classification = buildQualifyingClassificationFromData(
+                resources.results,
+                resources.drivers,
+                sessionKey
+            );
+
+            return {
+                ...resources.session,
+                detailType: 'qualifying',
+                drivers: resources.driverEntries,
+                raceControl: resources.raceControl,
+                raceControlSummary: resources.raceControlSummary,
+                classification,
+            };
+        }
+    );
+}
+
+/**
+ * Used by FreePracticeScreen + DriverPracticeDetailsScreen.
+ */
+export function getPracticeSessionDetail(sessionKey: number): Promise<PracticeSessionDetail> {
+    return withServiceError(
+        `Failed to build practice session detail for ${sessionKey}`,
+        async () => {
+            const resources = await assembleSessionDetailResources(sessionKey);
+            return {
+                ...resources.session,
+                detailType: 'practice',
+                drivers: resources.driverEntries,
+                raceControl: resources.raceControl,
+                raceControlSummary: resources.raceControlSummary,
+            };
+        }
+    );
+}
+
+/**
+ * Per-driver lightweight detail builders (used as refresh fallbacks so we don't refetch whole sessions)
+ */
+export function getRaceDriverDetail(
+    sessionKey: number,
+    driverNumber: number
+): Promise<SessionDriverData | null> {
+    return withServiceError(
+        `Failed to build race driver detail for driver ${driverNumber} in session ${sessionKey}`,
+        () => assembleSingleDriverEntry(sessionKey, driverNumber)
+    );
+}
+
+export function getPracticeDriverDetail(
+    sessionKey: number,
+    driverNumber: number
+): Promise<SessionDriverData | null> {
+    return withServiceError(
+        `Failed to build practice driver detail for driver ${driverNumber} in session ${sessionKey}`,
+        () => assembleSingleDriverEntry(sessionKey, driverNumber)
+    );
+}
+
+export function getQualifyingDriverDetail(
+    sessionKey: number,
+    driverNumber: number
+): Promise<SessionDriverData | null> {
+    return withServiceError(
+        `Failed to build qualifying driver detail for driver ${driverNumber} in session ${sessionKey}`,
+        () => assembleSingleDriverEntry(sessionKey, driverNumber)
     );
 }
 
@@ -798,6 +1157,7 @@ export function getDriverSeasonStats(
     year: number,
     context?: DriverSeasonContext
 ): Promise<DriverSeasonStats | null> {
+    // Used by DriverSeasonScreen (season summary view).
     return withServiceError(
         `Failed to build season stats for driver ${driverNumber} in year ${year}`,
         async () => {

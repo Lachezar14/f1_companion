@@ -10,10 +10,10 @@ import {
 } from 'react-native';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { getQualifyingClassification } from '../../backend/service/openf1Service';
-import type { QualifyingDriverClassification } from '../../backend/types';
-import QualifyingResultCard from '../component/session/QualifyingResultCard';
-import { useServiceRequest } from '../hooks/useServiceRequest';
+import { getRaceSessionDetail } from '../../../../backend/service/openf1Service';
+import type { RaceSessionDetail } from '../../../../backend/types';
+import RaceResultCard from '../../../component/session/RaceResultCard';
+import { useServiceRequest } from '../../../hooks/useServiceRequest';
 
 type RouteParams = {
     sessionKey: number;
@@ -22,15 +22,16 @@ type RouteParams = {
 };
 type NavigationProp = NativeStackNavigationProp<any>;
 
-const QualifyingScreen = () => {
+const EMPTY_SAFETY_CAR_LAPS: number[] = [];
+
+const RaceScreen = () => {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const navigation = useNavigation<NavigationProp>();
     const { sessionKey, sessionName, meetingName } = route.params;
 
-    const loadClassification = useCallback(
-        () => getQualifyingClassification(sessionKey),
-        [sessionKey]
-    );
+    const loadRaceData = useCallback(async (): Promise<RaceSessionDetail> => {
+        return getRaceSessionDetail(sessionKey);
+    }, [sessionKey]);
 
     const {
         data,
@@ -39,25 +40,31 @@ const QualifyingScreen = () => {
         refreshing,
         reload,
         refresh,
-    } = useServiceRequest<QualifyingDriverClassification[]>(loadClassification, [loadClassification]);
+    } = useServiceRequest<RaceSessionDetail>(loadRaceData, [loadRaceData]);
 
-    const rows = data ?? [];
+    const rows = data?.classification ?? [];
+    const safetyCarLaps = data?.raceControlSummary.safetyCarLaps ?? EMPTY_SAFETY_CAR_LAPS;
+    const driverEntries = data?.drivers ?? [];
 
     const handleDriverPress = useCallback(
         (driverNumber: number) => {
+            const driverData =
+                driverEntries.find(entry => entry.driverNumber === driverNumber) ?? null;
             navigation.navigate('DriverOverview', {
                 driverNumber,
                 sessionKey,
+                safetyCarLaps,
+                driverData,
             });
         },
-        [navigation, sessionKey]
+        [navigation, sessionKey, safetyCarLaps, driverEntries]
     );
 
     if (loading) {
         return (
             <View style={styles.center}>
                 <ActivityIndicator size="large" color="#E10600" />
-                <Text style={styles.loadingText}>Loading qualifying data...</Text>
+                <Text style={styles.loadingText}>Loading race data...</Text>
             </View>
         );
     }
@@ -91,12 +98,12 @@ const QualifyingScreen = () => {
             </View>
 
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>⏱️ Qualifying Classification</Text>
+                <Text style={styles.sectionTitle}>🏁 Race Classification</Text>
                 {rows.length === 0 ? (
                     <Text style={styles.noData}>No classification available</Text>
                 ) : (
                     rows.map(row => (
-                        <QualifyingResultCard
+                        <RaceResultCard
                             key={row.driverNumber}
                             data={row}
                             onPress={handleDriverPress}
@@ -110,7 +117,7 @@ const QualifyingScreen = () => {
     );
 };
 
-export default QualifyingScreen;
+export default RaceScreen;
 
 const styles = StyleSheet.create({
     container: {

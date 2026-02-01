@@ -9,15 +9,11 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
-import { Lap } from '../../backend/types';
-import {
-    getSessionResults,
-    getDriversBySession,
-    getLapsBySession
-} from '../../backend/service/openf1Service';
-import FreePracticeResultCard, { DriverSessionData } from "../component/session/FreePracticeResultCard";
-import { formatLapTime } from '../../shared/time';
-import { useServiceRequest } from '../hooks/useServiceRequest';
+import { getPracticeSessionDetail } from '../../../../backend/service/openf1Service';
+import FreePracticeResultCard, { DriverSessionData } from "../../../component/session/FreePracticeResultCard";
+import { formatLapTime } from '../../../../shared/time';
+import { useServiceRequest } from '../../../hooks/useServiceRequest';
+import type { PracticeSessionDetail } from '../../../../backend/types';
 
 type RouteParams = {
     sessionKey: number;
@@ -29,64 +25,10 @@ export default function FreePracticeScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const { sessionKey, sessionName, meetingName } = route.params;
 
-    const loadSessionDrivers = useCallback(async (): Promise<DriverSessionData[]> => {
-        const [sessionResults, drivers, allLaps] = await Promise.all([
-            getSessionResults(sessionKey),
-            getDriversBySession(sessionKey),
-            getLapsBySession(sessionKey),
-        ]);
-
-        const driverMap = new Map(drivers.map(d => [d.driver_number, d]));
-
-        const lapsByDriver = new Map<number, { count: number; fastest: number | null }>();
-
-        allLaps.forEach((lap: Lap) => {
-            if (!lapsByDriver.has(lap.driver_number)) {
-                lapsByDriver.set(lap.driver_number, { count: 0, fastest: null });
-            }
-
-            const driverLaps = lapsByDriver.get(lap.driver_number)!;
-            driverLaps.count++;
-
-            if (lap.lap_duration != null && lap.lap_duration > 0) {
-                if (driverLaps.fastest === null || lap.lap_duration < driverLaps.fastest) {
-                    driverLaps.fastest = lap.lap_duration;
-                }
-            }
-        });
-
-        const driverData: DriverSessionData[] = [];
-        sessionResults.forEach(result => {
-            const driver = driverMap.get(result.driver_number);
-            if (!driver) {
-                return;
-            }
-
-            const lapData = lapsByDriver.get(result.driver_number);
-            const lapCount = lapData?.count || 0;
-            const fastestLap = lapData?.fastest ? formatLapTime(lapData.fastest) : null;
-
-            driverData.push({
-                position: result.position,
-                driverNumber: result.driver_number,
-                driverName: driver.full_name,
-                teamName: driver.team_name,
-                lapCount,
-                fastestLap,
-                dnf: result.dnf || false,
-                dns: result.dns || false,
-                dsq: result.dsq || false,
-                teamColor: driver.team_colour || undefined,
-            });
-        });
-
-        const normalizePosition = (driver: DriverSessionData) =>
-            driver.position ?? Number.MAX_SAFE_INTEGER;
-
-        driverData.sort((a, b) => normalizePosition(a) - normalizePosition(b));
-
-        return driverData;
-    }, [sessionKey]);
+    const loadSessionDrivers = useCallback(
+        () => getPracticeSessionDetail(sessionKey),
+        [sessionKey]
+    );
 
     const {
         data,
@@ -95,9 +37,41 @@ export default function FreePracticeScreen() {
         refreshing,
         reload,
         refresh,
-    } = useServiceRequest(loadSessionDrivers, [loadSessionDrivers]);
+    } = useServiceRequest<PracticeSessionDetail>(loadSessionDrivers, [loadSessionDrivers]);
 
-    const drivers = data ?? [];
+    const driverEntries = data?.drivers ?? [];
+
+    const drivers: DriverSessionData[] = driverEntries
+        .map(entry => {
+            const fastestLapSeconds = entry.laps
+                .filter(lap => lap.lap_duration && lap.lap_duration > 0)
+                .reduce<number | null>((best, lap) => {
+                    if (lap.lap_duration == null) return best;
+                    if (best == null || lap.lap_duration < best) {
+                        return lap.lap_duration;
+                    }
+                    return best;
+                }, null);
+
+            return {
+                position: entry.sessionResult?.position ?? null,
+                driverNumber: entry.driver.number,
+                driverName: entry.driver.name,
+                teamName: entry.driver.team,
+                lapCount: entry.laps.length,
+                fastestLap: fastestLapSeconds ? formatLapTime(fastestLapSeconds) : null,
+                dnf: entry.sessionResult?.dnf ?? false,
+                dns: entry.sessionResult?.dns ?? false,
+                dsq: entry.sessionResult?.dsq ?? false,
+                teamColor: entry.driver.teamColor ?? undefined,
+                driverEntry: entry,
+            };
+        })
+        .sort((a, b) => {
+            const posA = a.position ?? Number.MAX_SAFE_INTEGER;
+            const posB = b.position ?? Number.MAX_SAFE_INTEGER;
+            return posA - posB;
+        });
 
     // Loading state
     if (loading) {

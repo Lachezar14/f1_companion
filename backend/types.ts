@@ -239,3 +239,49 @@ export type RaceControl = {
     scope?: string | null;
     sector?: number | null;
 };
+
+export type SafetyCarInterval = {
+    start: number;
+    end: number;
+};
+
+export type RaceControlSummary = {
+    safetyCarLaps: number[];
+    safetyCarIntervals: SafetyCarInterval[];
+};
+
+export type SessionDriverData = {
+    driverNumber: number;
+    driver: {
+        number: number;
+        name: string;
+        shortName: string;
+        team: string;
+        teamColor?: string | null;
+        headshotUrl?: string | null;
+    };
+    laps: Lap[];
+    stints: Stint[];
+    sessionResult: SessionResult | null;
+};
+
+export interface SessionDetailBase extends Session {
+    detailType: 'race' | 'qualifying' | 'practice';
+    drivers: SessionDriverData[];
+    raceControl: RaceControl[];
+    raceControlSummary: RaceControlSummary;
+}
+
+export interface RaceSessionDetail extends SessionDetailBase {
+    detailType: 'race';
+    classification: RaceDriverClassification[];
+}
+
+export interface QualifyingSessionDetail extends SessionDetailBase {
+    detailType: 'qualifying';
+    classification: QualifyingDriverClassification[];
+}
+
+export interface PracticeSessionDetail extends SessionDetailBase {
+    detailType: 'practice';
+}

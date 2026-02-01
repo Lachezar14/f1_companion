@@ -9,23 +9,22 @@ import {
     Image,
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
-import { DriverRaceOverview, getDriverRaceOverview } from '../../backend/service/openf1Service';
-import { Lap, Stint } from '../../backend/types';
-import RaceStatsSection from "../component/driver/RaceStatsSection";
-import { formatLapTime } from '../../shared/time';
+import { getRaceDriverDetail } from '../../../../backend/service/openf1Service';
+import { Lap, SessionDriverData, Stint } from '../../../../backend/types';
+import RaceStatsSection from "../../../component/driver/RaceStatsSection";
+import { formatLapTime } from '../../../../shared/time';
 
 type RouteParams = {
     driverNumber: number;
     sessionKey: number;
+    driverData?: SessionDriverData | null;
     safetyCarLaps?: number[];
-    safetyCarIntervals?: { start: number; end: number }[];
 };
 
 const EMPTY_SAFETY_CAR_LAPS: number[] = [];
-const EMPTY_SAFETY_CAR_INTERVALS: { start: number; end: number }[] = [];
 
 interface DriverState {
-    data: DriverRaceOverview | null;
+    driverData: SessionDriverData | null;
     loading: boolean;
     refreshing: boolean;
     error: string | null;
@@ -54,15 +53,14 @@ export default function DriverOverviewScreen() {
     const {
         driverNumber,
         sessionKey,
+        driverData: driverDataParam,
         safetyCarLaps: safetyCarParam,
-        safetyCarIntervals: safetyCarIntervalsParam,
     } = route.params;
     const safetyCarLaps = safetyCarParam ?? EMPTY_SAFETY_CAR_LAPS;
-    const safetyCarIntervals = safetyCarIntervalsParam ?? EMPTY_SAFETY_CAR_INTERVALS;
 
     const [state, setState] = useState<DriverState>({
-        data: null,
-        loading: true,
+        driverData: driverDataParam ?? null,
+        loading: !driverDataParam,
         refreshing: false,
         error: null,
     });
@@ -71,33 +69,22 @@ export default function DriverOverviewScreen() {
         async (isRefresh = false) => {
             setState(prev => ({
                 ...prev,
-                loading: !isRefresh,
+                loading: !isRefresh && !prev.driverData,
                 refreshing: isRefresh,
                 error: null,
             }));
 
             try {
-                const overview = await getDriverRaceOverview(sessionKey, driverNumber);
-
-                if (!overview) {
-                    setState({
-                        data: null,
-                        loading: false,
-                        refreshing: false,
-                        error: 'Driver data not found for this session',
-                    });
-                    return;
-                }
-
+                const detail = await getRaceDriverDetail(sessionKey, driverNumber);
                 setState({
-                    data: overview,
+                    driverData: detail,
                     loading: false,
                     refreshing: false,
-                    error: null,
+                    error: detail ? null : 'Driver data not found for this session',
                 });
             } catch (error) {
                 setState({
-                    data: null,
+                    driverData: null,
                     loading: false,
                     refreshing: false,
                     error: error instanceof Error ? error.message : 'Failed to load driver data',
@@ -108,21 +95,36 @@ export default function DriverOverviewScreen() {
     );
 
     useEffect(() => {
-        fetchDriver();
-    }, [fetchDriver]);
+        if (driverDataParam) {
+            setState(prev => ({
+                ...prev,
+                driverData: driverDataParam,
+                loading: false,
+                error: null,
+            }));
+        }
+    }, [driverDataParam]);
+
+    useEffect(() => {
+        if (!driverDataParam) {
+            fetchDriver();
+        }
+    }, [driverDataParam, fetchDriver]);
 
     const handleRefresh = useCallback(() => fetchDriver(true), [fetchDriver]);
 
-    const sortedStints = useMemo(() => {
-        const stints = state.data?.stints ?? [];
-        return [...stints].sort((a, b) => a.lap_start - b.lap_start);
-    }, [state.data?.stints]);
-
     const safetyCarLapSet = useMemo(() => new Set(safetyCarLaps), [safetyCarLaps]);
 
+    const driverData = state.driverData;
+
+    const sortedStints = useMemo(() => {
+        if (!driverData) return [];
+        return [...driverData.stints].sort((a, b) => a.lap_start - b.lap_start);
+    }, [driverData]);
+
     const lapRows = useMemo(() => {
-        const laps = state.data?.laps ?? [];
-        return laps.map((lap: Lap) => {
+        if (!driverData) return [];
+        return driverData.laps.map((lap: Lap) => {
             const currentStint = sortedStints.find(
                 (stint: Stint) =>
                     lap.lap_number >= stint.lap_start && lap.lap_number <= stint.lap_end
@@ -145,7 +147,7 @@ export default function DriverOverviewScreen() {
                 isSafetyCar,
             };
         });
-    }, [state.data?.laps, sortedStints, safetyCarLapSet]);
+    }, [driverData, sortedStints, safetyCarLapSet]);
 
     if (state.loading) {
         return (
@@ -156,7 +158,7 @@ export default function DriverOverviewScreen() {
         );
     }
 
-    if (state.error || !state.data) {
+    if (state.error) {
         return (
             <View style={styles.center}>
                 <Text style={styles.errorTitle}>Unable to Load Driver</Text>
@@ -165,10 +167,19 @@ export default function DriverOverviewScreen() {
         );
     }
 
-    const driver_overview = state.data;
-    const headerColor = getTeamColorHex(driver_overview.driver.teamColor);
-    const driverImageSource = driver_overview.driver.headshotUrl
-        ? { uri: driver_overview.driver.headshotUrl }
+    if (!driverData) {
+        return (
+            <View style={styles.center}>
+                <Text style={styles.errorTitle}>Driver Not Found</Text>
+                <Text style={styles.errorMessage}>No data available for this driver.</Text>
+            </View>
+        );
+    }
+
+    const driverInfo = driverData.driver;
+    const headerColor = getTeamColorHex(driverInfo.teamColor);
+    const driverImageSource = driverInfo.headshotUrl
+        ? { uri: driverInfo.headshotUrl }
         : null;
 
     return (
@@ -190,34 +201,34 @@ export default function DriverOverviewScreen() {
                             <Image source={driverImageSource} style={styles.avatarImage} />
                         ) : (
                             <Text style={styles.avatarInitials}>
-                                {getDriverInitials(driver_overview.driver.name)}
+                                {getDriverInitials(driverInfo.name)}
                             </Text>
                         )}
                     </View>
                     <View style={styles.headerInfo}>
                         <View style={styles.headerInfoTop}>
-                            <Text style={styles.name}>{driver_overview.driver.name}</Text>
-                            <Text style={styles.number}>#{driver_overview.driver.number}</Text>
+                            <Text style={styles.name}>{driverInfo.name}</Text>
+                            <Text style={styles.number}>#{driverInfo.number}</Text>
                         </View>
-                        <Text style={styles.team}>{driver_overview.driver.team}</Text>
+                        <Text style={styles.team}>{driverInfo.team}</Text>
                     </View>
                 </View>
             </View>
 
             {/* Race Stats Section - Now using RaceStatsSection component */}
             <RaceStatsSection
-                raceResult={driver_overview.raceResult}
-                lapCount={driver_overview.lap_count}
-                stintCount={driver_overview.stint_count}
-                laps={driver_overview.laps}
-                stints={driver_overview.stints}
+                raceResult={driverData.sessionResult}
+                lapCount={driverData.laps.length}
+                stintCount={driverData.stints.length}
+                laps={driverData.laps}
+                stints={driverData.stints}
                 safetyCarLapSet={safetyCarLapSet}
             />
 
             {/* Lap Timeline */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Lap Timeline</Text>
-                {driver_overview.laps.length > 0 ? (
+                {driverData.laps.length > 0 ? (
                     <View style={styles.lapTable}>
                         <View style={[styles.lapRow, styles.lapHeaderRow]}>
                             <Text style={[styles.lapCell, styles.headerText]}>Lap</Text>

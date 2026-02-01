@@ -10,10 +10,10 @@ import {
 } from 'react-native';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { getRaceClassification, getRaceControlBySession } from '../../backend/service/openf1Service';
-import type { RaceControl, RaceDriverClassification } from '../../backend/types';
-import RaceResultCard from '../component/session/RaceResultCard';
-import { useServiceRequest } from '../hooks/useServiceRequest';
+import { getQualifyingSessionDetail } from '../../../../backend/service/openf1Service';
+import type { QualifyingDriverClassification, QualifyingSessionDetail } from '../../../../backend/types';
+import QualifyingResultCard from '../../../component/session/QualifyingResultCard';
+import { useServiceRequest } from '../../../hooks/useServiceRequest';
 
 type RouteParams = {
     sessionKey: number;
@@ -22,120 +22,15 @@ type RouteParams = {
 };
 type NavigationProp = NativeStackNavigationProp<any>;
 
-type RaceScreenData = {
-    classification: RaceDriverClassification[];
-    safetyCarLaps: number[];
-    safetyCarIntervals: { start: number; end: number }[];
-};
-
-const EMPTY_SAFETY_CAR_LAPS: number[] = [];
-const EMPTY_SAFETY_CAR_INTERVALS: { start: number; end: number }[] = [];
-
-const SAFETY_CAR_START_KEYWORDS = [
-    'deploy',
-    'deployed',
-    'deployment',
-    'enters the track',
-    'appears',
-    'out on track',
-];
-
-const SAFETY_CAR_END_KEYWORDS = [
-    'in this lap',
-    'returns to the pit',
-    'returning to the pits',
-    'ending',
-    'withdrawn',
-    'coming in',
-    'finished',
-];
-
-const isSafetyCarStartMessage = (message: string): boolean => {
-    const text = message.toLowerCase();
-    return SAFETY_CAR_START_KEYWORDS.some(keyword => text.includes(keyword));
-};
-
-const isSafetyCarEndMessage = (message: string): boolean => {
-    const text = message.toLowerCase();
-    return SAFETY_CAR_END_KEYWORDS.some(keyword => text.includes(keyword));
-};
-
-const deriveSafetyCarIntervals = (
-    classification: RaceDriverClassification[],
-    raceControl: RaceControl[]
-): { start: number; end: number }[] => {
-    const maxLap = classification.reduce(
-        (max, row) => Math.max(max, row.laps ?? 0),
-        0
-    );
-
-    const safetyMessages = raceControl
-        .filter(msg => msg.category === 'SafetyCar' && typeof msg.lapNumber === 'number')
-        .sort((a, b) => (a.lapNumber ?? 0) - (b.lapNumber ?? 0));
-
-    const intervals: { start: number; end: number }[] = [];
-    let activeStart: number | null = null;
-    safetyMessages.forEach(message => {
-        const lap = message.lapNumber!;
-        const msg = message.message ?? '';
-        const isStart = isSafetyCarStartMessage(msg);
-        const isEnd = isSafetyCarEndMessage(msg);
-
-        if (isStart) {
-            activeStart = lap;
-        }
-
-        if (activeStart != null && isEnd) {
-            const endLap = Math.max(lap, activeStart);
-            intervals.push({ start: activeStart, end: endLap });
-            activeStart = null;
-        }
-    });
-
-    if (activeStart != null) {
-        const finalLap = maxLap > 0 ? maxLap : activeStart;
-        intervals.push({ start: activeStart, end: finalLap });
-    }
-
-    return intervals;
-};
-
-const deriveSafetyCarLaps = (
-    classification: RaceDriverClassification[],
-    raceControl: RaceControl[]
-): { laps: number[]; intervals: { start: number; end: number }[] } => {
-    const intervals = deriveSafetyCarIntervals(classification, raceControl);
-    const lapSet = new Set<number>();
-    intervals.forEach(({ start, end }) => {
-        for (let lap = start; lap <= end; lap++) {
-            lapSet.add(lap);
-        }
-    });
-    return {
-        laps: Array.from(lapSet).sort((a, b) => a - b),
-        intervals,
-    };
-};
-
-const RaceScreen = () => {
+const QualifyingScreen = () => {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const navigation = useNavigation<NavigationProp>();
     const { sessionKey, sessionName, meetingName } = route.params;
 
-    const loadRaceData = useCallback(async (): Promise<RaceScreenData> => {
-        const [classification, raceControl] = await Promise.all([
-            getRaceClassification(sessionKey),
-            getRaceControlBySession(sessionKey),
-        ]);
-
-        const safetyCarData = deriveSafetyCarLaps(classification, raceControl);
-
-        return {
-            classification,
-            safetyCarLaps: safetyCarData.laps,
-            safetyCarIntervals: safetyCarData.intervals,
-        };
-    }, [sessionKey]);
+    const loadClassification = useCallback(
+        () => getQualifyingSessionDetail(sessionKey),
+        [sessionKey]
+    );
 
     const {
         data,
@@ -144,29 +39,25 @@ const RaceScreen = () => {
         refreshing,
         reload,
         refresh,
-    } = useServiceRequest<RaceScreenData>(loadRaceData, [loadRaceData]);
+    } = useServiceRequest<QualifyingSessionDetail>(loadClassification, [loadClassification]);
 
     const rows = data?.classification ?? [];
-    const safetyCarLaps = data?.safetyCarLaps ?? EMPTY_SAFETY_CAR_LAPS;
-    const safetyCarIntervals = data?.safetyCarIntervals ?? EMPTY_SAFETY_CAR_INTERVALS;
 
     const handleDriverPress = useCallback(
         (driverNumber: number) => {
             navigation.navigate('DriverOverview', {
                 driverNumber,
                 sessionKey,
-                safetyCarLaps,
-                safetyCarIntervals,
             });
         },
-        [navigation, sessionKey, safetyCarLaps, safetyCarIntervals]
+        [navigation, sessionKey]
     );
 
     if (loading) {
         return (
             <View style={styles.center}>
                 <ActivityIndicator size="large" color="#E10600" />
-                <Text style={styles.loadingText}>Loading race data...</Text>
+                <Text style={styles.loadingText}>Loading qualifying data...</Text>
             </View>
         );
     }
@@ -200,12 +91,12 @@ const RaceScreen = () => {
             </View>
 
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🏁 Race Classification</Text>
+                <Text style={styles.sectionTitle}>⏱️ Qualifying Classification</Text>
                 {rows.length === 0 ? (
                     <Text style={styles.noData}>No classification available</Text>
                 ) : (
                     rows.map(row => (
-                        <RaceResultCard
+                        <QualifyingResultCard
                             key={row.driverNumber}
                             data={row}
                             onPress={handleDriverPress}
@@ -219,7 +110,7 @@ const RaceScreen = () => {
     );
 };
 
-export default RaceScreen;
+export default QualifyingScreen;
 
 const styles = StyleSheet.create({
     container: {

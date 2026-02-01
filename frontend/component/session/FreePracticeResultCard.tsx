@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { SessionDriverData } from '../../../backend/types';
 
 export interface DriverSessionData {
     position: number | null;
@@ -14,6 +15,7 @@ export interface DriverSessionData {
     dns: boolean;
     dsq: boolean;
     teamColor?: string;
+    driverEntry?: SessionDriverData | null;
 }
 
 interface DriverCardProps {
@@ -56,6 +58,7 @@ export default function FreePracticeResultCard({ driver, sessionKey, isFirst = f
         navigation.navigate('DriverPracticeOverview', {
             driverNumber: driver.driverNumber,
             sessionKey: sessionKey,
+            driverData: driver.driverEntry ?? undefined,
         });
     };
 

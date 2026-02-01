@@ -9,18 +9,19 @@ import {
     Image,
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
-import { DriverRaceOverview, getDriverRaceOverview } from '../../backend/service/openf1Service';
-import PracticeStatsSection from '../component/driver/PracticeStatsSection';
-import PracticeStintCard from '../component/driver/PracticeStintCard';
-import { Lap, Stint } from '../../backend/types';
+import { getPracticeDriverDetail } from '../../../../backend/service/openf1Service';
+import PracticeStatsSection from '../../../component/driver/PracticeStatsSection';
+import PracticeStintCard from '../../../component/driver/PracticeStintCard';
+import { Lap, SessionDriverData, Stint } from '../../../../backend/types';
 
 type RouteParams = {
     driverNumber: number;
     sessionKey: number;
+    driverData?: SessionDriverData | null;
 };
 
 interface DriverState {
-    data: DriverRaceOverview | null;
+    driverData: SessionDriverData | null;
     loading: boolean;
     refreshing: boolean;
     error: string | null;
@@ -46,11 +47,11 @@ const getDriverInitials = (name: string): string => {
 
 export default function DriverPracticeDetailsScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
-    const { driverNumber, sessionKey } = route.params;
+    const { driverNumber, sessionKey, driverData: driverDataParam } = route.params;
 
     const [state, setState] = useState<DriverState>({
-        data: null,
-        loading: true,
+        driverData: driverDataParam ?? null,
+        loading: !driverDataParam,
         refreshing: false,
         error: null,
     });
@@ -59,33 +60,22 @@ export default function DriverPracticeDetailsScreen() {
         async (isRefresh = false) => {
             setState(prev => ({
                 ...prev,
-                loading: !isRefresh,
+                loading: !isRefresh && !prev.driverData,
                 refreshing: isRefresh,
                 error: null,
             }));
 
             try {
-                const overview = await getDriverRaceOverview(sessionKey, driverNumber);
-
-                if (!overview) {
-                    setState({
-                        data: null,
-                        loading: false,
-                        refreshing: false,
-                        error: 'Driver data not found for this session',
-                    });
-                    return;
-                }
-
+                const detail = await getPracticeDriverDetail(sessionKey, driverNumber);
                 setState({
-                    data: overview,
+                    driverData: detail,
                     loading: false,
                     refreshing: false,
-                    error: null,
+                    error: detail ? null : 'Driver data not found for this session',
                 });
             } catch (error) {
                 setState({
-                    data: null,
+                    driverData: null,
                     loading: false,
                     refreshing: false,
                     error: error instanceof Error ? error.message : 'Failed to load driver data',
@@ -96,20 +86,33 @@ export default function DriverPracticeDetailsScreen() {
     );
 
     useEffect(() => {
-        fetchDriver();
-    }, [fetchDriver]);
+        if (driverDataParam) {
+            setState(prev => ({
+                ...prev,
+                driverData: driverDataParam,
+                loading: false,
+                error: null,
+            }));
+        }
+    }, [driverDataParam]);
+
+    useEffect(() => {
+        if (!driverDataParam) {
+            fetchDriver();
+        }
+    }, [driverDataParam, fetchDriver]);
 
     const handleRefresh = useCallback(() => fetchDriver(true), [fetchDriver]);
 
-    const driverOverview = state.data;
+    const driverData = state.driverData;
 
     const stintsWithLaps = useMemo(() => {
-        if (!driverOverview) {
+        if (!driverData) {
             return [];
         }
 
-        return driverOverview.stints.map((stint: Stint) => {
-            const lapsForStint = driverOverview.laps.filter(
+        return driverData.stints.map((stint: Stint) => {
+            const lapsForStint = driverData.laps.filter(
                 (lap: Lap) => lap.lap_number >= stint.lap_start && lap.lap_number <= stint.lap_end
             );
 
@@ -118,7 +121,7 @@ export default function DriverPracticeDetailsScreen() {
                 laps: lapsForStint,
             };
         });
-    }, [driverOverview]);
+    }, [driverData]);
 
     if (state.loading) {
         return (
@@ -129,7 +132,7 @@ export default function DriverPracticeDetailsScreen() {
         );
     }
 
-    if (state.error || !driverOverview) {
+    if (state.error) {
         return (
             <View style={styles.center}>
                 <Text style={styles.errorTitle}>Unable to Load Driver</Text>
@@ -138,9 +141,18 @@ export default function DriverPracticeDetailsScreen() {
         );
     }
 
-    const headerColor = getTeamColorHex(driverOverview.driver.teamColor);
-    const driverImageSource = driverOverview.driver.headshotUrl
-        ? { uri: driverOverview.driver.headshotUrl }
+    if (!driverData) {
+        return (
+            <View style={styles.center}>
+                <Text style={styles.errorTitle}>Driver Not Found</Text>
+                <Text style={styles.errorMessage}>No data available for this driver.</Text>
+            </View>
+        );
+    }
+
+    const headerColor = getTeamColorHex(driverData.driver.teamColor);
+    const driverImageSource = driverData.driver.headshotUrl
+        ? { uri: driverData.driver.headshotUrl }
         : null;
 
     return (
@@ -161,24 +173,24 @@ export default function DriverPracticeDetailsScreen() {
                             <Image source={driverImageSource} style={styles.avatarImage} />
                         ) : (
                             <Text style={styles.avatarInitials}>
-                                {getDriverInitials(driverOverview.driver.name)}
+                                {getDriverInitials(driverData.driver.name)}
                             </Text>
                         )}
                     </View>
                     <View style={styles.headerInfo}>
                         <View style={styles.headerInfoTop}>
-                            <Text style={styles.name}>{driverOverview.driver.name}</Text>
-                            <Text style={styles.number}>#{driverOverview.driver.number}</Text>
+                            <Text style={styles.name}>{driverData.driver.name}</Text>
+                            <Text style={styles.number}>#{driverData.driver.number}</Text>
                         </View>
-                        <Text style={styles.team}>{driverOverview.driver.team}</Text>
+                        <Text style={styles.team}>{driverData.driver.team}</Text>
                     </View>
                 </View>
             </View>
 
             <PracticeStatsSection
-                lapCount={driverOverview.lap_count}
-                stints={driverOverview.stints}
-                laps={driverOverview.laps}
+                lapCount={driverData.laps.length}
+                stints={driverData.stints}
+                laps={driverData.laps}
             />
 
             <View style={styles.section}>

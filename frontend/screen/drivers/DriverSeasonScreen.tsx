@@ -9,9 +9,9 @@ import {
     View,
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
-import { getDriverSeasonStats } from '../../backend/service/openf1Service';
-import type { DriverSeasonSessionSummary, DriverSeasonStats } from '../../backend/types';
-import {DEFAULT_SEASON_YEAR} from "../config/appConfig";
+import { getDriverSeasonStats } from '../../../backend/service/openf1Service';
+import type { DriverSeasonSessionSummary, DriverSeasonStats } from '../../../backend/types';
+import {DEFAULT_SEASON_YEAR} from "../../config/appConfig";
 
 type RouteParams = {
     driverNumber: number;
