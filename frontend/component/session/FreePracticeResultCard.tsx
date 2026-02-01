@@ -53,7 +53,7 @@ export default function FreePracticeResultCard({ driver, sessionKey, isFirst = f
     };
 
     const handlePress = () => {
-        navigation.navigate('DriverOverview', {
+        navigation.navigate('DriverPracticeOverview', {
             driverNumber: driver.driverNumber,
             sessionKey: sessionKey,
         });

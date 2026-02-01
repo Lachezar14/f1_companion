@@ -7,9 +7,9 @@ import { formatLapTime } from '../../../shared/time';
 interface LapCardProps {
     lap: Lap;
     currentStint?: Stint;
+    isPitIn?: boolean;
 }
 
-// Helper function to get compound colors
 const getCompoundColor = (compound: string): string => {
     const compoundLower = compound.toLowerCase();
     switch (compoundLower) {
@@ -28,7 +28,27 @@ const getCompoundColor = (compound: string): string => {
     }
 };
 
-export default function LapCard({ lap, currentStint }: LapCardProps) {
+const getCompoundLetter = (compound: string): string => {
+    const compoundLower = compound.toLowerCase();
+    switch (compoundLower) {
+        case 'soft':
+            return 'S';
+        case 'medium':
+            return 'M';
+        case 'hard':
+            return 'H';
+        case 'intermediate':
+            return 'I';
+        case 'wet':
+            return 'W';
+        default:
+            return compoundLower.charAt(0).toUpperCase();
+    }
+};
+
+export default function LapCard({ lap, currentStint, isPitIn = false }: LapCardProps) {
+    const compound = currentStint?.compound || 'Unknown';
+
     return (
         <View
             style={[
@@ -37,28 +57,38 @@ export default function LapCard({ lap, currentStint }: LapCardProps) {
             ]}
         >
             <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>Lap {lap.lap_number}</Text>
-                <View style={styles.lapBadges}>
-                    {currentStint && (
-                        <View style={[
-                            styles.compoundBadgeSmall,
-                            { backgroundColor: getCompoundColor(currentStint.compound) }
-                        ]}>
-                            <Text style={styles.compoundTextSmall}>{currentStint.compound}</Text>
-                        </View>
-                    )}
-                    {lap.is_pit_out_lap && (
-                        <View style={styles.pitOutBadge}>
-                            <Ionicons name="build-outline" size={12} color="#E10600" />
-                            <Text style={styles.pitOutText}>Pit Out</Text>
-                        </View>
-                    )}
+                <View>
+                    <Text style={styles.cardTitle}>Lap {lap.lap_number}</Text>
+                    <View style={styles.statusRow}>
+                        {lap.is_pit_out_lap && (
+                            <View style={[styles.statusBadge, styles.pitOutBadge]}>
+                                <Ionicons name="build-outline" size={12} color="#E10600" />
+                                <Text style={[styles.statusText, styles.pitOutText]}>Pit Out</Text>
+                            </View>
+                        )}
+                        {isPitIn && (
+                            <View style={[styles.statusBadge, styles.pitInBadge]}>
+                                <Ionicons name="log-in-outline" size={12} color="#0D47A1" />
+                                <Text style={[styles.statusText, styles.pitInText]}>Pit In</Text>
+                            </View>
+                        )}
+                    </View>
                 </View>
+                <Text style={styles.lapTime}>{formatLapTime(lap.lap_duration)}</Text>
             </View>
-            <View style={styles.cardRow}>
-                <Ionicons name="time-outline" size={16} color="#666" />
-                <Text style={styles.cardDetailBold}>{formatLapTime(lap.lap_duration)}</Text>
+
+            <View style={styles.compoundRow}>
+                <View
+                    style={[
+                        styles.compoundCircle,
+                        { backgroundColor: getCompoundColor(compound) }
+                    ]}
+                >
+                    <Text style={styles.compoundLetter}>{getCompoundLetter(compound)}</Text>
+                </View>
+                <Text style={styles.compoundLabel}>{compound}</Text>
             </View>
+
             <View style={styles.sectorsContainer}>
                 <View style={styles.sectorItem}>
                     <Text style={styles.sectorLabel}>S1</Text>
@@ -107,47 +137,65 @@ const styles = StyleSheet.create({
         fontSize: 17,
         fontWeight: '700',
         color: '#E10600',
+        marginBottom: 6,
     },
-    cardRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    cardDetailBold: {
-        fontSize: 16,
-        color: '#333',
-        marginLeft: 8,
-        fontWeight: '600',
-    },
-    compoundBadgeSmall: {
-        backgroundColor: '#E10600',
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 5,
-        marginRight: 6,
-    },
-    compoundTextSmall: {
-        color: '#FFF',
-        fontSize: 11,
+    lapTime: {
+        fontSize: 18,
         fontWeight: '700',
+        color: '#15151E',
     },
-    lapBadges: {
+    statusRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 6,
     },
-    pitOutBadge: {
+    statusBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFE0E0',
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 6,
         gap: 4,
     },
-    pitOutText: {
-        color: '#E10600',
+    statusText: {
         fontSize: 12,
         fontWeight: '600',
+    },
+    pitOutBadge: {
+        backgroundColor: '#FFE0E0',
+    },
+    pitOutText: {
+        color: '#E10600',
+    },
+    pitInBadge: {
+        backgroundColor: '#E3F2FD',
+    },
+    pitInText: {
+        color: '#0D47A1',
+    },
+    compoundRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+        gap: 10,
+    },
+    compoundCircle: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    compoundLetter: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 16,
+    },
+    compoundLabel: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#333',
+        textTransform: 'capitalize',
     },
     sectorsContainer: {
         flexDirection: 'row',

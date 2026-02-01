@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -6,16 +6,13 @@ import {
     StyleSheet,
     ActivityIndicator,
     RefreshControl,
-    TouchableOpacity,
-    Animated,
+    Image,
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { DriverRaceOverview, getDriverRaceOverview } from '../../backend/service/openf1Service';
 import { Lap, Stint } from '../../backend/types';
 import RaceStatsSection from "../component/driver/RaceStatsSection";
-import StintCard from "../component/driver/StintCard";
-import LapCard from "../component/driver/LapCard";
+import { formatLapTime } from '../../shared/time';
 
 type RouteParams = {
     driverNumber: number;
@@ -29,6 +26,24 @@ interface DriverState {
     error: string | null;
 }
 
+const getTeamColorHex = (teamColor?: string | null): string => {
+    if (!teamColor || !teamColor.trim()) {
+        return '#15151E';
+    }
+    return teamColor.startsWith('#') ? teamColor : `#${teamColor}`;
+};
+
+const getDriverInitials = (name: string): string => {
+    const parts = name.trim().split(/\s+/);
+    if (!parts.length) {
+        return '?';
+    }
+    return parts
+        .map(part => part[0]?.toUpperCase() ?? '')
+        .join('')
+        .slice(0, 2) || '?';
+};
+
 export default function DriverOverviewScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const { driverNumber, sessionKey } = route.params;
@@ -39,18 +54,6 @@ export default function DriverOverviewScreen() {
         refreshing: false,
         error: null,
     });
-
-    const [expandedSections, setExpandedSections] = useState({
-        stints: false,
-        laps: false,
-    });
-
-    const toggleSection = (section: 'stints' | 'laps') => {
-        setExpandedSections(prev => ({
-            ...prev,
-            [section]: !prev[section],
-        }));
-    };
 
     const fetchDriver = useCallback(
         async (isRefresh = false) => {
@@ -98,79 +101,35 @@ export default function DriverOverviewScreen() {
 
     const handleRefresh = useCallback(() => fetchDriver(true), [fetchDriver]);
 
-    // Collapsible Section Component
-    const CollapsibleSection: React.FC<{
-        title: string;
-        count: number;
-        isExpanded: boolean;
-        onToggle: () => void;
-        children: React.ReactNode;
-    }> = ({ title, count, isExpanded, onToggle, children }) => {
-        const animatedHeight = useRef(new Animated.Value(isExpanded ? 1 : 0)).current;
-        const rotateAnim = useRef(new Animated.Value(isExpanded ? 1 : 0)).current;
+    const sortedStints = useMemo(() => {
+        const stints = state.data?.stints ?? [];
+        return [...stints].sort((a, b) => a.lap_start - b.lap_start);
+    }, [state.data?.stints]);
 
-        useEffect(() => {
-            Animated.parallel([
-                Animated.timing(animatedHeight, {
-                    toValue: isExpanded ? 1 : 0,
-                    duration: 300,
-                    useNativeDriver: false,
-                }),
-                Animated.timing(rotateAnim, {
-                    toValue: isExpanded ? 1 : 0,
-                    duration: 300,
-                    useNativeDriver: true,
-                }),
-            ]).start();
-        }, [isExpanded]);
+    const lapRows = useMemo(() => {
+        const laps = state.data?.laps ?? [];
+        return laps.map((lap: Lap) => {
+            const currentStint = sortedStints.find(
+                (stint: Stint) =>
+                    lap.lap_number >= stint.lap_start && lap.lap_number <= stint.lap_end
+            );
+            const stintIndex = currentStint
+                ? sortedStints.findIndex(s => s.stint_number === currentStint.stint_number)
+                : -1;
+            const hasNextStint = stintIndex > -1 && stintIndex < sortedStints.length - 1;
+            const isPitIn =
+                Boolean(currentStint) && hasNextStint && lap.lap_number === currentStint.lap_end;
 
-        const rotation = rotateAnim.interpolate({
-            inputRange: [0, 1],
-            outputRange: ['0deg', '180deg'],
+            const compound = currentStint?.compound ?? 'Unknown';
+
+            return {
+                lap,
+                compound,
+                isPitOut: lap.is_pit_out_lap,
+                isPitIn,
+            };
         });
-
-        const maxHeight = animatedHeight.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0, 10000], // Large number to accommodate content
-        });
-
-        const opacity = animatedHeight.interpolate({
-            inputRange: [0, 0.5, 1],
-            outputRange: [0, 0.5, 1],
-        });
-
-        return (
-            <View style={styles.section}>
-                <TouchableOpacity
-                    style={styles.sectionHeader}
-                    onPress={onToggle}
-                    activeOpacity={0.7}
-                >
-                    <View style={styles.sectionTitleContainer}>
-                        <Text style={styles.sectionTitle}>{title}</Text>
-                        <Text style={styles.sectionCount}>: {count}</Text>
-                    </View>
-                    <Animated.View style={{ transform: [{ rotate: rotation }] }}>
-                        <Ionicons name="chevron-down" size={20} color="#666" />
-                    </Animated.View>
-                </TouchableOpacity>
-
-                <Animated.View
-                    style={[
-                        styles.sectionContentWrapper,
-                        {
-                            maxHeight,
-                            opacity,
-                        }
-                    ]}
-                >
-                    <View style={styles.sectionContent}>
-                        {children}
-                    </View>
-                </Animated.View>
-            </View>
-        );
-    };
+    }, [state.data?.laps, sortedStints]);
 
     if (state.loading) {
         return (
@@ -191,6 +150,10 @@ export default function DriverOverviewScreen() {
     }
 
     const driver_overview = state.data;
+    const headerColor = getTeamColorHex(driver_overview.driver.teamColor);
+    const driverImageSource = driver_overview.driver.headshotUrl
+        ? { uri: driver_overview.driver.headshotUrl }
+        : null;
 
     return (
         <ScrollView
@@ -204,10 +167,25 @@ export default function DriverOverviewScreen() {
             }
         >
             {/* Header */}
-            <View style={styles.header}>
-                <Text style={styles.name}>{driver_overview.driver.name}</Text>
-                <Text style={styles.team}>{driver_overview.driver.team}</Text>
-                <Text style={styles.number}>#{driver_overview.driver.number}</Text>
+            <View style={[styles.header, { backgroundColor: headerColor }]}>
+                <View style={styles.headerContent}>
+                    <View style={styles.avatarContainer}>
+                        {driverImageSource ? (
+                            <Image source={driverImageSource} style={styles.avatarImage} />
+                        ) : (
+                            <Text style={styles.avatarInitials}>
+                                {getDriverInitials(driver_overview.driver.name)}
+                            </Text>
+                        )}
+                    </View>
+                    <View style={styles.headerInfo}>
+                        <View style={styles.headerInfoTop}>
+                            <Text style={styles.name}>{driver_overview.driver.name}</Text>
+                            <Text style={styles.number}>#{driver_overview.driver.number}</Text>
+                        </View>
+                        <Text style={styles.team}>{driver_overview.driver.team}</Text>
+                    </View>
+                </View>
             </View>
 
             {/* Race Stats Section - Now using RaceStatsSection component */}
@@ -219,51 +197,108 @@ export default function DriverOverviewScreen() {
                 stints={driver_overview.stints}
             />
 
-            {/* Stints Section */}
-            <CollapsibleSection
-                title="Stints"
-                count={driver_overview.stint_count}
-                isExpanded={expandedSections.stints}
-                onToggle={() => toggleSection('stints')}
-            >
-                {driver_overview.stints.length > 0 ? (
-                    driver_overview.stints.map((stint: Stint, idx) => (
-                        <StintCard key={idx} stint={stint} />
-                    ))
-                ) : (
-                    <Text style={styles.noData}>Stints data not available</Text>
-                )}
-            </CollapsibleSection>
-
-            {/* Laps Section */}
-            <CollapsibleSection
-                title="Laps"
-                count={driver_overview.lap_count}
-                isExpanded={expandedSections.laps}
-                onToggle={() => toggleSection('laps')}
-            >
+            {/* Lap Timeline */}
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Lap Timeline</Text>
                 {driver_overview.laps.length > 0 ? (
-                    driver_overview.laps.map((lap: Lap, idx) => {
-                        // Find the stint for this lap
-                        const currentStint = driver_overview.stints.find(
-                            (stint: Stint) => lap.lap_number >= stint.lap_start && lap.lap_number <= stint.lap_end
-                        );
-
-                        return (
-                            <LapCard
-                                key={idx}
-                                lap={lap}
-                                currentStint={currentStint}
-                            />
-                        );
-                    })
+                    <View style={styles.lapTable}>
+                        <View style={[styles.lapRow, styles.lapHeaderRow]}>
+                            <Text style={[styles.lapCell, styles.headerText]}>Lap</Text>
+                            <Text style={[styles.compoundHeaderCell, styles.headerText]}>
+                                Compound
+                            </Text>
+                            <Text style={[styles.timeCell, styles.headerText]}>Time</Text>
+                            <Text style={[styles.noteHeaderCell, styles.headerText]}>Note</Text>
+                        </View>
+                        {lapRows.map(({ lap, compound, isPitOut, isPitIn }) => (
+                            <View
+                                key={lap.lap_number}
+                                style={[
+                                    styles.lapRow,
+                                    (isPitOut || isPitIn) && styles.pitLapRow
+                                ]}
+                            >
+                                <Text style={styles.lapCell}>#{lap.lap_number}</Text>
+                                <View style={styles.compoundCell}>
+                                    <View
+                                        style={[
+                                            styles.compoundCircle,
+                                            { backgroundColor: getCompoundColor(compound) }
+                                        ]}
+                                    >
+                                        <Text style={styles.compoundLetter}>
+                                            {getCompoundLetter(compound)}
+                                        </Text>
+                                    </View>
+                                </View>
+                                    <Text style={styles.timeCell}>
+                                        {formatLapTime(lap.lap_duration)}
+                                    </Text>
+                                    <View style={styles.noteCell}>
+                                        {isPitOut && (
+                                            <View style={[styles.badge, styles.pitOutBadge]}>
+                                                <Text style={[styles.badgeText, styles.pitOutText]}>
+                                                    Pit Out
+                                                </Text>
+                                            </View>
+                                        )}
+                                        {isPitIn && (
+                                            <View style={[styles.badge, styles.pitInBadge]}>
+                                                <Text style={[styles.badgeText, styles.pitInText]}>
+                                                    Pit In
+                                                </Text>
+                                            </View>
+                                        )}
+                                        {!isPitOut && !isPitIn && (
+                                            <Text style={styles.noBadge}>-</Text>
+                                        )}
+                                    </View>
+                                </View>
+                            ))}
+                    </View>
                 ) : (
                     <Text style={styles.noData}>Lap times not available</Text>
                 )}
-            </CollapsibleSection>
+            </View>
         </ScrollView>
     );
 }
+
+const getCompoundColor = (compound: string): string => {
+    const compoundLower = compound.toLowerCase();
+    switch (compoundLower) {
+        case 'soft':
+            return '#E10600';
+        case 'medium':
+            return '#d8b031';
+        case 'hard':
+            return '#9E9E9E';
+        case 'intermediate':
+            return '#4CAF50';
+        case 'wet':
+            return '#2196F3';
+        default:
+            return '#666';
+    }
+};
+
+const getCompoundLetter = (compound: string): string => {
+    const compoundLower = compound.toLowerCase();
+    switch (compoundLower) {
+        case 'soft':
+            return 'S';
+        case 'medium':
+            return 'M';
+        case 'hard':
+            return 'H';
+        case 'intermediate':
+            return 'I';
+        case 'wet':
+            return 'W';
+        default:
+            return compoundLower.charAt(0).toUpperCase();
+    }
+};
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F5F5F5' },
@@ -272,54 +307,182 @@ const styles = StyleSheet.create({
     errorTitle: { fontSize: 20, fontWeight: 'bold', color: '#E10600', marginBottom: 8 },
     errorMessage: { fontSize: 16, color: '#333', textAlign: 'center' },
     header: {
-        padding: 20,
-        backgroundColor: '#FFF',
+        paddingHorizontal: 20,
+        paddingVertical: 24,
         borderBottomWidth: 1,
-        borderBottomColor: '#EEE',
-        alignItems: 'center',
+        borderBottomColor: 'rgba(255,255,255,0.2)',
         shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowOffset: { width: 0, height: 2 },
-        shadowRadius: 4,
-        elevation: 3,
+        shadowOpacity: 0.12,
+        shadowOffset: { width: 0, height: 4 },
+        shadowRadius: 6,
+        elevation: 4,
     },
-    name: { fontSize: 26, fontWeight: 'bold', color: '#E10600', marginBottom: 4 },
-    team: { fontSize: 18, color: '#333', marginBottom: 4 },
-    number: { fontSize: 18, fontWeight: '600', color: '#0c0c0c' },
+    headerContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    avatarContainer: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        backgroundColor: 'rgba(255,255,255,0.25)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.4)',
+    },
+    avatarImage: {
+        width: '100%',
+        height: '100%',
+    },
+    avatarInitials: {
+        fontSize: 26,
+        fontWeight: '700',
+        color: '#FFF',
+    },
+    headerInfo: {
+        flex: 1,
+        marginLeft: 16,
+    },
+    headerInfoTop: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    name: {
+        fontSize: 26,
+        fontWeight: '800',
+        color: '#FFF',
+        marginBottom: 0,
+    },
+    team: {
+        fontSize: 16,
+        color: 'rgba(255,255,255,0.85)',
+    },
+    number: {
+        fontSize: 22,
+        fontWeight: '700',
+        color: '#FFF',
+    },
 
     section: {
         marginTop: 16,
         marginHorizontal: 16,
         backgroundColor: '#FFF',
         borderRadius: 12,
-        overflow: 'hidden',
+        padding: 16,
         shadowColor: '#000',
         shadowOpacity: 0.08,
         shadowOffset: { width: 0, height: 2 },
         shadowRadius: 8,
         elevation: 3,
     },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 16,
-        backgroundColor: '#FAFAFA',
-        borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
+    sectionTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#333',
+        marginBottom: 12,
     },
-    sectionTitleContainer: {
-        flexDirection: 'row',
-        alignItems: 'baseline',
-    },
-    sectionTitle: { fontSize: 20, fontWeight: '700', color: '#333' },
-    sectionCount: { fontSize: 18, color: '#999', marginLeft: 6, fontWeight: '400' },
-    sectionContent: {
-        padding: 12,
-    },
-    sectionContentWrapper: {
+    lapTable: {
+        borderWidth: 1,
+        borderColor: '#F0F0F0',
+        borderRadius: 10,
         overflow: 'hidden',
+    },
+    lapRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F7F7F7',
+    },
+    lapHeaderRow: {
+        backgroundColor: '#FAFAFA',
+    },
+    lapCell: {
+        width: 70,
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#333',
+    },
+    compoundCell: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    timeCell: {
+        width: 90,
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#E10600',
+        textAlign: 'right',
+    },
+    noteCell: {
+        flex: 1,
+        minWidth: 90,
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        gap: 6,
+    },
+    compoundHeaderCell: {
+        flex: 1,
+        fontWeight: '600',
+    },
+    noteHeaderCell: {
+        flex: 1,
+        minWidth: 70,
+        textAlign: 'right',
+    },
+    compoundCircle: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    compoundLetter: {
+        color: '#FFF',
+        fontWeight: '700',
+    },
+    headerText: {
+        fontSize: 11,
+        textTransform: 'uppercase',
+        color: '#888',
+        letterSpacing: 0.8,
+        fontWeight: '700',
+    },
+    badge: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    badgeText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    pitOutBadge: {
+        backgroundColor: '#FFE4E1',
+    },
+    pitOutText: {
+        color: '#C62828',
+    },
+    pitInBadge: {
+        backgroundColor: '#E3F2FD',
+    },
+    pitInText: {
+        color: '#1565C0',
+    },
+    noBadge: {
+        fontSize: 13,
+        color: '#999',
+    },
+    pitLapRow: {
+        backgroundColor: '#FDF6EC',
     },
     noData: {
         fontSize: 14,

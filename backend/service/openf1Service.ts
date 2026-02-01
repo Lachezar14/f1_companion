@@ -50,6 +50,8 @@ export type DriverRaceOverview = {
         number: number;
         name: string;
         team: string;
+        teamColor?: string | null;
+        headshotUrl?: string | null;
     };
     stints: Stint[];
     laps: Lap[];
@@ -520,6 +522,8 @@ export function getDriverRaceOverview(
                     number: driver.driver_number,
                     name: driver.full_name,
                     team: driver.team_name,
+                    teamColor: driver.team_colour || null,
+                    headshotUrl: driver.headshot_url || null,
                 },
                 stints,
                 laps,

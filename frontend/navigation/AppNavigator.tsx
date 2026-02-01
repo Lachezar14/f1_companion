@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import SessionsScreen from '../screen/SessionsScreen';
 import DriversScreen from '../screen/DriversScreen';
 import DriverOverviewScreen from "../screen/DriverRaceDetailsScreen";
+import DriverPracticeDetailsScreen from "../screen/DriverPracticeDetailsScreen";
 import GPScreen from "../screen/GPScreen";
 import FreePracticeScreen from "../screen/FreePracticeScreen";
 import QualifyingScreen from "../screen/QualifyingScreen";
@@ -28,6 +29,11 @@ function SessionsStack({ navigation, route }: any) {
                 name="DriverOverview"
                 component={DriverOverviewScreen}
                 options={{ title: 'Driver Overview' }}
+            />
+            <SessionsStackNavigator.Screen
+                name="DriverPracticeOverview"
+                component={DriverPracticeDetailsScreen}
+                options={{ title: 'Practice Driver' }}
             />
             <SessionsStackNavigator.Screen
                 name="GPScreen"

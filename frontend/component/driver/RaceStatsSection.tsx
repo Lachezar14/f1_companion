@@ -12,7 +12,6 @@ interface RaceStatsSectionProps {
     stints: Stint[];
 }
 
-// Helper function to get compound colors
 const getCompoundColor = (compound: string): string => {
     const compoundLower = compound.toLowerCase();
     switch (compoundLower) {
@@ -28,6 +27,24 @@ const getCompoundColor = (compound: string): string => {
             return '#2196F3';
         default:
             return '#666';
+    }
+};
+
+const getCompoundLetter = (compound: string): string => {
+    const compoundLower = compound.toLowerCase();
+    switch (compoundLower) {
+        case 'soft':
+            return 'S';
+        case 'medium':
+            return 'M';
+        case 'hard':
+            return 'H';
+        case 'intermediate':
+            return 'I';
+        case 'wet':
+            return 'W';
+        default:
+            return compoundLower.charAt(0).toUpperCase();
     }
 };
 
@@ -90,7 +107,9 @@ export default function RaceStatsSection({
                                          }: RaceStatsSectionProps) {
     // Calculate stats internally
     const pitStops = Math.max(0, stintCount - 1);
-    const avgLapTimesPerCompound = calculateAvgLapTimePerCompound(laps, stints);
+    const avgLapTimesPerCompound = calculateAvgLapTimePerCompound(laps, stints).sort(
+        (a, b) => b.lapCount - a.lapCount
+    );
     const formattedRaceResult = formatRaceResult(raceResult);
     return (
         <View style={styles.statsContainer}>
@@ -99,25 +118,27 @@ export default function RaceStatsSection({
             {/* Stats Row */}
             <View style={styles.statsRow}>
                 <View style={styles.statBox}>
-                    <Ionicons name="trophy" size={24} color="#E10600" />
+                    <View style={styles.statIcon}>
+                        <Ionicons name="trophy" size={20} color="#FFF" />
+                    </View>
                     <Text style={styles.statValue}>{formattedRaceResult}</Text>
                     <Text style={styles.statLabel}>Result</Text>
                 </View>
 
-                <View style={styles.statDividerVertical} />
-
                 <View style={styles.statBox}>
-                    <Ionicons name="flag" size={24} color="#E10600" />
-                    <Text style={styles.statValue}>{lapCount}</Text>
-                    <Text style={styles.statLabel}>Laps</Text>
-                </View>
-
-                <View style={styles.statDividerVertical} />
-
-                <View style={styles.statBox}>
-                    <Ionicons name="build" size={24} color="#E10600" />
+                    <View style={styles.statIcon}>
+                        <Ionicons name="build" size={20} color="#FFF" />
+                    </View>
                     <Text style={styles.statValue}>{pitStops}</Text>
                     <Text style={styles.statLabel}>Pit Stops</Text>
+                </View>
+
+                <View style={styles.statBox}>
+                    <View style={styles.statIcon}>
+                        <Ionicons name="flag" size={20} color="#FFF" />
+                    </View>
+                    <Text style={styles.statValue}>{lapCount}</Text>
+                    <Text style={styles.statLabel}>Laps</Text>
                 </View>
             </View>
 
@@ -127,19 +148,23 @@ export default function RaceStatsSection({
                     <Text style={styles.compoundStatsTitle}>Average Lap Time by Compound</Text>
                     {avgLapTimesPerCompound.map((stat, idx) => (
                         <View key={idx} style={styles.compoundStatRow}>
-                            <View style={styles.compoundStatLeft}>
+                            <View style={styles.compoundLeft}>
                                 <View
                                     style={[
-                                        styles.compoundDot,
+                                        styles.compoundCircle,
                                         { backgroundColor: getCompoundColor(stat.compound) }
                                     ]}
-                                />
-                                <Text style={styles.compoundStatLabel}>
-                                    {stat.compound}
-                                </Text>
-                                <Text style={styles.compoundStatLapCount}>
-                                    ({stat.lapCount} laps)
-                                </Text>
+                                >
+                                    <Text style={styles.compoundLetter}>
+                                        {getCompoundLetter(stat.compound)}
+                                    </Text>
+                                </View>
+                                <View>
+                                    <Text style={styles.compoundName}>{stat.compound}</Text>
+                                    <Text style={styles.compoundLapCount}>
+                                        {stat.lapCount} {stat.lapCount === 1 ? 'lap' : 'laps'}
+                                    </Text>
+                                </View>
                             </View>
                             <Text style={styles.compoundStatTime}>
                                 {formatLapTime(stat.avgTime)}
@@ -172,25 +197,35 @@ const styles = StyleSheet.create({
     },
     statsRow: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
-        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
         marginBottom: 20,
     },
     statBox: {
         flex: 1,
-        alignItems: 'center',
+        backgroundColor: '#F8F8F8',
+        borderRadius: 12,
         paddingVertical: 12,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOpacity: 0.03,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 4,
+        elevation: 1,
     },
-    statDividerVertical: {
-        width: 1,
-        height: 60,
-        backgroundColor: '#E8E8E8',
+    statIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#E10600',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 8,
     },
     statValue: {
         fontSize: 28,
         fontWeight: '700',
         color: '#333',
-        marginTop: 8,
         marginBottom: 4,
     },
     statLabel: {
@@ -219,27 +254,34 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         marginBottom: 8,
     },
-    compoundStatLeft: {
+    compoundLeft: {
         flexDirection: 'row',
         alignItems: 'center',
         flex: 1,
     },
-    compoundDot: {
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        marginRight: 10,
+    compoundCircle: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
     },
-    compoundStatLabel: {
+    compoundLetter: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    compoundName: {
         fontSize: 15,
         fontWeight: '600',
         color: '#333',
         textTransform: 'capitalize',
     },
-    compoundStatLapCount: {
+    compoundLapCount: {
         fontSize: 13,
-        color: '#999',
-        marginLeft: 6,
+        color: '#888',
+        marginTop: 2,
     },
     compoundStatTime: {
         fontSize: 16,
