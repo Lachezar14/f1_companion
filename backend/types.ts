@@ -176,6 +176,23 @@ export type RaceDriverClassification = {
     status: string;
 };
 
+export type DriverSeasonSessionSummary = {
+    sessionKey: number;
+    meetingKey: number;
+    sessionName: string;
+    sessionType: 'Race' | 'Qualifying';
+    circuit: string;
+    location: string;
+    countryCode: string;
+    countryName: string;
+    dateStart: string;
+    position: number | null;
+    laps: number | null;
+    duration: string | null;
+    gapToLeader: string | null;
+    status: string | null;
+};
+
 export type DriverSeasonStats = {
     season: number;
     driver: {
@@ -194,6 +211,10 @@ export type DriverSeasonStats = {
         bestRaceResult: number | null;
         bestQualifyingResult: number | null;
         qualifyingSessions: number;
+    };
+    sessions: {
+        races: DriverSeasonSessionSummary[];
+        qualifying: DriverSeasonSessionSummary[];
     };
 };
 

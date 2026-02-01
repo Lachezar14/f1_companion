@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { getDriverSeasonStats } from '../../backend/service/openf1Service';
-import type { DriverSeasonStats } from '../../backend/types';
+import type { DriverSeasonSessionSummary, DriverSeasonStats } from '../../backend/types';
+import {DEFAULT_SEASON_YEAR} from "../config/appConfig";
 
 type RouteParams = {
     driverNumber: number;
@@ -38,7 +39,7 @@ const DriverSeasonScreen = () => {
         teamColor,
         headshotUrl,
     } = route.params;
-    const seasonYear = year ?? new Date().getUTCFullYear();
+    const seasonYear = year ?? DEFAULT_SEASON_YEAR;
 
     const [state, setState] = useState<DriverSeasonState>({
         stats: null,
@@ -102,6 +103,104 @@ const DriverSeasonScreen = () => {
 
     const handleRefresh = useCallback(() => fetchStats(true), [fetchStats]);
 
+    const formatSessionDate = useCallback((iso: string | undefined) => {
+        if (!iso) return 'Date TBC';
+        const date = new Date(iso);
+        if (Number.isNaN(date.getTime())) {
+            return 'Date TBC';
+        }
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        });
+    }, []);
+
+    const renderSessionCard = useCallback(
+        (summary: DriverSeasonSessionSummary) => {
+            const isRace = summary.sessionType === 'Race';
+            const badgeStyle = isRace ? styles.raceBadge : styles.qualiBadge;
+            const badgeTextStyle = isRace ? styles.raceBadgeText : styles.qualiBadgeText;
+
+            const resultValue = summary.position
+                ? `P${summary.position}`
+                : summary.status ?? '-';
+
+            const stats = [
+                { label: 'Result', value: resultValue },
+                {
+                    label: 'Laps',
+                    value:
+                        typeof summary.laps === 'number'
+                            ? summary.laps.toString()
+                            : summary.laps ?? '-',
+                },
+                { label: 'Time', value: summary.duration ?? '-' },
+                {
+                    label: isRace ? 'Gap' : 'Gap to Pole',
+                    value: summary.gapToLeader ?? '-',
+                },
+            ];
+
+            return (
+                <View key={summary.sessionKey} style={styles.sessionCard}>
+                    <View style={styles.sessionHeader}>
+                        <View style={styles.sessionHeaderText}>
+                            <Text style={styles.sessionName}>{summary.sessionName}</Text>
+                            <Text style={styles.sessionMeta}>
+                                {summary.circuit} · {summary.countryName}
+                            </Text>
+                            <Text style={styles.sessionDate}>
+                                {formatSessionDate(summary.dateStart)}
+                            </Text>
+                        </View>
+                        <View style={[styles.sessionBadge, badgeStyle]}>
+                            <Text style={[styles.sessionBadgeText, badgeTextStyle]}>
+                                {summary.sessionType}
+                            </Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.sessionStatsRow}>
+                        {stats.map((stat, index) => (
+                            <View
+                                key={stat.label}
+                                style={[
+                                    styles.sessionStat,
+                                    index < stats.length - 1 && styles.sessionStatSpacer,
+                                ]}
+                            >
+                                <Text style={styles.sessionStatLabel}>{stat.label}</Text>
+                                <Text style={styles.sessionStatValue}>{stat.value}</Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+            );
+        },
+        [formatSessionDate]
+    );
+
+    const renderSessionsSection = useCallback(
+        (
+            title: string,
+            data: DriverSeasonSessionSummary[],
+            variant: 'Race' | 'Qualifying'
+        ) => (
+            <View style={styles.section} key={title}>
+                <Text style={styles.sectionTitle}>{title}</Text>
+                {data.length ? (
+                    data.map(renderSessionCard)
+                ) : (
+                    <Text style={styles.emptySectionText}>
+                        No {variant.toLowerCase()} sessions recorded.
+                    </Text>
+                )}
+            </View>
+        ),
+        [renderSessionCard]
+    );
+
     if (state.loading) {
         return (
             <View style={styles.center}>
@@ -120,7 +219,7 @@ const DriverSeasonScreen = () => {
         );
     }
 
-    const { driver, season, totals } = state.stats;
+    const { driver, season, totals, sessions } = state.stats;
 
     const metricCards = [
         { label: 'Wins', value: totals.wins },
@@ -185,7 +284,7 @@ const DriverSeasonScreen = () => {
                 </View>
             </View>
 
-    <View style={styles.metricsSection}>
+            <View style={styles.metricsSection}>
                 {metricCards.map(card => (
                     <View key={card.label} style={styles.metricCard}>
                         <Text style={styles.metricLabel}>{card.label}</Text>
@@ -193,6 +292,9 @@ const DriverSeasonScreen = () => {
                     </View>
                 ))}
             </View>
+
+            {renderSessionsSection('Race Results', sessions.races, 'Race')}
+            {renderSessionsSection('Qualifying Results', sessions.qualifying, 'Qualifying')}
         </ScrollView>
     );
 };
@@ -304,6 +406,96 @@ const styles = StyleSheet.create({
         marginTop: 8,
         fontSize: 20,
         fontWeight: 'bold',
+        color: '#15151E',
+    },
+    section: {
+        marginHorizontal: 16,
+        marginBottom: 24,
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#15151E',
+        marginBottom: 12,
+    },
+    emptySectionText: {
+        color: '#666',
+        fontStyle: 'italic',
+    },
+    sessionCard: {
+        backgroundColor: '#FFF',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 12,
+        elevation: 1,
+    },
+    sessionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+    },
+    sessionHeaderText: {
+        flex: 1,
+        paddingRight: 12,
+    },
+    sessionName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#15151E',
+    },
+    sessionMeta: {
+        marginTop: 4,
+        color: '#666',
+    },
+    sessionDate: {
+        marginTop: 2,
+        color: '#999',
+        fontSize: 12,
+    },
+    sessionBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    raceBadge: {
+        backgroundColor: 'rgba(225, 6, 0, 0.12)',
+    },
+    qualiBadge: {
+        backgroundColor: 'rgba(0, 89, 193, 0.12)',
+    },
+    sessionBadgeText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    raceBadgeText: {
+        color: '#E10600',
+    },
+    qualiBadgeText: {
+        color: '#0059C1',
+    },
+    sessionStatsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 16,
+    },
+    sessionStat: {
+        flex: 1,
+    },
+    sessionStatSpacer: {
+        marginRight: 12,
+        borderRightWidth: StyleSheet.hairlineWidth,
+        borderRightColor: '#EEE',
+        paddingRight: 12,
+    },
+    sessionStatLabel: {
+        fontSize: 12,
+        color: '#888',
+        textTransform: 'uppercase',
+    },
+    sessionStatValue: {
+        marginTop: 4,
+        fontSize: 16,
+        fontWeight: '600',
         color: '#15151E',
     },
 });

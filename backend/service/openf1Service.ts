@@ -5,10 +5,11 @@ import {
     fetchLapsByDriverAndSession,
     fetchLapsBySession,
     fetchMeetingsByKey,
-    fetchMeetingsByYear, fetchQualifyingSessionsByYear,
+    fetchMeetingsByYear,
+    fetchQualifyingSessionsByYear,
     fetchRaceSessionsByYear,
     fetchSessionResults,
-    fetchSessionResultsByFilters,
+    fetchSessionResultsByDriver,
     fetchSessionsByMeeting,
     fetchStartingGridBySession,
     fetchStintsByDriverAndSession,
@@ -17,6 +18,7 @@ import {
 import {
     Driver,
     DriverSeasonContext,
+    DriverSeasonSessionSummary,
     DriverSeasonStats,
     Lap,
     Meeting,
@@ -29,6 +31,8 @@ import {
 } from '../types';
 import {OpenF1ServiceError} from './errors';
 import {formatLapTime, formatRaceTime} from '../../shared/time';
+
+type SessionClassificationGroup = 'Race' | 'Qualifying';
 
 /* =========================
    TYPE DEFINITIONS
@@ -278,6 +282,16 @@ export function getSessionResults(sessionKey: number): Promise<SessionResult[]> 
     return withServiceError(
         `Failed to fetch session results for session ${sessionKey}`,
         () => fetchSessionResults(sessionKey)
+    );
+}
+
+/**
+ * Get all results for a driver ever
+ */
+export function getSessionResultsByDriver(driverNumber: number): Promise<SessionResult[]> {
+    return withServiceError(
+        `Failed to fetch session results for driver ${driverNumber}`,
+        () => fetchSessionResultsByDriver(driverNumber)
     );
 }
 
@@ -679,6 +693,50 @@ const averagePositionOrNull = (values: number[]): number | null => {
     return average === null ? null : Number(average.toFixed(2));
 };
 
+const sortSessionSummariesByDate = (
+    a: DriverSeasonSessionSummary,
+    b: DriverSeasonSessionSummary
+): number => new Date(a.dateStart).getTime() - new Date(b.dateStart).getTime();
+
+const buildDriverSeasonSessionSummary = (
+    session: Session,
+    result: SessionResult,
+    group: SessionClassificationGroup
+): DriverSeasonSessionSummary => {
+    const numericPosition = toNumericPosition(result.position);
+    const gapLabel =
+        group === 'Race'
+            ? numericPosition === 1
+                ? 'Winner'
+                : formatGapValue(result.gap_to_leader)
+            : numericPosition === 1
+                ? 'Pole'
+                : formatGapValue(result.gap_to_leader);
+
+    const baseStatus = resultStatusLabel(result, group === 'Race' ? 'Finished' : null);
+    const normalizedStatus =
+        group === 'Race' && numericPosition === 1 && baseStatus === 'Finished'
+            ? 'Winner'
+            : baseStatus;
+
+    return {
+        sessionKey: session.session_key,
+        meetingKey: session.meeting_key,
+        sessionName: session.session_name,
+        sessionType: group,
+        circuit: session.circuit_short_name,
+        location: session.location,
+        countryCode: session.country_code,
+        countryName: session.country_name,
+        dateStart: session.date_start,
+        position: numericPosition,
+        laps: typeof result.number_of_laps === 'number' ? result.number_of_laps : null,
+        duration: normalizeDuration(result.duration),
+        gapToLeader: gapLabel,
+        status: normalizedStatus,
+    };
+};
+
 /**
  * Aggregate season-long statistics for a driver
  */
@@ -690,18 +748,86 @@ export function getDriverSeasonStats(
     return withServiceError(
         `Failed to build season stats for driver ${driverNumber} in year ${year}`,
         async () => {
-            const [raceResults, qualifyingResults] = await Promise.all([
-                fetchSessionResultsByFilters({
-                    driver_number: driverNumber,
-                    year,
-                    session_type: 'Race',
-                }),
-                fetchSessionResultsByFilters({
-                    driver_number: driverNumber,
-                    year,
-                    session_type: 'Qualifying',
-                }),
+            const [raceSessionsRaw, qualifyingSessionsRaw, driverResults] = await Promise.all([
+                getRaceSessionsByYear(year),
+                getQualifyingSessionsByYear(year),
+                getSessionResultsByDriver(driverNumber),
             ]);
+
+            const raceSessions = raceSessionsRaw ?? [];
+            const qualifyingSessions = qualifyingSessionsRaw ?? [];
+
+            if (!raceSessions.length && !qualifyingSessions.length) {
+                console.warn(`[SERVICE] No race or qualifying sessions found for year ${year}`);
+                return null;
+            }
+
+            const sessionMetadata = new Map<
+                number,
+                { session: Session; group: SessionClassificationGroup }
+            >();
+
+            raceSessions.forEach(session => {
+                sessionMetadata.set(session.session_key, { session, group: 'Race' });
+            });
+
+            qualifyingSessions.forEach(session => {
+                sessionMetadata.set(session.session_key, { session, group: 'Qualifying' });
+            });
+
+            const relevantResults = driverResults.filter(result =>
+                sessionMetadata.has(result.session_key)
+            );
+
+            if (!relevantResults.length) {
+                console.warn(
+                    `[SERVICE] Driver ${driverNumber} has no results for season ${year}`
+                );
+                return null;
+            }
+
+            const raceSummaries: DriverSeasonSessionSummary[] = [];
+            const qualifyingSummaries: DriverSeasonSessionSummary[] = [];
+
+            relevantResults.forEach(result => {
+                const metadata = sessionMetadata.get(result.session_key);
+                if (!metadata) {
+                    return;
+                }
+
+                const summary = buildDriverSeasonSessionSummary(
+                    metadata.session,
+                    result,
+                    metadata.group
+                );
+
+                if (metadata.group === 'Race') {
+                    raceSummaries.push(summary);
+                } else {
+                    qualifyingSummaries.push(summary);
+                }
+            });
+
+            raceSummaries.sort(sortSessionSummariesByDate);
+            qualifyingSummaries.sort(sortSessionSummariesByDate);
+
+            const racePositions = raceSummaries
+                .map(summary => summary.position)
+                .filter((position): position is number => position !== null);
+
+            const qualifyingPositions = qualifyingSummaries
+                .map(summary => summary.position)
+                .filter((position): position is number => position !== null);
+
+            const wins = racePositions.filter(position => position === 1).length;
+            const podiums = racePositions.filter(
+                position => position >= 1 && position <= 3
+            ).length;
+
+            const bestRaceResult = racePositions.length ? Math.min(...racePositions) : null;
+            const bestQualifyingResult = qualifyingPositions.length
+                ? Math.min(...qualifyingPositions)
+                : null;
 
             let supplementalDriver: Driver | null = null;
 
@@ -710,7 +836,7 @@ export function getDriverSeasonStats(
 
             if (needsSupplementalProfile) {
                 const referenceSessionKey =
-                    raceResults[0]?.session_key ?? qualifyingResults[0]?.session_key ?? null;
+                    raceSummaries[0]?.sessionKey ?? qualifyingSummaries[0]?.sessionKey ?? null;
 
                 if (referenceSessionKey) {
                     try {
@@ -726,22 +852,6 @@ export function getDriverSeasonStats(
                 }
             }
 
-            const racePositions = raceResults
-                .map(result => toNumericPosition(result.position))
-                .filter((position): position is number => position !== null);
-
-            const qualifyingPositions = qualifyingResults
-                .map(result => toNumericPosition(result.position))
-                .filter((position): position is number => position !== null);
-
-            const wins = racePositions.filter(position => position === 1).length;
-            const podiums = racePositions.filter(position => position >= 1 && position <= 3).length;
-
-            const bestRaceResult = racePositions.length ? Math.min(...racePositions) : null;
-            const bestQualifyingResult = qualifyingPositions.length
-                ? Math.min(...qualifyingPositions)
-                : null;
-
             return {
                 season: year,
                 driver: {
@@ -754,12 +864,16 @@ export function getDriverSeasonStats(
                 totals: {
                     wins,
                     podiums,
-                    races: racePositions.length,
+                    races: raceSummaries.length,
                     averageRacePosition: averagePositionOrNull(racePositions),
                     averageQualifyingPosition: averagePositionOrNull(qualifyingPositions),
                     bestRaceResult,
                     bestQualifyingResult,
-                    qualifyingSessions: qualifyingPositions.length,
+                    qualifyingSessions: qualifyingSummaries.length,
+                },
+                sessions: {
+                    races: raceSummaries,
+                    qualifying: qualifyingSummaries,
                 },
             };
         }
