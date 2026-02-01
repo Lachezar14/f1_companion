@@ -1,29 +1,21 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
-import { fetchMeetingsByYear } from "../../backend/api/openf1";
+import React from 'react';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import { getMeetingsByYear } from '../../backend/service/openf1Service';
 import { Meeting } from "../../backend/types";
 import GPCard from "../component/gp/GPCard";
+import { DEFAULT_MEETING_YEAR } from '../config/appConfig';
+import { useServiceRequest } from '../hooks/useServiceRequest';
 
 export default function SessionsScreen() {
-    const [gps, setGps] = useState<Meeting[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const seasonYear = DEFAULT_MEETING_YEAR;
+    const {
+        data,
+        loading,
+        error,
+        reload,
+    } = useServiceRequest<Meeting[]>(() => getMeetingsByYear(seasonYear), [seasonYear]);
 
-    useEffect(() => {
-        fetchGPs();
-    }, []);
-
-    const fetchGPs = async () => {
-        try {
-            setLoading(true);
-            const res = await fetchMeetingsByYear(2025);
-            setGps(res);
-        } catch {
-            setError('Failed to load GPs');
-        } finally {
-            setLoading(false);
-        }
-    };
+    const gps = data ?? [];
 
     const renderGP = ({ item }: { item: Meeting }) => (
         <GPCard meeting={item} />
@@ -41,6 +33,9 @@ export default function SessionsScreen() {
         return (
             <View style={styles.center}>
                 <Text style={styles.errorText}>{error}</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={reload}>
+                    <Text style={styles.retryText}>Retry</Text>
+                </TouchableOpacity>
             </View>
         );
     }
@@ -74,5 +69,16 @@ const styles = StyleSheet.create({
     errorText: {
         fontSize: 16,
         color: '#FF3B30',
+    },
+    retryButton: {
+        marginTop: 16,
+        paddingHorizontal: 24,
+        paddingVertical: 10,
+        backgroundColor: '#E10600',
+        borderRadius: 8,
+    },
+    retryText: {
+        color: '#FFF',
+        fontWeight: 'bold',
     },
 });

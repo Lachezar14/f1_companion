@@ -238,6 +238,27 @@ export async function fetchSessionsByMeeting(meetingKey: number): Promise<Sessio
     return cachedGet<Session[]>('/sessions', { meeting_key: meetingKey });
 }
 
+/**
+ * Get all sessions for a meeting
+ */
+export async function fetchSessionsByYear(year: number): Promise<Session[]> {
+    return cachedGet<Session[]>('/sessions', { year: year });
+}
+
+/**
+ * Get all race sessions for a year
+ */
+export async function fetchRaceSessionsByYear(year: number): Promise<Session[]> {
+    return cachedGet<Session[]>('/sessions', { session_name: 'Race', year: year });
+}
+
+/**
+ * Get all qualifying sessions for a year
+ */
+export async function fetchQualifyingSessionsByYear(year: number): Promise<Session[]> {
+    return cachedGet<Session[]>('/sessions', { session_name: 'Qualifying', year: year });
+}
+
 /* =========================
    Drivers
 ========================= */
@@ -269,12 +290,18 @@ export async function fetchSessionResults(sessionKey: number): Promise<SessionRe
     return cachedGet<SessionResult[]>('/session_result', { session_key: sessionKey });
 }
 
+/**
+ * Get all session results for driver
+ */
+export async function fetchSessionResultsByDriver(driverNumber: number): Promise<SessionResult[]> {
+    return cachedGet<SessionResult[]>('/session_result', { driver_number: driverNumber });
+}
+
 export type SessionResultFilters = {
     driver_number?: number;
     session_key?: number;
     meeting_key?: number;
     session_type?: string;
-    year?: number;
     limit?: number;
 };
 

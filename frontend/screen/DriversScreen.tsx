@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -14,87 +14,57 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getSeasonDrivers } from '../../backend/service/openf1Service';
 import type { Driver } from '../../backend/types';
-
-const SEASON_YEAR = 2025;
-
-interface DriverListState {
-    drivers: Driver[];
-    loading: boolean;
-    refreshing: boolean;
-    error: string | null;
-}
+import { useServiceRequest } from '../hooks/useServiceRequest';
+import { DEFAULT_SEASON_YEAR } from '../config/appConfig';
 
 const DriversScreen = () => {
     const navigation = useNavigation<NativeStackNavigationProp<any>>();
     const [search, setSearch] = useState('');
-    const [state, setState] = useState<DriverListState>({
-        drivers: [],
-        loading: true,
-        refreshing: false,
-        error: null,
-    });
+    const seasonYear = DEFAULT_SEASON_YEAR;
 
-    const loadDrivers = useCallback(
-        async (refresh = false) => {
-            setState(prev => ({
-                ...prev,
-                loading: !refresh,
-                refreshing: refresh,
-                error: null,
-            }));
+    const {
+        data,
+        loading,
+        error,
+        refreshing,
+        reload,
+        refresh,
+    } = useServiceRequest<Driver[]>(() => getSeasonDrivers(seasonYear), [seasonYear]);
 
-            try {
-                const drivers = await getSeasonDrivers(SEASON_YEAR);
-                const uniqueDrivers = Array.from(
-                    new Map(drivers.map(driver => [driver.driver_number, driver])).values()
-                ).sort((a, b) => a.last_name.localeCompare(b.last_name));
+    const drivers = useMemo(() => {
+        if (!data) {
+            return [];
+        }
 
-                setState({
-                    drivers: uniqueDrivers,
-                    loading: false,
-                    refreshing: false,
-                    error: null,
-                });
-            } catch (error) {
-                setState(prev => ({
-                    ...prev,
-                    loading: false,
-                    refreshing: false,
-                    error: error instanceof Error ? error.message : 'Failed to load drivers',
-                }));
-            }
-        },
-        []
-    );
-
-    useEffect(() => {
-        loadDrivers();
-    }, [loadDrivers]);
+        return Array.from(new Map(data.map(driver => [driver.driver_number, driver])).values()).sort(
+            (a, b) => a.last_name.localeCompare(b.last_name)
+        );
+    }, [data]);
 
     const filteredDrivers = useMemo(() => {
-        if (!search.trim()) return state.drivers;
+        if (!search.trim()) return drivers;
         const query = search.trim().toLowerCase();
-        return state.drivers.filter(driver =>
+        return drivers.filter(driver =>
             driver.full_name.toLowerCase().includes(query) ||
             driver.team_name.toLowerCase().includes(query)
         );
-    }, [search, state.drivers]);
+    }, [search, drivers]);
 
     const handleDriverPress = useCallback(
         (driver: Driver) => {
             navigation.navigate('DriverSeasonDetails', {
                 driverNumber: driver.driver_number,
-                year: SEASON_YEAR,
+                year: seasonYear,
                 driverName: driver.full_name,
                 teamName: driver.team_name,
                 teamColor: driver.team_colour,
                 headshotUrl: driver.headshot_url,
             });
         },
-        [navigation]
+        [navigation, seasonYear]
     );
 
-    if (state.loading) {
+    if (loading) {
         return (
             <View style={styles.center}>
                 <ActivityIndicator size="large" color="#E10600" />
@@ -103,12 +73,12 @@ const DriversScreen = () => {
         );
     }
 
-    if (state.error) {
+    if (error) {
         return (
             <View style={styles.center}>
                 <Text style={styles.errorTitle}>Unable to Load Drivers</Text>
-                <Text style={styles.errorMessage}>{state.error}</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={() => loadDrivers(false)}>
+                <Text style={styles.errorMessage}>{error}</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={reload}>
                     <Text style={styles.retryButtonText}>Retry</Text>
                 </TouchableOpacity>
             </View>
@@ -158,8 +128,8 @@ const DriversScreen = () => {
                 contentContainerStyle={styles.listContent}
                 refreshControl={
                     <RefreshControl
-                        refreshing={state.refreshing}
-                        onRefresh={() => loadDrivers(true)}
+                        refreshing={refreshing}
+                        onRefresh={refresh}
                         tintColor="#E10600"
                     />
                 }

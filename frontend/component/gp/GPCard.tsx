@@ -14,7 +14,7 @@ export default function GPCard({ meeting }: GPCardProps) {
     const navigation = useNavigation<NavigationProp>();
 
     const handlePress = () => {
-        navigation.navigate('GPScreen', { gpKey: meeting.meeting_key });
+        navigation.navigate('GPScreen', { gpKey: meeting.meeting_key, year: meeting.year });
     };
 
     return (

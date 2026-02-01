@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import {
     View,
     Text,
@@ -8,14 +8,16 @@ import {
     RefreshControl,
     TouchableOpacity,
 } from 'react-native';
-import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
-import { Session, Lap } from '../../backend/types';
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { Lap } from '../../backend/types';
 import {
     getSessionResults,
     getDriversBySession,
-    formatLapTime, getLapsBySession
+    getLapsBySession
 } from '../../backend/service/openf1Service';
-import FreePracticeResultCard from "../component/session/FreePracticeResultCard";
+import FreePracticeResultCard, { DriverSessionData } from "../component/session/FreePracticeResultCard";
+import { formatLapTime } from '../../shared/time';
+import { useServiceRequest } from '../hooks/useServiceRequest';
 
 type RouteParams = {
     sessionKey: number;
@@ -23,160 +25,82 @@ type RouteParams = {
     meetingName?: string;
 };
 
-interface DriverSessionData {
-    position: number | null;
-    driverNumber: number;
-    driverName: string;
-    teamName: string;
-    lapCount: number;
-    fastestLap: string | null;
-    dnf: boolean;
-    dns: boolean;
-    dsq: boolean;
-    teamColor?: string;
-}
-
-interface FreePracticeData {
-    session: Session | null;
-    drivers: DriverSessionData[];
-    loading: boolean;
-    refreshing: boolean;
-    error: string | null;
-}
-
 export default function FreePracticeScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const { sessionKey, sessionName, meetingName } = route.params;
-    const navigation = useNavigation();
 
-    const [state, setState] = useState<FreePracticeData>({
-        session: null,
-        drivers: [],
-        loading: true,
-        refreshing: false,
-        error: null,
-    });
+    const loadSessionDrivers = useCallback(async (): Promise<DriverSessionData[]> => {
+        const [sessionResults, drivers, allLaps] = await Promise.all([
+            getSessionResults(sessionKey),
+            getDriversBySession(sessionKey),
+            getLapsBySession(sessionKey),
+        ]);
 
-    useEffect(() => {
-        fetchDetails();
-    }, [sessionKey, sessionName]);
+        const driverMap = new Map(drivers.map(d => [d.driver_number, d]));
 
-    /**
-     * OPTIMIZED: Fetch all data in just 3 API calls
-     * Before: 2 + (20 drivers × 1) = 22 API calls
-     * After: 3 API calls total
-     */
-    const fetchDetails = useCallback(
-        async (isRefresh = false) => {
-            setState(prev => ({
-                ...prev,
-                loading: !isRefresh,
-                refreshing: isRefresh,
-                error: null,
-            }));
+        const lapsByDriver = new Map<number, { count: number; fastest: number | null }>();
 
-            try {
-                // Make only 3 API calls instead of 20+
-                const [sessionResults, drivers, allLaps] = await Promise.all([
-                    getSessionResults(sessionKey),
-                    getDriversBySession(sessionKey),
-                    getLapsBySession(sessionKey),
-                ]);
-
-                if (!sessionResults || !drivers || !allLaps) {
-                    setState({
-                        session: null,
-                        drivers: [],
-                        loading: false,
-                        refreshing: false,
-                        error: 'Failed to load session data',
-                    });
-                    return;
-                }
-
-                // Create driver lookup map
-                const driverMap = new Map(drivers.map(d => [d.driver_number, d]));
-
-                // Group laps by driver and calculate stats (all done locally, no API calls)
-                const lapsByDriver = new Map<number, { count: number; fastest: number | null }>();
-
-                allLaps.forEach(lap => {
-                    if (!lapsByDriver.has(lap.driver_number)) {
-                        lapsByDriver.set(lap.driver_number, { count: 0, fastest: null });
-                    }
-
-                    const driverLaps = lapsByDriver.get(lap.driver_number)!;
-                    driverLaps.count++;
-
-                    // Track fastest lap
-                    if (lap.lap_duration != null && lap.lap_duration > 0) {
-                        if (driverLaps.fastest === null || lap.lap_duration < driverLaps.fastest) {
-                            driverLaps.fastest = lap.lap_duration;
-                        }
-                    }
-                });
-
-                const driverData: DriverSessionData[] = [];
-                sessionResults.forEach(result => {
-                    const driver = driverMap.get(result.driver_number);
-                    if (!driver) {
-                        return;
-                    }
-
-                    const lapData = lapsByDriver.get(result.driver_number);
-                    const lapCount = lapData?.count || 0;
-                    const fastestLap = lapData?.fastest ? formatLapTime(lapData.fastest) : null;
-
-                    driverData.push({
-                        position: result.position,
-                        driverNumber: result.driver_number,
-                        driverName: driver.full_name,
-                        teamName: driver.team_name,
-                        lapCount,
-                        fastestLap,
-                        dnf: result.dnf || false,
-                        dns: result.dns || false,
-                        dsq: result.dsq || false,
-                        teamColor: driver.team_colour || undefined,
-                    });
-                });
-
-                // Sort by position
-                const normalizePosition = (driver: DriverSessionData) =>
-                    driver.position ?? Number.MAX_SAFE_INTEGER;
-
-                driverData.sort((a, b) => normalizePosition(a) - normalizePosition(b));
-
-                setState({
-                    session: null,
-                    drivers: driverData,
-                    loading: false,
-                    refreshing: false,
-                    error: null,
-                });
-            } catch (error) {
-                console.error('[SessionDetailsScreen] Error fetching details:', error);
-                setState(prev => ({
-                    ...prev,
-                    loading: false,
-                    refreshing: false,
-                    error: error instanceof Error ? error.message : 'Failed to load session details',
-                }));
+        allLaps.forEach((lap: Lap) => {
+            if (!lapsByDriver.has(lap.driver_number)) {
+                lapsByDriver.set(lap.driver_number, { count: 0, fastest: null });
             }
-        },
-        [sessionKey]
-    );
 
-    const handleRefresh = useCallback(() => {
-        fetchDetails(true);
-    }, [fetchDetails]);
+            const driverLaps = lapsByDriver.get(lap.driver_number)!;
+            driverLaps.count++;
 
-    const handleRetry = useCallback(() => {
-        fetchDetails(false);
-    }, [fetchDetails]);
+            if (lap.lap_duration != null && lap.lap_duration > 0) {
+                if (driverLaps.fastest === null || lap.lap_duration < driverLaps.fastest) {
+                    driverLaps.fastest = lap.lap_duration;
+                }
+            }
+        });
+
+        const driverData: DriverSessionData[] = [];
+        sessionResults.forEach(result => {
+            const driver = driverMap.get(result.driver_number);
+            if (!driver) {
+                return;
+            }
+
+            const lapData = lapsByDriver.get(result.driver_number);
+            const lapCount = lapData?.count || 0;
+            const fastestLap = lapData?.fastest ? formatLapTime(lapData.fastest) : null;
+
+            driverData.push({
+                position: result.position,
+                driverNumber: result.driver_number,
+                driverName: driver.full_name,
+                teamName: driver.team_name,
+                lapCount,
+                fastestLap,
+                dnf: result.dnf || false,
+                dns: result.dns || false,
+                dsq: result.dsq || false,
+                teamColor: driver.team_colour || undefined,
+            });
+        });
+
+        const normalizePosition = (driver: DriverSessionData) =>
+            driver.position ?? Number.MAX_SAFE_INTEGER;
+
+        driverData.sort((a, b) => normalizePosition(a) - normalizePosition(b));
+
+        return driverData;
+    }, [sessionKey]);
+
+    const {
+        data,
+        loading,
+        error,
+        refreshing,
+        reload,
+        refresh,
+    } = useServiceRequest(loadSessionDrivers, [loadSessionDrivers]);
+
+    const drivers = data ?? [];
 
     // Loading state
-    if (state.loading) {
+    if (loading) {
         return (
             <View style={styles.center}>
                 <ActivityIndicator size="large" color="#E10600" />
@@ -186,12 +110,12 @@ export default function FreePracticeScreen() {
     }
 
     // Error state
-    if (state.error) {
+    if (error) {
         return (
             <View style={styles.center}>
                 <Text style={styles.errorTitle}>Unable to Load Data</Text>
-                <Text style={styles.errorMessage}>{state.error}</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+                <Text style={styles.errorMessage}>{error}</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={reload}>
                     <Text style={styles.retryButtonText}>Retry</Text>
                 </TouchableOpacity>
             </View>
@@ -203,8 +127,8 @@ export default function FreePracticeScreen() {
             style={styles.container}
             refreshControl={
                 <RefreshControl
-                    refreshing={state.refreshing}
-                    onRefresh={handleRefresh}
+                    refreshing={refreshing}
+                    onRefresh={refresh}
                     tintColor="#E10600"
                 />
             }
@@ -221,7 +145,7 @@ export default function FreePracticeScreen() {
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>📊 Session Results</Text>
 
-                {state.drivers.length > 0 ? (
+                {drivers.length > 0 ? (
                     <>
                         {/* Table Header */}
                         <View style={styles.tableHeader}>
@@ -232,7 +156,7 @@ export default function FreePracticeScreen() {
                         </View>
 
                         {/* Driver Rows - Now using FreePracticeResultCard component */}
-                        {state.drivers.map((driver) => (
+                        {drivers.map(driver => (
                             <FreePracticeResultCard
                                 key={driver.driverNumber}
                                 driver={driver}

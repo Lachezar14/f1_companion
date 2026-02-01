@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback } from 'react';
 import {
     ActivityIndicator,
     RefreshControl,
@@ -13,20 +13,13 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getQualifyingClassification } from '../../backend/service/openf1Service';
 import type { QualifyingDriverClassification } from '../../backend/types';
 import QualifyingResultCard from '../component/session/QualifyingResultCard';
+import { useServiceRequest } from '../hooks/useServiceRequest';
 
 type RouteParams = {
     sessionKey: number;
     sessionName: string;
     meetingName?: string;
 };
-
-interface QualifyingState {
-    rows: QualifyingDriverClassification[];
-    loading: boolean;
-    refreshing: boolean;
-    error: string | null;
-}
-
 type NavigationProp = NativeStackNavigationProp<any>;
 
 const QualifyingScreen = () => {
@@ -34,58 +27,21 @@ const QualifyingScreen = () => {
     const navigation = useNavigation<NavigationProp>();
     const { sessionKey, sessionName, meetingName } = route.params;
 
-    const [state, setState] = useState<QualifyingState>({
-        rows: [],
-        loading: true,
-        refreshing: false,
-        error: null,
-    });
-
     const loadClassification = useCallback(
-        async (isRefresh = false) => {
-            setState(prev => ({
-                ...prev,
-                loading: !isRefresh,
-                refreshing: isRefresh,
-                error: null,
-            }));
-
-            try {
-                const data = await getQualifyingClassification(sessionKey);
-                if (!data) {
-                    setState({
-                        rows: [],
-                        loading: false,
-                        refreshing: false,
-                        error: 'Failed to load qualifying session data',
-                    });
-                    return;
-                }
-
-                setState({
-                    rows: data,
-                    loading: false,
-                    refreshing: false,
-                    error: null,
-                });
-            } catch (error) {
-                setState({
-                    rows: [],
-                    loading: false,
-                    refreshing: false,
-                    error: error instanceof Error ? error.message : 'Failed to load qualifying session data',
-                });
-            }
-        },
+        () => getQualifyingClassification(sessionKey),
         [sessionKey]
     );
 
-    useEffect(() => {
-        loadClassification();
-    }, [loadClassification]);
+    const {
+        data,
+        loading,
+        error,
+        refreshing,
+        reload,
+        refresh,
+    } = useServiceRequest<QualifyingDriverClassification[]>(loadClassification, [loadClassification]);
 
-    const handleRefresh = useCallback(() => loadClassification(true), [loadClassification]);
-    const handleRetry = useCallback(() => loadClassification(false), [loadClassification]);
+    const rows = data ?? [];
 
     const handleDriverPress = useCallback(
         (driverNumber: number) => {
@@ -97,7 +53,7 @@ const QualifyingScreen = () => {
         [navigation, sessionKey]
     );
 
-    if (state.loading) {
+    if (loading) {
         return (
             <View style={styles.center}>
                 <ActivityIndicator size="large" color="#E10600" />
@@ -106,12 +62,12 @@ const QualifyingScreen = () => {
         );
     }
 
-    if (state.error) {
+    if (error) {
         return (
             <View style={styles.center}>
                 <Text style={styles.errorTitle}>Unable to Load</Text>
-                <Text style={styles.errorMessage}>{state.error}</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+                <Text style={styles.errorMessage}>{error}</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={reload}>
                     <Text style={styles.retryButtonText}>Retry</Text>
                 </TouchableOpacity>
             </View>
@@ -123,8 +79,8 @@ const QualifyingScreen = () => {
             style={styles.container}
             refreshControl={
                 <RefreshControl
-                    refreshing={state.refreshing}
-                    onRefresh={handleRefresh}
+                    refreshing={refreshing}
+                    onRefresh={refresh}
                     tintColor="#E10600"
                 />
             }
@@ -136,10 +92,10 @@ const QualifyingScreen = () => {
 
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>⏱️ Qualifying Classification</Text>
-                {state.rows.length === 0 ? (
+                {rows.length === 0 ? (
                     <Text style={styles.noData}>No classification available</Text>
                 ) : (
-                    state.rows.map(row => (
+                    rows.map(row => (
                         <QualifyingResultCard
                             key={row.driverNumber}
                             data={row}

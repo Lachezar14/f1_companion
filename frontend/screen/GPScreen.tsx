@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -11,23 +11,20 @@ import {
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { fetchMeetingsByYear, fetchSessionsByMeeting } from '../../backend/api/openf1';
 import { Meeting, Session } from '../../backend/types';
-import { getRaceSession, getPodium, PodiumFinisher } from '../../backend/service/openf1Service';
-import RaceResultSection from "../component/session/RaceResultSection";
-import SessionCard from "../component/session/SessionCard";
+import {
+    getMeetingByKey,
+    getSessionsByMeeting,
+    getRaceSession,
+    getPodium,
+    PodiumFinisher,
+} from '../../backend/service/openf1Service';
+import RaceResultSection from '../component/session/RaceResultSection';
+import SessionCard from '../component/session/SessionCard';
+import { useServiceRequest } from '../hooks/useServiceRequest';
+import { DEFAULT_MEETING_YEAR } from '../config/appConfig';
 
 type RouteParams = { gpKey: number; year?: number };
-
-interface GPScreenState {
-    meeting: Meeting | null;
-    sessions: Session[];
-    podium: PodiumFinisher[];
-    loading: boolean;
-    refreshing: boolean;
-    error: string | null;
-    podiumError: string | null;
-}
 
 type SessionScreenTarget = 'FreePracticeScreen' | 'QualifyingScreen' | 'RaceScreen';
 
@@ -49,108 +46,53 @@ const resolveSessionScreen = (session: Session): SessionScreenTarget => {
     return 'FreePracticeScreen';
 };
 
+type MeetingDetails = {
+    meeting: Meeting;
+    sessions: Session[];
+    podium: PodiumFinisher[];
+    podiumError: string | null;
+};
+
 export default function GPScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
-    const { gpKey, year = 2025 } = route.params;
+    const { gpKey, year = DEFAULT_MEETING_YEAR } = route.params;
     const navigation = useNavigation<NativeStackNavigationProp<any>>();
 
-    const [state, setState] = useState<GPScreenState>({
-        meeting: null,
-        sessions: [],
-        podium: [],
-        loading: true,
-        refreshing: false,
-        error: null,
-        podiumError: null,
-    });
-    const meetingNameForNav = state.meeting?.meeting_official_name || null;
+    const loadMeetingDetails = useCallback(async (): Promise<MeetingDetails> => {
+        const meeting = await getMeetingByKey(gpKey);
+        if (!meeting) {
+            throw new Error(`Meeting ${gpKey} not found for ${year}`);
+        }
 
-    useEffect(() => {
-        fetchDetails();
+        const sessions = await getSessionsByMeeting(gpKey);
+
+        let podium: PodiumFinisher[] = [];
+        let podiumError: string | null = null;
+
+        const raceSession = await getRaceSession(gpKey);
+        if (raceSession) {
+            try {
+                podium = await getPodium(raceSession);
+            } catch (error) {
+                console.error('[GPScreen] Error fetching podium:', error);
+                podiumError =
+                    error instanceof Error ? error.message : 'Failed to load podium data';
+            }
+        }
+
+        return { meeting, sessions, podium, podiumError };
     }, [gpKey, year]);
 
-    /**
-     * Fetch meeting and sessions
-     */
-    const fetchDetails = useCallback(
-        async (isRefresh = false) => {
-            setState(prev => ({
-                ...prev,
-                loading: !isRefresh,
-                refreshing: isRefresh,
-                error: null,
-            }));
+    const {
+        data,
+        loading,
+        error,
+        refreshing,
+        reload,
+        refresh,
+    } = useServiceRequest(loadMeetingDetails, [loadMeetingDetails]);
 
-            try {
-                // Fetch meeting info
-                const meetings = await fetchMeetingsByYear(year);
-                const meeting = meetings.find(m => m.meeting_key === gpKey);
-
-                if (!meeting) {
-                    setState({
-                        meeting: null,
-                        sessions: [],
-                        podium: [],
-                        loading: false,
-                        refreshing: false,
-                        error: 'Meeting not found',
-                        podiumError: null,
-                    });
-                    return;
-                }
-
-                // Fetch sessions for this meeting
-                const sessions = await fetchSessionsByMeeting(gpKey);
-
-                // Fetch podium data (non-blocking)
-                let podium: PodiumFinisher[] = [];
-                let podiumError: string | null = null;
-
-                try {
-                    const raceSession = await getRaceSession(gpKey);
-                    if (raceSession) {
-                        podium = await getPodium(raceSession);
-                    }
-                } catch (error) {
-                    console.error('[GPDetailsScreen] Error fetching podium:', error);
-                    podiumError = 'Failed to load podium data';
-                }
-
-                setState({
-                    meeting,
-                    sessions,
-                    podium,
-                    loading: false,
-                    refreshing: false,
-                    error: null,
-                    podiumError,
-                });
-            } catch (error) {
-                console.error('[GPDetailsScreen] Error fetching details:', error);
-                setState(prev => ({
-                    ...prev,
-                    loading: false,
-                    refreshing: false,
-                    error: error instanceof Error ? error.message : 'Failed to load meeting details',
-                }));
-            }
-        },
-        [gpKey, year]
-    );
-
-    /**
-     * Handle pull-to-refresh
-     */
-    const handleRefresh = useCallback(() => {
-        fetchDetails(true);
-    }, [fetchDetails]);
-
-    /**
-     * Retry loading data
-     */
-    const handleRetry = useCallback(() => {
-        fetchDetails(false);
-    }, [fetchDetails]);
+    const meetingNameForNav = data?.meeting.meeting_official_name ?? null;
 
     const handleSessionPress = useCallback(
         (session: Session) => {
@@ -165,15 +107,17 @@ export default function GPScreen() {
         [navigation, meetingNameForNav]
     );
 
-    /**
-     * Sort sessions chronologically
-     */
-    const sortedSessions = [...state.sessions].sort(
-        (a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime()
-    );
+    const sortedSessions = useMemo(() => {
+        if (!data?.sessions) {
+            return [];
+        }
 
-    // Loading state
-    if (state.loading) {
+        return [...data.sessions].sort(
+            (a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime()
+        );
+    }, [data?.sessions]);
+
+    if (loading) {
         return (
             <View style={styles.center}>
                 <ActivityIndicator size="large" color="#E10600" />
@@ -182,35 +126,27 @@ export default function GPScreen() {
         );
     }
 
-    // Error state
-    if (state.error || !state.meeting) {
+    if (error || !data) {
         return (
             <View style={styles.center}>
                 <Text style={styles.errorTitle}>Unable to Load Data</Text>
-                <Text style={styles.errorMessage}>
-                    {state.error || 'Meeting not found'}
-                </Text>
-                <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+                <Text style={styles.errorMessage}>{error || 'Meeting not found'}</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={reload}>
                     <Text style={styles.retryButtonText}>Retry</Text>
                 </TouchableOpacity>
             </View>
         );
     }
 
-    const { meeting } = state;
+    const { meeting, podium, podiumError } = data;
 
     return (
         <ScrollView
             style={styles.container}
             refreshControl={
-                <RefreshControl
-                    refreshing={state.refreshing}
-                    onRefresh={handleRefresh}
-                    tintColor="#E10600"
-                />
+                <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#E10600" />
             }
         >
-            {/* Track Image */}
             {meeting.circuit_image && (
                 <Image
                     source={{ uri: meeting.circuit_image }}
@@ -219,12 +155,10 @@ export default function GPScreen() {
                 />
             )}
 
-            {/* Meeting Info */}
             <View style={styles.header}>
                 <Text style={styles.title}>{meeting.meeting_official_name}</Text>
                 <Text style={styles.details}>
-                    {meeting.circuit_short_name} · {meeting.location},{' '}
-                    {meeting.country_name}
+                    {meeting.circuit_short_name} · {meeting.location}, {meeting.country_name}
                 </Text>
                 <Text style={styles.date}>
                     {new Date(meeting.date_start).toLocaleDateString('en-US', {
@@ -236,14 +170,8 @@ export default function GPScreen() {
                 </Text>
             </View>
 
-            {/* Race Result Section - Now using RaceResultSection component */}
-            <RaceResultSection
-                podium={state.podium}
-                podiumError={state.podiumError}
-                onRetry={handleRetry}
-            />
+            <RaceResultSection podium={podium} podiumError={podiumError} onRetry={reload} />
 
-            {/* Sessions Section */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>📅 Sessions</Text>
                 {sortedSessions.length > 0 ? (
@@ -260,7 +188,6 @@ export default function GPScreen() {
                 )}
             </View>
 
-            {/* Pull to refresh hint */}
             <Text style={styles.refreshHint}>Pull down to refresh</Text>
         </ScrollView>
     );

@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { getFocusedRouteNameFromRoute, NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import SessionsScreen from '../screen/SessionsScreen';
 import DriversScreen from '../screen/DriversScreen';
@@ -17,15 +17,6 @@ const SessionsStackNavigator = createNativeStackNavigator();
 const DriversStackNavigator = createNativeStackNavigator();
 
 function SessionsStack({ navigation, route }: any) {
-    /*React.useLayoutEffect(() => {
-        const routeName = getFocusedRouteNameFromRoute(route);
-        if (routeName === "GPScreen" || routeName === "DriverOverview") {
-            navigation.setOptions({ tabBarStyle: { display: 'none' } });
-        } else {
-            navigation.setOptions({ tabBarStyle: { display: 'flex' } });
-        }
-    }, [navigation, route]);*/
-    
     return (
         <SessionsStackNavigator.Navigator>
             <SessionsStackNavigator.Screen

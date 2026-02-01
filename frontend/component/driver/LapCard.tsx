@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Lap, Stint } from '../../../backend/types';
-import { formatLapTime } from '../../../backend/service/openf1Service';
+import { formatLapTime } from '../../../shared/time';
 
 interface LapCardProps {
     lap: Lap;

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-interface DriverSessionData {
+export interface DriverSessionData {
     position: number | null;
     driverNumber: number;
     driverName: string;

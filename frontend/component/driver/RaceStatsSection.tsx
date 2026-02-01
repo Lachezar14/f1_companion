@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { formatLapTime } from '../../../backend/service/openf1Service';
 import { Lap, Stint } from '../../../backend/types';
+import { formatLapTime } from '../../../shared/time';
 
 interface RaceStatsSectionProps {
     raceResult: any;
