@@ -12,6 +12,7 @@ import type { Meeting } from '../../backend/types';
 import GPCard from '../component/gp/GPCard';
 import { DEFAULT_MEETING_YEAR } from '../config/appConfig';
 import { useServiceRequest } from '../hooks/useServiceRequest';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const SessionsScreen = () => {
     const seasonYear = DEFAULT_MEETING_YEAR;
@@ -75,7 +76,7 @@ const SessionsScreen = () => {
     }
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top']}>
             <FlatList
                 data={meetings}
                 keyExtractor={item => item.meeting_key.toString()}
@@ -83,7 +84,7 @@ const SessionsScreen = () => {
                 contentContainerStyle={styles.listContent}
                 ListHeaderComponent={renderHero}
             />
-        </View>
+        </SafeAreaView>
     );
 };
 

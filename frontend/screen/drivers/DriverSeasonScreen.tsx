@@ -6,12 +6,14 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TouchableOpacity,
     View,
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { getDriverSeasonStats } from '../../../backend/service/openf1Service';
 import type { DriverSeasonSessionSummary, DriverSeasonStats } from '../../../backend/types';
-import {DEFAULT_SEASON_YEAR} from "../../config/appConfig";
+import { DEFAULT_SEASON_YEAR } from '../../config/appConfig';
+import { Ionicons } from '@expo/vector-icons';
 
 type RouteParams = {
     driverNumber: number;
@@ -46,6 +48,10 @@ const DriverSeasonScreen = () => {
         loading: true,
         refreshing: false,
         error: null,
+    });
+    const [expandedSections, setExpandedSections] = useState({
+        race: true,
+        qualifying: true,
     });
 
     const driverContext = useMemo(
@@ -116,90 +122,112 @@ const DriverSeasonScreen = () => {
         });
     }, []);
 
-    const renderSessionCard = useCallback(
-        (summary: DriverSeasonSessionSummary) => {
-            const isRace = summary.sessionType === 'Race';
-            const badgeStyle = isRace ? styles.raceBadge : styles.qualiBadge;
-            const badgeTextStyle = isRace ? styles.raceBadgeText : styles.qualiBadgeText;
+    const renderSessionCard = (summary: DriverSeasonSessionSummary) => {
+        const isRace = summary.sessionType === 'Race';
+        const badgeStyle = isRace ? styles.raceBadge : styles.qualiBadge;
+        const badgeTextStyle = isRace ? styles.raceBadgeText : styles.qualiBadgeText;
 
-            const resultValue = summary.position
-                ? `P${summary.position}`
-                : summary.status ?? '-';
+        const resultValue = summary.position ? `P${summary.position}` : summary.status ?? '-';
 
-            const stats = [
-                { label: 'Result', value: resultValue },
-                {
-                    label: 'Laps',
-                    value:
-                        typeof summary.laps === 'number'
-                            ? summary.laps.toString()
-                            : summary.laps ?? '-',
-                },
-                { label: 'Time', value: summary.duration ?? '-' },
-                {
-                    label: isRace ? 'Gap' : 'Gap to Pole',
-                    value: summary.gapToLeader ?? '-',
-                },
-            ];
+        const stats = [
+            {
+                label: 'Laps',
+                value:
+                    typeof summary.laps === 'number' ? summary.laps.toString() : summary.laps ?? '-',
+            },
+            { label: 'Time', value: summary.duration ?? '-' },
+            {
+                label: isRace ? 'Gap' : 'Gap to Pole',
+                value: summary.gapToLeader ?? '-',
+            },
+        ];
 
-            return (
-                <View key={summary.sessionKey} style={styles.sessionCard}>
-                    <View style={styles.sessionHeader}>
-                        <View style={styles.sessionHeaderText}>
-                            <Text style={styles.sessionName}>{summary.sessionName}</Text>
-                            <Text style={styles.sessionMeta}>
-                                {summary.circuit} · {summary.countryName}
-                            </Text>
-                            <Text style={styles.sessionDate}>
-                                {formatSessionDate(summary.dateStart)}
-                            </Text>
-                        </View>
-                        <View style={[styles.sessionBadge, badgeStyle]}>
-                            <Text style={[styles.sessionBadgeText, badgeTextStyle]}>
-                                {summary.sessionType}
-                            </Text>
-                        </View>
+        return (
+            <View key={summary.sessionKey} style={styles.sessionCard}>
+                <View style={styles.sessionHeader}>
+                    <View style={styles.sessionHeaderText}>
+                        <Text style={styles.sessionName}>{summary.sessionName}</Text>
+                        <Text style={styles.sessionMeta}>
+                            {summary.circuit} · {summary.countryName}
+                        </Text>
+                        <Text style={styles.sessionDate}>{formatSessionDate(summary.dateStart)}</Text>
                     </View>
-
-                    <View style={styles.sessionStatsRow}>
-                        {stats.map((stat, index) => (
-                            <View
-                                key={stat.label}
-                                style={[
-                                    styles.sessionStat,
-                                    index < stats.length - 1 && styles.sessionStatSpacer,
-                                ]}
-                            >
-                                <Text style={styles.sessionStatLabel}>{stat.label}</Text>
-                                <Text style={styles.sessionStatValue}>{stat.value}</Text>
-                            </View>
-                        ))}
+                    <View style={[styles.sessionBadge, badgeStyle]}>
+                        <Text style={[styles.sessionBadgeText, badgeTextStyle]}>
+                            {summary.sessionType}
+                        </Text>
                     </View>
                 </View>
-            );
-        },
-        [formatSessionDate]
-    );
 
-    const renderSessionsSection = useCallback(
-        (
-            title: string,
-            data: DriverSeasonSessionSummary[],
-            variant: 'Race' | 'Qualifying'
-        ) => (
-            <View style={styles.section} key={title}>
-                <Text style={styles.sectionTitle}>{title}</Text>
-                {data.length ? (
-                    data.map(renderSessionCard)
-                ) : (
-                    <Text style={styles.emptySectionText}>
-                        No {variant.toLowerCase()} sessions recorded.
-                    </Text>
-                )}
+                <View style={styles.resultRow}>
+                    <View style={[styles.resultChip, styles.resultChipSpacing]}>
+                        <Text style={styles.resultLabel}>Result</Text>
+                        <Text style={styles.resultValue}>{resultValue}</Text>
+                    </View>
+                    <View style={styles.resultChip}>
+                        <Text style={styles.resultLabel}>Location</Text>
+                        <Text style={styles.resultValue}>{summary.location || '—'}</Text>
+                    </View>
+                </View>
+
+                <View style={styles.sessionStatsRow}>
+                    {stats.map((stat, index) => (
+                        <View
+                            key={stat.label}
+                            style={[
+                                styles.sessionStat,
+                                index < stats.length - 1 && styles.sessionStatSpacing,
+                            ]}
+                        >
+                            <Text style={styles.sessionStatLabel}>{stat.label}</Text>
+                            <Text style={styles.sessionStatValue}>{stat.value}</Text>
+                        </View>
+                    ))}
+                </View>
             </View>
-        ),
-        [renderSessionCard]
-    );
+        );
+    };
+
+    const toggleSection = (key: 'race' | 'qualifying') => {
+        setExpandedSections(prev => ({
+            ...prev,
+            [key]: !prev[key],
+        }));
+    };
+
+    const renderSessionsSection = (
+        title: string,
+        data: DriverSeasonSessionSummary[],
+        variant: 'Race' | 'Qualifying',
+        keyName: 'race' | 'qualifying'
+    ) => {
+        const expanded = expandedSections[keyName];
+        return (
+            <View style={styles.section} key={title}>
+                <TouchableOpacity
+                    style={styles.sectionHeaderRow}
+                    onPress={() => toggleSection(keyName)}
+                    activeOpacity={0.82}
+                >
+                    <Text style={styles.sectionTitle}>{title}</Text>
+                    <Ionicons
+                        name={expanded ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        color="#6F6F6F"
+                    />
+                </TouchableOpacity>
+                {expanded ? (
+                    data.length ? (
+                        data.map(renderSessionCard)
+                    ) : (
+                        <Text style={styles.emptySectionText}>
+                            No {variant.toLowerCase()} sessions recorded.
+                        </Text>
+                    )
+                ) : null}
+            </View>
+        );
+    };
 
     if (state.loading) {
         return (
@@ -220,17 +248,18 @@ const DriverSeasonScreen = () => {
     }
 
     const { driver, season, totals, sessions } = state.stats;
+    const teamColorHex = driver.teamColor ? `#${driver.teamColor}` : '#15151E';
 
-    const metricCards = [
+    const heroStats = [
         { label: 'Wins', value: totals.wins },
         { label: 'Podiums', value: totals.podiums },
         { label: 'Race Starts', value: totals.races },
+    ];
+
+    const metricCards = [
         {
             label: 'Avg Race Pos',
-            value:
-                totals.averageRacePosition != null
-                    ? totals.averageRacePosition.toFixed(2)
-                    : '-',
+            value: totals.averageRacePosition != null ? totals.averageRacePosition.toFixed(2) : '-',
         },
         {
             label: 'Avg Quali Pos',
@@ -261,26 +290,40 @@ const DriverSeasonScreen = () => {
                 />
             }
         >
-            <View style={styles.headerCard}>
-                <View
-                    style={[
-                        styles.driverBadge,
-                        { backgroundColor: driver.teamColor ? `#${driver.teamColor}` : '#15151E' },
-                    ]}
-                >
-                    <Text style={styles.badgeText}>#{driver.number}</Text>
-                </View>
-                {driver.headshotUrl ? (
-                    <Image source={{ uri: driver.headshotUrl }} style={styles.headshot} />
-                ) : (
-                    <View style={styles.headshotPlaceholder}>
-                        <Text style={styles.headshotInitial}>{driver.name[0]}</Text>
+            <View style={[styles.heroCard, { backgroundColor: teamColorHex }]}>
+                <View style={styles.heroHeader}>
+                    <View
+                        style={[
+                            styles.numberBadge,
+                            { backgroundColor: driver.teamColor ? `#${driver.teamColor}` : '#15151E' },
+                        ]}
+                    >
+                        <Text style={styles.numberBadgeText}>#{driver.number}</Text>
                     </View>
-                )}
-                <View style={styles.driverInfo}>
-                    <Text style={styles.driverName}>{driver.name}</Text>
-                    <Text style={styles.driverTeam}>{driver.team}</Text>
-                    <Text style={styles.driverSeason}>Season {season}</Text>
+                    <View style={styles.heroInfo}>
+                        <Text style={styles.heroTitle}>{driver.name}</Text>
+                        <Text style={styles.heroSubtitleText}>{driver.team}</Text>
+                        <View style={styles.heroChipRow}>
+                            <View style={styles.heroChip}>
+                                <Text style={styles.heroChipText}>Season {season}</Text>
+                            </View>
+                        </View>
+                    </View>
+                    {driver.headshotUrl ? (
+                        <Image source={{ uri: driver.headshotUrl }} style={styles.heroHeadshot} />
+                    ) : (
+                        <View style={styles.heroHeadshotPlaceholder}>
+                            <Text style={styles.heroHeadshotInitial}>{driver.name[0]}</Text>
+                        </View>
+                    )}
+                </View>
+                <View style={styles.heroStatRow}>
+                    {heroStats.map(stat => (
+                        <View key={stat.label} style={styles.heroStat}>
+                            <Text style={styles.heroStatValue}>{stat.value}</Text>
+                            <Text style={styles.heroStatLabel}>{stat.label}</Text>
+                        </View>
+                    ))}
                 </View>
             </View>
 
@@ -293,8 +336,8 @@ const DriverSeasonScreen = () => {
                 ))}
             </View>
 
-            {renderSessionsSection('Race Results', sessions.races, 'Race')}
-            {renderSessionsSection('Qualifying Results', sessions.qualifying, 'Qualifying')}
+            {renderSessionsSection('Race Results', sessions.races, 'Race', 'race')}
+            {renderSessionsSection('Qualifying Results', sessions.qualifying, 'Qualifying', 'qualifying')}
         </ScrollView>
     );
 };
@@ -304,7 +347,7 @@ export default DriverSeasonScreen;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F2F2F2',
+        backgroundColor: '#F5F5F7',
     },
     center: {
         flex: 1,
@@ -327,107 +370,176 @@ const styles = StyleSheet.create({
         color: '#666',
         textAlign: 'center',
     },
-    headerCard: {
+    heroCard: {
+        backgroundColor: '#15151E',
+        margin: 16,
+        borderRadius: 28,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOpacity: 0.18,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 6,
+    },
+    heroHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFF',
-        margin: 16,
-        borderRadius: 16,
-        padding: 16,
-        elevation: 1,
     },
-    driverBadge: {
-        paddingHorizontal: 10,
+    numberBadge: {
+        paddingHorizontal: 12,
         paddingVertical: 6,
-        borderRadius: 8,
+        borderRadius: 12,
         marginRight: 12,
     },
-    badgeText: {
+    numberBadgeText: {
         color: '#FFF',
-        fontWeight: 'bold',
+        fontWeight: '700',
+        letterSpacing: 1,
     },
-    headshot: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        marginRight: 12,
-        backgroundColor: '#EEE',
-    },
-    headshotPlaceholder: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        marginRight: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#DDD',
-    },
-    headshotInitial: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#555',
-    },
-    driverInfo: {
+    heroInfo: {
         flex: 1,
     },
-    driverName: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#15151E',
+    heroTitle: {
+        fontSize: 22,
+        fontWeight: '700',
+        color: '#FFF',
     },
-    driverTeam: {
+    heroSubtitleText: {
+        color: 'rgba(255,255,255,0.75)',
         marginTop: 4,
-        color: '#666',
     },
-    driverSeason: {
-        marginTop: 6,
-        color: '#999',
+    heroChipRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: 10,
+    },
+    heroChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+    },
+    heroChipText: {
+        color: '#FFF',
+        fontWeight: '600',
+        fontSize: 12,
+        letterSpacing: 0.5,
+    },
+    heroHeadshot: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        marginLeft: 12,
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.3)',
+        backgroundColor: '#1F1F2B',
+    },
+    heroHeadshotPlaceholder: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        marginLeft: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#1F1F2B',
+    },
+    heroHeadshotInitial: {
+        color: '#FFF',
+        fontSize: 24,
+        fontWeight: '700',
+    },
+    heroStatRow: {
+        flexDirection: 'row',
+        marginTop: 18,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        borderRadius: 18,
+        paddingVertical: 12,
+    },
+    heroStat: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    heroStatValue: {
+        color: '#FFF',
+        fontSize: 20,
+        fontWeight: '700',
+    },
+    heroStatLabel: {
+        color: 'rgba(255,255,255,0.65)',
+        fontSize: 11,
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+        marginTop: 4,
     },
     metricsSection: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         paddingHorizontal: 12,
-        paddingBottom: 24,
+        marginBottom: 8,
     },
     metricCard: {
         width: '48%',
         backgroundColor: '#FFF',
-        borderRadius: 12,
+        borderRadius: 18,
         padding: 16,
         margin: '1%',
-        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E6E6E6',
+        shadowColor: '#000',
+        shadowOpacity: 0.04,
+        shadowRadius: 5,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 1,
     },
     metricLabel: {
-        fontSize: 13,
-        color: '#666',
+        fontSize: 12,
+        color: '#8A8A8A',
         textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     metricValue: {
         marginTop: 8,
         fontSize: 20,
-        fontWeight: 'bold',
+        fontWeight: '700',
         color: '#15151E',
     },
     section: {
         marginHorizontal: 16,
         marginBottom: 24,
+        backgroundColor: '#FFF',
+        borderRadius: 20,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#E5E5E5',
+        shadowColor: '#000',
+        shadowOpacity: 0.03,
+        shadowRadius: 5,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 1,
     },
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#15151E',
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         marginBottom: 12,
     },
+    sectionTitle: {
+        fontSize: 17,
+        fontWeight: '700',
+        color: '#15151E',
+        marginBottom: 0,
+    },
     emptySectionText: {
-        color: '#666',
+        color: '#777',
         fontStyle: 'italic',
     },
     sessionCard: {
-        backgroundColor: '#FFF',
-        borderRadius: 12,
+        backgroundColor: '#F9F9FB',
+        borderRadius: 16,
         padding: 16,
         marginBottom: 12,
-        elevation: 1,
+        borderWidth: 1,
+        borderColor: '#ECECEC',
     },
     sessionHeader: {
         flexDirection: 'row',
@@ -473,29 +585,60 @@ const styles = StyleSheet.create({
     qualiBadgeText: {
         color: '#0059C1',
     },
+    resultRow: {
+        flexDirection: 'row',
+        marginTop: 14,
+    },
+    resultChip: {
+        flex: 1,
+        backgroundColor: '#FFF',
+        borderRadius: 14,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderWidth: 1,
+        borderColor: '#E2E2E2',
+    },
+    resultChipSpacing: {
+        marginRight: 8,
+    },
+    resultLabel: {
+        fontSize: 11,
+        color: '#8D8D8D',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    resultValue: {
+        marginTop: 4,
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#15151E',
+    },
     sessionStatsRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         marginTop: 16,
     },
     sessionStat: {
         flex: 1,
+        backgroundColor: '#FFF',
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderWidth: 1,
+        borderColor: '#E6E6E6',
     },
-    sessionStatSpacer: {
-        marginRight: 12,
-        borderRightWidth: StyleSheet.hairlineWidth,
-        borderRightColor: '#EEE',
-        paddingRight: 12,
+    sessionStatSpacing: {
+        marginRight: 10,
     },
     sessionStatLabel: {
-        fontSize: 12,
-        color: '#888',
+        fontSize: 11,
+        color: '#8C8C8C',
+        letterSpacing: 0.5,
         textTransform: 'uppercase',
     },
     sessionStatValue: {
-        marginTop: 4,
-        fontSize: 16,
-        fontWeight: '600',
+        marginTop: 6,
+        fontSize: 15,
+        fontWeight: '700',
         color: '#15151E',
     },
 });

@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import SessionsScreen from '../screen/SessionsScreen';
 import DriversScreen from '../screen/drivers/DriversScreen';
@@ -12,14 +12,71 @@ import FreePracticeScreen from "../screen/sessions/practice/FreePracticeScreen";
 import QualifyingScreen from "../screen/sessions/qualifying/QualifyingScreen";
 import RaceScreen from "../screen/sessions/race/RaceScreen";
 import DriverSeasonScreen from "../screen/drivers/DriverSeasonScreen";
+import FloatingTabBar from '../component/navigation/FloatingTabBar';
+import StackScreenWrapper from '../component/navigation/StackScreenWrapper';
 
 const Tab = createBottomTabNavigator();
 const SessionsStackNavigator = createNativeStackNavigator();
 const DriversStackNavigator = createNativeStackNavigator();
 
-function SessionsStack({ navigation, route }: any) {
+type WrapperOptions = {
+    title?: string;
+    getTitle?: (props: any) => string | undefined;
+};
+
+const withStackScreenWrapper = (
+    Component: React.ComponentType<any>,
+    options?: WrapperOptions
+) => {
+    return function WrappedScreen(props: any) {
+        const headerTitle = options?.getTitle?.(props) ?? options?.title;
+        return (
+            <StackScreenWrapper title={headerTitle}>
+                <Component {...props} />
+            </StackScreenWrapper>
+        );
+    };
+};
+
+const DriverOverviewWithHeader = withStackScreenWrapper(DriverOverviewScreen, {
+    title: 'Driver Overview',
+});
+
+const DriverPracticeDetailsWithHeader = withStackScreenWrapper(DriverPracticeDetailsScreen, {
+    title: 'Practice Driver',
+});
+
+const GPDetailsWithHeader = withStackScreenWrapper(GPScreen, {
+    title: 'Grand Prix',
+});
+
+const FreePracticeWithHeader = withStackScreenWrapper(FreePracticeScreen, {
+    title: 'Free Practice',
+});
+
+const QualifyingWithHeader = withStackScreenWrapper(QualifyingScreen, {
+    title: 'Qualifying',
+});
+
+const RaceWithHeader = withStackScreenWrapper(RaceScreen, {
+    title: 'Race',
+});
+
+const DriverSeasonWithHeader = withStackScreenWrapper(DriverSeasonScreen, {
+    getTitle: props => props.route?.params?.driverName ?? 'Driver Season',
+});
+
+const getIsTabBarVisible = (
+    route: { state?: any; params?: any; name: string } | undefined,
+    initialRouteName: string
+) => {
+    const routeName = getFocusedRouteNameFromRoute(route) ?? initialRouteName;
+    return routeName === initialRouteName;
+};
+
+function SessionsStack() {
     return (
-        <SessionsStackNavigator.Navigator>
+        <SessionsStackNavigator.Navigator screenOptions={{ headerShown: false }}>
             <SessionsStackNavigator.Screen
                 name="SessionsList"
                 component={SessionsScreen}
@@ -27,32 +84,32 @@ function SessionsStack({ navigation, route }: any) {
             />
             <SessionsStackNavigator.Screen
                 name="DriverOverview"
-                component={DriverOverviewScreen}
+                component={DriverOverviewWithHeader}
                 options={{ title: 'Driver Overview' }}
             />
             <SessionsStackNavigator.Screen
                 name="DriverPracticeOverview"
-                component={DriverPracticeDetailsScreen}
+                component={DriverPracticeDetailsWithHeader}
                 options={{ title: 'Practice Driver' }}
             />
             <SessionsStackNavigator.Screen
                 name="GPScreen"
-                component={GPScreen}
+                component={GPDetailsWithHeader}
                 options={{ title: 'Grand Prix' }}
             />
             <SessionsStackNavigator.Screen
                 name="FreePracticeScreen"
-                component={FreePracticeScreen}
+                component={FreePracticeWithHeader}
                 options={{ title: 'Free Practice' }}
             />
             <SessionsStackNavigator.Screen
                 name="QualifyingScreen"
-                component={QualifyingScreen}
+                component={QualifyingWithHeader}
                 options={{ title: 'Qualifying' }}
             />
             <SessionsStackNavigator.Screen
                 name="RaceScreen"
-                component={RaceScreen}
+                component={RaceWithHeader}
                 options={{ title: 'Race' }}
             />
         </SessionsStackNavigator.Navigator>
@@ -61,7 +118,7 @@ function SessionsStack({ navigation, route }: any) {
 
 function DriversStack() {
     return (
-        <DriversStackNavigator.Navigator>
+        <DriversStackNavigator.Navigator screenOptions={{ headerShown: false }}>
             <DriversStackNavigator.Screen
                 name="DriversList"
                 component={DriversScreen}
@@ -69,7 +126,7 @@ function DriversStack() {
             />
             <DriversStackNavigator.Screen
                 name="DriverSeasonDetails"
-                component={DriverSeasonScreen}
+                component={DriverSeasonWithHeader}
                 options={{ title: 'Drivers' }}
             />
         </DriversStackNavigator.Navigator>
@@ -79,34 +136,43 @@ function DriversStack() {
 export default function AppNavigator() {
     return (
         <NavigationContainer>
-            <Tab.Navigator screenOptions={{ headerShown: false }}>
+            <Tab.Navigator
+                screenOptions={{ headerShown: false }}
+                tabBar={props => <FloatingTabBar {...props} />}
+            >
                 <Tab.Screen
                     name="SessionsTab"
                     component={SessionsStack}
-                    options={{
+                    options={({ route }) => ({
                         title: 'Sessions',
-                        tabBarIcon: () => (
+                        tabBarStyle: getIsTabBarVisible(route, 'SessionsList')
+                            ? undefined
+                            : { display: 'none' },
+                        tabBarIcon: ({ color }) => (
                             <MaterialCommunityIcons
                                 name="compass"
                                 size={24}
-                                color="black"
+                                color={color ?? 'black'}
                             />
                         )
-                    }}
+                    })}
                 />
                 <Tab.Screen
                     name="DriversTab"
                     component={DriversStack}
-                    options={{
+                    options={({ route }) => ({
                         title: 'Drivers',
-                        tabBarIcon: () => (
+                        tabBarStyle: getIsTabBarVisible(route, 'DriversList')
+                            ? undefined
+                            : { display: 'none' },
+                        tabBarIcon: ({ color }) => (
                             <MaterialCommunityIcons
                                 name="account"
                                 size={24}
-                                color="black"
+                                color={color ?? 'black'}
                             />
                         )
-                    }}
+                    })}
                 />
             </Tab.Navigator>
         </NavigationContainer>

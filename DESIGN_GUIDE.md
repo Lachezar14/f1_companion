@@ -37,7 +37,12 @@ This document captures the current design language used across the newly refresh
 - Keep ScrollView backgrounds light gray and spacing symmetrical (16 px margins) so cards float consistently across tabs.
 - Driver classification rows (practice/race) share a single-row pattern: left column for position/status, compact driver badge with number + acronym centered, and a right column for the primary metric (fastest lap or gap). No per-row stat stacks to keep the list dense on mobile widths.
 
-## 8. Implementation Tips
+## 8. Driver Screens
+- Drivers list uses a hero overview (season summary + stats) followed by slim, three-column cards (position/status · headshot + acronym + team chip · key metric). Keep avatar sizes ~50 px so long names have room.
+- Driver season detail heroes mirror the dark cards from session screens while adopting the driver's team color for the background; keep typography white and add translucent stat bands for contrast. Secondary metrics live in lifted 2-column cards below.
+- Session history cards use pill chips for quick facts (result/location) and compact stat boxes for laps/time/gap; these sections are collapsible accordions (Race/Quali) so the screen stays manageable on mobile.
+
+## 9. Implementation Tips
 - Centralize colors and spacing tokens as constants if more screens adopt the style.
 - Extract chip/tile components if repetition grows (currently each hero defines simple `chip` styles).
 - Keep the hero summary logic (stats, upcoming counts) modular so other screens (e.g., Drivers list) can reuse it.

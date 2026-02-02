@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { getRaceDriverDetail } from '../../../../backend/service/openf1Service';
-import { Lap, SessionDriverData, Stint } from '../../../../backend/types';
+import type { Lap, SessionDriverData, SessionResult, Stint } from '../../../../backend/types';
 import RaceStatsSection from "../../../component/driver/RaceStatsSection";
 import { formatLapTime } from '../../../../shared/time';
 
@@ -42,10 +42,71 @@ const getDriverInitials = (name: string): string => {
     if (!parts.length) {
         return '?';
     }
-    return parts
-        .map(part => part[0]?.toUpperCase() ?? '')
-        .join('')
-        .slice(0, 2) || '?';
+    return (
+        parts
+            .map(part => part[0]?.toUpperCase() ?? '')
+            .join('')
+            .slice(0, 2) || '?'
+    );
+};
+
+const formatGap = (gap: SessionResult['gap_to_leader']): string => {
+    if (gap === null || gap === undefined) {
+        return '—';
+    }
+    if (typeof gap === 'string') {
+        return gap.toUpperCase();
+    }
+    if (typeof gap === 'number') {
+        return `+${gap.toFixed(3)}s`;
+    }
+    if (Array.isArray(gap)) {
+        const val = gap.find(item => typeof item === 'number') as number | undefined;
+        if (typeof val === 'number') {
+            return `+${val.toFixed(3)}s`;
+        }
+    }
+    return '—';
+};
+
+const formatResult = (result?: SessionResult | null): string => {
+    if (!result) {
+        return '—';
+    }
+    if (result.dsq) return 'DSQ';
+    if (result.dnf) return 'DNF';
+    if (result.dns) return 'DNS';
+    if (result.position) return `P${result.position}`;
+    return '—';
+};
+
+const formatDuration = (duration?: SessionResult['duration']): string => {
+    if (duration === null || duration === undefined) {
+        return '—';
+    }
+    if (typeof duration === 'number') {
+        return formatLapTime(duration);
+    }
+    if (typeof duration === 'string') {
+        return duration;
+    }
+    if (Array.isArray(duration)) {
+        const val = duration[duration.length - 1];
+        if (typeof val === 'number') {
+            return formatLapTime(val);
+        }
+    }
+    return '—';
+};
+
+const getResultStatus = (result?: SessionResult | null): string => {
+    if (!result) {
+        return 'Race Result';
+    }
+    if (result.dsq) return 'Disqualified';
+    if (result.dnf) return 'Did Not Finish';
+    if (result.dns) return 'Did Not Start';
+    return 'Classified';
 };
 
 export default function DriverOverviewScreen() {
@@ -181,10 +242,17 @@ export default function DriverOverviewScreen() {
     const driverImageSource = driverInfo.headshotUrl
         ? { uri: driverInfo.headshotUrl }
         : null;
+    const heroStats = [
+        { label: 'Result', value: formatResult(driverData.sessionResult) },
+        { label: 'Laps', value: driverData.sessionResult?.number_of_laps ?? driverData.laps.length },
+        { label: 'Gap', value: formatGap(driverData.sessionResult?.gap_to_leader) }
+    ];
+    const resultStatus = getResultStatus(driverData.sessionResult);
 
     return (
         <ScrollView
             style={styles.container}
+            contentContainerStyle={styles.contentContainer}
             refreshControl={
                 <RefreshControl
                     refreshing={state.refreshing}
@@ -193,29 +261,43 @@ export default function DriverOverviewScreen() {
                 />
             }
         >
-            {/* Header */}
-            <View style={[styles.header, { backgroundColor: headerColor }]}>
-                <View style={styles.headerContent}>
-                    <View style={styles.avatarContainer}>
+            <View style={[styles.heroCard, { backgroundColor: headerColor }]}>
+                <View style={styles.heroRow}>
+                    <View style={styles.heroTextBlock}>
+                        <Text style={styles.heroSubtitle}>Race Classification</Text>
+                        <Text style={styles.heroName}>{driverInfo.name}</Text>
+                        <Text style={styles.heroTeam}>{driverInfo.team}</Text>
+                        <View style={styles.heroChipRow}>
+                            <View style={styles.heroChip}>
+                                <Text style={styles.heroChipText}>#{driverInfo.number}</Text>
+                            </View>
+                            <View style={[styles.heroChip, styles.heroChipMuted]}>
+                                <Text style={[styles.heroChipText, styles.heroChipTextMuted]}>
+                                    {resultStatus}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                    <View style={styles.heroAvatar}>
                         {driverImageSource ? (
-                            <Image source={driverImageSource} style={styles.avatarImage} />
+                            <Image source={driverImageSource} style={styles.heroImage} />
                         ) : (
                             <Text style={styles.avatarInitials}>
                                 {getDriverInitials(driverInfo.name)}
                             </Text>
                         )}
                     </View>
-                    <View style={styles.headerInfo}>
-                        <View style={styles.headerInfoTop}>
-                            <Text style={styles.name}>{driverInfo.name}</Text>
-                            <Text style={styles.number}>#{driverInfo.number}</Text>
+                </View>
+                <View style={styles.heroStatRow}>
+                    {heroStats.map(stat => (
+                        <View key={stat.label} style={styles.heroStat}>
+                            <Text style={styles.heroStatValue}>{stat.value}</Text>
+                            <Text style={styles.heroStatLabel}>{stat.label}</Text>
                         </View>
-                        <Text style={styles.team}>{driverInfo.team}</Text>
-                    </View>
+                    ))}
                 </View>
             </View>
 
-            {/* Race Stats Section - Now using RaceStatsSection component */}
             <RaceStatsSection
                 raceResult={driverData.sessionResult}
                 lapCount={driverData.laps.length}
@@ -225,9 +307,11 @@ export default function DriverOverviewScreen() {
                 safetyCarLapSet={safetyCarLapSet}
             />
 
-            {/* Lap Timeline */}
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Lap Timeline</Text>
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Lap Timeline</Text>
+                    <Text style={styles.sectionSubtitle}>Tyres, pace and safety car notes</Text>
+                </View>
                 {driverData.laps.length > 0 ? (
                     <View style={styles.lapTable}>
                         <View style={[styles.lapRow, styles.lapHeaderRow]}>
@@ -263,28 +347,31 @@ export default function DriverOverviewScreen() {
                                     {formatLapTime(lap.lap_duration)}
                                 </Text>
                                 <View style={styles.noteCell}>
-                                    {isSafetyCar && (
-                                        <View style={[styles.badge, styles.safetyCarBadge]}>
-                                            <Text style={[styles.badgeText, styles.safetyCarText]}>
-                                                SC
-                                            </Text>
+                                    {isSafetyCar || isPitOut || isPitIn ? (
+                                        <View style={styles.noteCellContent}>
+                                            {isSafetyCar && (
+                                                <View style={[styles.badge, styles.safetyCarBadge]}>
+                                                    <Text style={[styles.badgeText, styles.safetyCarText]}>
+                                                        SC
+                                                    </Text>
+                                                </View>
+                                            )}
+                                            {isPitOut && (
+                                                <View style={[styles.badge, styles.pitOutBadge]}>
+                                                    <Text style={[styles.badgeText, styles.pitOutText]}>
+                                                        Pit Out
+                                                    </Text>
+                                                </View>
+                                            )}
+                                            {isPitIn && (
+                                                <View style={[styles.badge, styles.pitInBadge]}>
+                                                    <Text style={[styles.badgeText, styles.pitInText]}>
+                                                        Pit In
+                                                    </Text>
+                                                </View>
+                                            )}
                                         </View>
-                                    )}
-                                    {isPitOut && (
-                                        <View style={[styles.badge, styles.pitOutBadge]}>
-                                            <Text style={[styles.badgeText, styles.pitOutText]}>
-                                                Pit Out
-                                            </Text>
-                                        </View>
-                                    )}
-                                    {isPitIn && (
-                                        <View style={[styles.badge, styles.pitInBadge]}>
-                                            <Text style={[styles.badgeText, styles.pitInText]}>
-                                                Pit In
-                                            </Text>
-                                        </View>
-                                    )}
-                                    {!isSafetyCar && !isPitOut && !isPitIn && (
+                                    ) : (
                                         <Text style={styles.noBadge}>-</Text>
                                     )}
                                 </View>
@@ -336,106 +423,165 @@ const getCompoundLetter = (compound: string): string => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F5F5F5' },
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+    container: { flex: 1, backgroundColor: '#F5F5F7' },
+    contentContainer: {
+        paddingBottom: 32,
+    },
+    center: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+        backgroundColor: '#F5F5F7',
+    },
     loadingText: { marginTop: 12, fontSize: 16, color: '#333' },
     errorTitle: { fontSize: 20, fontWeight: 'bold', color: '#E10600', marginBottom: 8 },
     errorMessage: { fontSize: 16, color: '#333', textAlign: 'center' },
-    header: {
-        paddingHorizontal: 20,
-        paddingVertical: 24,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.2)',
+    heroCard: {
+        marginHorizontal: 16,
+        marginTop: 16,
+        padding: 20,
+        borderRadius: 28,
         shadowColor: '#000',
-        shadowOpacity: 0.12,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 6,
-        elevation: 4,
+        shadowOpacity: 0.2,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 10 },
+        elevation: 8,
     },
-    headerContent: {
+    heroRow: {
         flexDirection: 'row',
         alignItems: 'center',
     },
-    avatarContainer: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
+    heroTextBlock: {
+        flex: 1,
+    },
+    heroSubtitle: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 13,
+        letterSpacing: 0.6,
+        textTransform: 'uppercase',
+    },
+    heroName: {
+        color: '#FFF',
+        fontSize: 26,
+        fontWeight: '800',
+        marginTop: 8,
+    },
+    heroTeam: {
+        color: 'rgba(255,255,255,0.85)',
+        fontSize: 15,
+        marginTop: 4,
+    },
+    heroChipRow: {
+        flexDirection: 'row',
+        marginTop: 16,
+    },
+    heroChip: {
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.18)',
+        marginRight: 10,
+    },
+    heroChipMuted: {
+        backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+    heroChipText: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 13,
+        letterSpacing: 0.4,
+    },
+    heroChipTextMuted: {
+        color: 'rgba(255,255,255,0.85)',
+        fontWeight: '600',
+    },
+    heroAvatar: {
+        width: 88,
+        height: 88,
+        borderRadius: 44,
         backgroundColor: 'rgba(255,255,255,0.25)',
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.4)',
+        marginLeft: 16,
     },
-    avatarImage: {
+    heroImage: {
         width: '100%',
         height: '100%',
     },
     avatarInitials: {
-        fontSize: 26,
-        fontWeight: '700',
-        color: '#FFF',
-    },
-    headerInfo: {
-        flex: 1,
-        marginLeft: 16,
-    },
-    headerInfoTop: {
-        flexDirection: 'row',
-        alignItems: 'flex-end',
-        justifyContent: 'space-between',
-        marginBottom: 8,
-    },
-    name: {
-        fontSize: 26,
+        fontSize: 28,
         fontWeight: '800',
         color: '#FFF',
-        marginBottom: 0,
     },
-    team: {
-        fontSize: 16,
-        color: 'rgba(255,255,255,0.85)',
+    heroStatRow: {
+        flexDirection: 'row',
+        marginTop: 24,
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        borderRadius: 22,
+        paddingVertical: 12,
+        paddingHorizontal: 12,
     },
-    number: {
-        fontSize: 22,
-        fontWeight: '700',
+    heroStat: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    heroStatValue: {
         color: '#FFF',
+        fontSize: 18,
+        fontWeight: '700',
     },
-
+    heroStatLabel: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 12,
+        marginTop: 4,
+        letterSpacing: 0.6,
+        textTransform: 'uppercase',
+    },
     section: {
-        marginTop: 16,
+        marginTop: 20,
         marginHorizontal: 16,
         backgroundColor: '#FFF',
-        borderRadius: 12,
-        padding: 16,
+        borderRadius: 20,
+        padding: 20,
         shadowColor: '#000',
-        shadowOpacity: 0.08,
-        shadowOffset: { width: 0, height: 2 },
-        shadowRadius: 8,
-        elevation: 3,
+        shadowOpacity: 0.06,
+        shadowOffset: { width: 0, height: 6 },
+        shadowRadius: 12,
+        elevation: 4,
+    },
+    sectionHeader: {
+        marginBottom: 16,
     },
     sectionTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#333',
-        marginBottom: 12,
+        color: '#15151E',
+    },
+    sectionSubtitle: {
+        marginTop: 4,
+        fontSize: 14,
+        color: '#7C7C85',
     },
     lapTable: {
         borderWidth: 1,
-        borderColor: '#F0F0F0',
-        borderRadius: 10,
+        borderColor: '#ECECF1',
+        borderRadius: 16,
         overflow: 'hidden',
     },
     lapRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F7F7F7',
+        paddingVertical: 11,
+        paddingHorizontal: 14,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: '#F3F3F5',
     },
     lapHeaderRow: {
-        backgroundColor: '#FAFAFA',
+        backgroundColor: '#F6F6F9',
     },
     lapCell: {
         width: 70,
@@ -453,7 +599,7 @@ const styles = StyleSheet.create({
         width: 90,
         fontSize: 14,
         fontWeight: '600',
-        color: '#E10600',
+        color: '#15151E',
         textAlign: 'right',
     },
     noteCell: {
@@ -461,6 +607,10 @@ const styles = StyleSheet.create({
         minWidth: 90,
         flexDirection: 'row',
         justifyContent: 'flex-end',
+        alignItems: 'center',
+    },
+    noteCellContent: {
+        flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
     },
@@ -493,30 +643,29 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     badge: {
-        paddingHorizontal: 8,
+        paddingHorizontal: 10,
         paddingVertical: 4,
-        borderRadius: 12,
+        borderRadius: 999,
     },
     badgeText: {
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '700',
+        letterSpacing: 0.4,
     },
     pitOutBadge: {
-        backgroundColor: '#FFE4E1',
+        backgroundColor: 'rgba(225, 6, 0, 0.08)',
     },
     pitOutText: {
-        color: '#C62828',
+        color: '#B40012',
     },
     pitInBadge: {
-        backgroundColor: '#E3F2FD',
+        backgroundColor: 'rgba(62, 197, 255, 0.16)',
     },
     pitInText: {
-        color: '#1565C0',
+        color: '#0077B6',
     },
     safetyCarBadge: {
-        backgroundColor: '#FFF3CD',
-        borderWidth: 1,
-        borderColor: '#FFEE58',
+        backgroundColor: 'rgba(255, 218, 103, 0.2)',
     },
     safetyCarText: {
         color: '#8D6E00',

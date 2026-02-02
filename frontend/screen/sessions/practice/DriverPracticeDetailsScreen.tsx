@@ -12,7 +12,7 @@ import { RouteProp, useRoute } from '@react-navigation/native';
 import { getPracticeDriverDetail } from '../../../../backend/service/openf1Service';
 import PracticeStatsSection from '../../../component/driver/PracticeStatsSection';
 import PracticeStintCard from '../../../component/driver/PracticeStintCard';
-import { Lap, SessionDriverData, Stint } from '../../../../backend/types';
+import type { Lap, SessionDriverData, SessionResult, Stint } from '../../../../backend/types';
 
 type RouteParams = {
     driverNumber: number;
@@ -39,10 +39,52 @@ const getDriverInitials = (name: string): string => {
     if (!parts.length) {
         return '?';
     }
-    return parts
-        .map(part => part[0]?.toUpperCase() ?? '')
-        .join('')
-        .slice(0, 2) || '?';
+    return (
+        parts
+            .map(part => part[0]?.toUpperCase() ?? '')
+            .join('')
+            .slice(0, 2) || '?'
+    );
+};
+
+const formatGap = (gap: SessionResult['gap_to_leader']): string => {
+    if (gap === null || gap === undefined) {
+        return '—';
+    }
+    if (typeof gap === 'string') {
+        return gap.toUpperCase();
+    }
+    if (typeof gap === 'number') {
+        return `+${gap.toFixed(3)}s`;
+    }
+    if (Array.isArray(gap)) {
+        const numericGap = gap.find(value => typeof value === 'number') as number | undefined;
+        if (typeof numericGap === 'number') {
+            return `+${numericGap.toFixed(3)}s`;
+        }
+    }
+    return '—';
+};
+
+const formatResult = (result?: SessionResult | null): string => {
+    if (!result) {
+        return '—';
+    }
+    if (result.dsq) return 'DSQ';
+    if (result.dnf) return 'DNF';
+    if (result.dns) return 'DNS';
+    if (result.position) return `P${result.position}`;
+    return '—';
+};
+
+const getResultStatus = (result?: SessionResult | null): string => {
+    if (!result) {
+        return 'Practice Run';
+    }
+    if (result.dsq) return 'Disqualified';
+    if (result.dnf) return 'Did Not Finish';
+    if (result.dns) return 'Did Not Start';
+    return 'Classified';
 };
 
 export default function DriverPracticeDetailsScreen() {
@@ -154,10 +196,28 @@ export default function DriverPracticeDetailsScreen() {
     const driverImageSource = driverData.driver.headshotUrl
         ? { uri: driverData.driver.headshotUrl }
         : null;
+    const sessionResult = driverData.sessionResult;
+    const heroStats = [
+        {
+            label: 'Result',
+            value: formatResult(sessionResult),
+        },
+        {
+            label: 'Laps',
+            value: sessionResult?.number_of_laps ?? driverData.laps.length,
+        },
+        {
+            label: 'Gap',
+            value: formatGap(sessionResult?.gap_to_leader),
+        },
+    ];
+
+    const statusLabel = getResultStatus(sessionResult);
 
     return (
         <ScrollView
             style={styles.container}
+            contentContainerStyle={styles.contentContainer}
             refreshControl={
                 <RefreshControl
                     refreshing={state.refreshing}
@@ -166,24 +226,40 @@ export default function DriverPracticeDetailsScreen() {
                 />
             }
         >
-            <View style={[styles.header, { backgroundColor: headerColor }]}>
-                <View style={styles.headerContent}>
-                    <View style={styles.avatarContainer}>
+            <View style={[styles.heroCard, { backgroundColor: headerColor }]}>
+                <View style={styles.heroRow}>
+                    <View style={styles.heroTextBlock}>
+                        <Text style={styles.heroSubtitle}>Free Practice</Text>
+                        <Text style={styles.heroName}>{driverData.driver.name}</Text>
+                        <Text style={styles.heroTeam}>{driverData.driver.team}</Text>
+                        <View style={styles.heroChipRow}>
+                            <View style={styles.heroChip}>
+                                <Text style={styles.heroChipText}>#{driverData.driver.number}</Text>
+                            </View>
+                            <View style={[styles.heroChip, styles.heroChipMuted]}>
+                                <Text style={[styles.heroChipText, styles.heroChipTextMuted]}>
+                                    {statusLabel}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                    <View style={styles.heroAvatar}>
                         {driverImageSource ? (
-                            <Image source={driverImageSource} style={styles.avatarImage} />
+                            <Image source={driverImageSource} style={styles.heroImage} />
                         ) : (
                             <Text style={styles.avatarInitials}>
                                 {getDriverInitials(driverData.driver.name)}
                             </Text>
                         )}
                     </View>
-                    <View style={styles.headerInfo}>
-                        <View style={styles.headerInfoTop}>
-                            <Text style={styles.name}>{driverData.driver.name}</Text>
-                            <Text style={styles.number}>#{driverData.driver.number}</Text>
+                </View>
+                <View style={styles.heroStatRow}>
+                    {heroStats.map(stat => (
+                        <View key={stat.label} style={styles.heroStat}>
+                            <Text style={styles.heroStatValue}>{stat.value}</Text>
+                            <Text style={styles.heroStatLabel}>{stat.label}</Text>
                         </View>
-                        <Text style={styles.team}>{driverData.driver.team}</Text>
-                    </View>
+                    ))}
                 </View>
             </View>
 
@@ -194,7 +270,10 @@ export default function DriverPracticeDetailsScreen() {
             />
 
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Stints & Laps</Text>
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Stints & Laps</Text>
+                    <Text style={styles.sectionSubtitle}>Tyre evolution and stint detail</Text>
+                </View>
                 {stintsWithLaps.length > 0 ? (
                     stintsWithLaps.map(({ stint, laps }) => (
                         <PracticeStintCard key={stint.stint_number} stint={stint} laps={laps} />
@@ -210,14 +289,17 @@ export default function DriverPracticeDetailsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F5F5F5',
+        backgroundColor: '#F5F5F7',
+    },
+    contentContainer: {
+        paddingBottom: 32,
     },
     center: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         padding: 24,
-        backgroundColor: '#F5F5F5',
+        backgroundColor: '#F5F5F7',
     },
     loadingText: {
         marginTop: 12,
@@ -235,33 +317,78 @@ const styles = StyleSheet.create({
         color: '#333',
         textAlign: 'center',
     },
-    header: {
-        paddingHorizontal: 20,
-        paddingVertical: 24,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.2)',
+    heroCard: {
+        marginHorizontal: 16,
+        marginTop: 16,
+        padding: 20,
+        borderRadius: 28,
         shadowColor: '#000',
-        shadowOpacity: 0.12,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 6,
-        elevation: 4,
+        shadowOpacity: 0.18,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 10 },
+        elevation: 8,
     },
-    headerContent: {
+    heroRow: {
         flexDirection: 'row',
         alignItems: 'center',
     },
-    avatarContainer: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        backgroundColor: 'rgba(255,255,255,0.35)',
+    heroTextBlock: {
+        flex: 1,
+    },
+    heroSubtitle: {
+        color: 'rgba(255,255,255,0.75)',
+        fontSize: 13,
+        letterSpacing: 0.6,
+        textTransform: 'uppercase',
+    },
+    heroName: {
+        color: '#FFF',
+        fontSize: 26,
+        fontWeight: '800',
+        marginTop: 8,
+    },
+    heroTeam: {
+        color: 'rgba(255,255,255,0.85)',
+        fontSize: 15,
+        marginTop: 4,
+    },
+    heroChipRow: {
+        flexDirection: 'row',
+        marginTop: 16,
+    },
+    heroChip: {
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.16)',
+        marginRight: 10,
+    },
+    heroChipMuted: {
+        backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+    heroChipText: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 13,
+        letterSpacing: 0.5,
+    },
+    heroChipTextMuted: {
+        color: 'rgba(255,255,255,0.85)',
+        fontWeight: '600',
+    },
+    heroAvatar: {
+        width: 88,
+        height: 88,
+        borderRadius: 44,
+        backgroundColor: 'rgba(255,255,255,0.25)',
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.4)',
+        marginLeft: 16,
     },
-    avatarImage: {
+    heroImage: {
         width: '100%',
         height: '100%',
     },
@@ -270,50 +397,54 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#FFF',
     },
-    headerInfo: {
-        flex: 1,
-        marginLeft: 16,
-    },
-    headerInfoTop: {
+    heroStatRow: {
         flexDirection: 'row',
-        alignItems: 'flex-end',
-        justifyContent: 'space-between',
-        marginBottom: 8,
+        marginTop: 24,
+        backgroundColor: 'rgba(0,0,0,0.18)',
+        borderRadius: 20,
+        paddingVertical: 12,
+        paddingHorizontal: 12,
     },
-    name: {
-        fontSize: 26,
-        fontWeight: '800',
+    heroStat: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    heroStatValue: {
         color: '#FFF',
-        marginBottom: 0,
-    },
-    team: {
-        fontSize: 16,
-        color: 'rgba(255,255,255,0.85)',
-        marginBottom: 4,
-    },
-    number: {
-        fontSize: 22,
+        fontSize: 20,
         fontWeight: '700',
-        color: '#FFF',
-        marginBottom: 4,
+    },
+    heroStatLabel: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 12,
+        letterSpacing: 0.7,
+        marginTop: 4,
+        textTransform: 'uppercase',
     },
     section: {
-        marginTop: 16,
+        marginTop: 20,
         marginHorizontal: 16,
         backgroundColor: '#FFF',
-        borderRadius: 12,
-        padding: 16,
+        borderRadius: 20,
+        padding: 20,
         shadowColor: '#000',
-        shadowOpacity: 0.08,
-        shadowOffset: { width: 0, height: 2 },
-        shadowRadius: 8,
-        elevation: 3,
+        shadowOpacity: 0.06,
+        shadowOffset: { width: 0, height: 6 },
+        shadowRadius: 12,
+        elevation: 4,
+    },
+    sectionHeader: {
+        marginBottom: 16,
     },
     sectionTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#333',
-        marginBottom: 12,
+        color: '#15151E',
+    },
+    sectionSubtitle: {
+        fontSize: 14,
+        color: '#7C7C85',
+        marginTop: 4,
     },
     noData: {
         fontSize: 14,
