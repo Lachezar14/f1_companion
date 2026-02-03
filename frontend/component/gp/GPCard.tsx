@@ -32,15 +32,18 @@ export default function GPCard({ meeting }: GPCardProps) {
     });
 
     return (
-        <TouchableOpacity style={styles.card} onPress={handlePress} activeOpacity={0.9}>
+        <TouchableOpacity style={styles.card} onPress={handlePress} activeOpacity={0.88}>
             <ImageBackground
                 source={{ uri: meeting.country_flag || fallbackFlag }}
-                style={styles.flagBackground}
+                style={styles.flagPanel}
                 imageStyle={styles.flagImage}
             >
                 <View style={styles.flagOverlay} />
                 <View style={styles.flagContent}>
                     <Text style={styles.countryCode}>{meeting.country_code}</Text>
+                    <Text style={styles.countryName} numberOfLines={1}>
+                        {meeting.country_name}
+                    </Text>
                 </View>
             </ImageBackground>
 
@@ -55,11 +58,12 @@ export default function GPCard({ meeting }: GPCardProps) {
                         <Text style={styles.tagText}>{dateLabel}</Text>
                     </View>
                 </View>
-
                 <Text style={styles.title} numberOfLines={2}>
-                    {meeting.meeting_official_name || meeting.meeting_name}
+                    {meeting.meeting_name}
                 </Text>
-                <Text style={styles.subtitle}>{meeting.location}</Text>
+                <Text style={styles.subtitle} numberOfLines={1}>
+                    {meeting.location}
+                </Text>
             </View>
         </TouchableOpacity>
     );
@@ -67,22 +71,25 @@ export default function GPCard({ meeting }: GPCardProps) {
 
 const styles = StyleSheet.create({
     card: {
+        flexDirection: 'row',
+        alignItems: 'stretch',
         backgroundColor: '#161623',
-        borderRadius: 22,
-        marginBottom: 16,
+        borderRadius: 24,
+        marginBottom: 14,
         overflow: 'hidden',
-        elevation: 4,
+        elevation: 3,
         shadowColor: '#000',
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
+        shadowOpacity: 0.15,
+        shadowRadius: 10,
         shadowOffset: { width: 0, height: 6 },
+        minHeight: 110,
     },
-    flagBackground: {
-        height: 110,
+    flagPanel: {
+        width: 110,
         justifyContent: 'flex-end',
     },
     flagImage: {
-        opacity: 0.9,
+        opacity: 0.85,
     },
     flagOverlay: {
         ...StyleSheet.absoluteFillObject,
@@ -97,35 +104,44 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         letterSpacing: 2,
     },
+    countryName: {
+        color: 'rgba(255,255,255,0.85)',
+        fontSize: 12,
+        marginTop: 4,
+    },
     cardContent: {
-        padding: 18,
+        flex: 1,
+        paddingVertical: 16,
+        paddingHorizontal: 18,
+        justifyContent: 'center',
     },
     tagRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 8,
-        marginBottom: 12,
+        marginBottom: 8,
     },
     tag: {
-        borderRadius: 14,
-        paddingHorizontal: 12,
+        borderRadius: 12,
+        paddingHorizontal: 10,
         paddingVertical: 4,
         backgroundColor: 'rgba(255,255,255,0.15)',
+        marginRight: 8,
+        marginBottom: 6,
     },
     tagText: {
         color: '#FFF',
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '600',
         letterSpacing: 0.5,
     },
     title: {
-        fontSize: 20,
+        fontSize: 17,
         fontWeight: '700',
         color: '#FFF',
         marginBottom: 4,
     },
     subtitle: {
-        fontSize: 14,
+        fontSize: 13,
         color: 'rgba(255,255,255,0.75)',
     },
 });

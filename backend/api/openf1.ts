@@ -239,6 +239,14 @@ export async function fetchSessionsByMeeting(meetingKey: number): Promise<Sessio
 }
 
 /**
+ * Get session by key
+ */
+export async function fetchSessionByKey(sessionKey: number): Promise<Session | null> {
+    const sessions = await cachedGet<Session[]>('/sessions', { session_key: sessionKey });
+    return sessions[0] ?? null;
+}
+
+/**
  * Get all sessions for a meeting
  */
 export async function fetchSessionsByYear(year: number): Promise<Session[]> {

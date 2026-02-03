@@ -15,14 +15,14 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getSeasonDrivers } from '../../../backend/service/openf1Service';
 import type { Driver } from '../../../backend/types';
 import { useServiceRequest } from '../../hooks/useServiceRequest';
-import { DEFAULT_SEASON_YEAR } from '../../config/appConfig';
+import { AVAILABLE_MEETING_YEARS, DEFAULT_SEASON_YEAR } from '../../config/appConfig';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const DriversScreen = () => {
     const navigation = useNavigation<NativeStackNavigationProp<any>>();
     const [search, setSearch] = useState('');
-    const seasonYear = DEFAULT_SEASON_YEAR;
+    const [seasonYear, setSeasonYear] = useState(DEFAULT_SEASON_YEAR);
 
     const {
         data,
@@ -91,6 +91,28 @@ const DriversScreen = () => {
     const renderListHeader = () => (
         <>
             <View style={styles.heroCard}>
+                <View style={styles.yearRow}>
+                    {AVAILABLE_MEETING_YEARS.map(year => (
+                        <TouchableOpacity
+                            key={year}
+                            activeOpacity={0.85}
+                            onPress={() => setSeasonYear(year)}
+                            style={[
+                                styles.yearChip,
+                                seasonYear === year && styles.yearChipActive,
+                            ]}
+                        >
+                            <Text
+                                style={[
+                                    styles.yearChipText,
+                                    seasonYear === year && styles.yearChipTextActive,
+                                ]}
+                            >
+                                {year}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
                 <Text style={styles.heroSubtitle}>Season {seasonYear}</Text>
                 <Text style={styles.heroTitle}>Driver Line-Up</Text>
                 <Text style={styles.heroDescription}>
@@ -246,6 +268,30 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 6 },
         elevation: 5,
+    },
+    yearRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginHorizontal: -4,
+        marginBottom: 12,
+    },
+    yearChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        marginHorizontal: 4,
+        marginBottom: 8,
+    },
+    yearChipActive: {
+        backgroundColor: '#FFF',
+    },
+    yearChipText: {
+        color: 'rgba(255,255,255,0.75)',
+        fontWeight: '600',
+    },
+    yearChipTextActive: {
+        color: '#15151E',
     },
     heroSubtitle: {
         color: 'rgba(255,255,255,0.7)',

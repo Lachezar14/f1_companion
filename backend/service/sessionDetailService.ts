@@ -34,7 +34,7 @@ import {
     summarizeRaceControl,
     getMaxLapCount,
 } from './raceControlService';
-import { getSessionsByMeeting } from './meetingsService';
+import { getSessionByKey, getSessionsByMeeting } from './meetingsService';
 
 export type PodiumFinisher = {
     position: number;
@@ -157,14 +157,17 @@ async function resolveSessionMetadata(
         results[0]?.meeting_key ??
         null;
 
-    if (meetingKey == null) {
-        throw new Error(`Unable to determine meeting for session ${sessionKey}`);
+    if (meetingKey != null) {
+        const sessions = await getSessionsByMeeting(meetingKey);
+        const session = sessions.find(entry => entry.session_key === sessionKey);
+        if (session) {
+            return session;
+        }
     }
 
-    const sessions = await getSessionsByMeeting(meetingKey);
-    const session = sessions.find(entry => entry.session_key === sessionKey);
-    if (session) {
-        return session;
+    const fallback = await getSessionByKey(sessionKey);
+    if (fallback) {
+        return fallback;
     }
 
     const now = new Date();

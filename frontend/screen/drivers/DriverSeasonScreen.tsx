@@ -291,31 +291,29 @@ const DriverSeasonScreen = () => {
             }
         >
             <View style={[styles.heroCard, { backgroundColor: teamColorHex }]}>
-                <View style={styles.heroHeader}>
-                    <View
-                        style={[
-                            styles.numberBadge,
-                            { backgroundColor: driver.teamColor ? `#${driver.teamColor}` : '#15151E' },
-                        ]}
-                    >
-                        <Text style={styles.numberBadgeText}>#{driver.number}</Text>
-                    </View>
-                    <View style={styles.heroInfo}>
-                        <Text style={styles.heroTitle}>{driver.name}</Text>
-                        <Text style={styles.heroSubtitleText}>{driver.team}</Text>
+                <View style={styles.heroRow}>
+                    <View style={styles.heroTextBlock}>
+                        <Text style={styles.heroSubtitle}>Season {season}</Text>
+                        <Text style={styles.heroName}>{driver.name}</Text>
+                        <Text style={styles.heroTeam}>{driver.team}</Text>
                         <View style={styles.heroChipRow}>
                             <View style={styles.heroChip}>
-                                <Text style={styles.heroChipText}>Season {season}</Text>
+                                <Text style={styles.heroChipText}>#{driver.number}</Text>
+                            </View>
+                            <View style={[styles.heroChip, styles.heroChipMuted]}>
+                                <Text style={[styles.heroChipText, styles.heroChipTextMuted]}>
+                                    {totals.races} Starts
+                                </Text>
                             </View>
                         </View>
                     </View>
-                    {driver.headshotUrl ? (
-                        <Image source={{ uri: driver.headshotUrl }} style={styles.heroHeadshot} />
-                    ) : (
-                        <View style={styles.heroHeadshotPlaceholder}>
-                            <Text style={styles.heroHeadshotInitial}>{driver.name[0]}</Text>
-                        </View>
-                    )}
+                    <View style={styles.heroAvatar}>
+                        {driver.headshotUrl ? (
+                            <Image source={{ uri: driver.headshotUrl }} style={styles.heroImage} />
+                        ) : (
+                            <Text style={styles.heroInitials}>{driver.name[0]}</Text>
+                        )}
+                    </View>
                 </View>
                 <View style={styles.heroStatRow}>
                     {heroStats.map(stat => (
@@ -381,79 +379,82 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 6 },
         elevation: 6,
     },
-    heroHeader: {
+    heroRow: {
         flexDirection: 'row',
         alignItems: 'center',
     },
-    numberBadge: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 12,
-        marginRight: 12,
-    },
-    numberBadgeText: {
-        color: '#FFF',
-        fontWeight: '700',
-        letterSpacing: 1,
-    },
-    heroInfo: {
+    heroTextBlock: {
         flex: 1,
     },
-    heroTitle: {
-        fontSize: 22,
-        fontWeight: '700',
-        color: '#FFF',
+    heroSubtitle: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 13,
+        letterSpacing: 0.6,
+        textTransform: 'uppercase',
     },
-    heroSubtitleText: {
-        color: 'rgba(255,255,255,0.75)',
+    heroName: {
+        fontSize: 24,
+        fontWeight: '800',
+        color: '#FFF',
+        marginTop: 8,
+    },
+    heroTeam: {
+        color: 'rgba(255,255,255,0.8)',
         marginTop: 4,
+        fontSize: 15,
     },
     heroChipRow: {
         flexDirection: 'row',
-        gap: 8,
-        marginTop: 10,
+        marginTop: 14,
     },
     heroChip: {
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.15)',
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.16)',
+        marginRight: 10,
+    },
+    heroChipMuted: {
+        backgroundColor: 'rgba(255,255,255,0.08)',
     },
     heroChipText: {
         color: '#FFF',
-        fontWeight: '600',
-        fontSize: 12,
+        fontWeight: '700',
+        fontSize: 13,
         letterSpacing: 0.5,
     },
-    heroHeadshot: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        marginLeft: 12,
-        borderWidth: 2,
-        borderColor: 'rgba(255,255,255,0.3)',
-        backgroundColor: '#1F1F2B',
+    heroChipTextMuted: {
+        color: 'rgba(255,255,255,0.85)',
+        fontWeight: '600',
     },
-    heroHeadshotPlaceholder: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        marginLeft: 12,
+    heroAvatar: {
+        width: 84,
+        height: 84,
+        borderRadius: 42,
+        backgroundColor: 'rgba(255,255,255,0.25)',
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#1F1F2B',
+        overflow: 'hidden',
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.4)',
+        marginLeft: 16,
     },
-    heroHeadshotInitial: {
+    heroImage: {
+        width: '100%',
+        height: '100%',
+    },
+    heroInitials: {
         color: '#FFF',
-        fontSize: 24,
-        fontWeight: '700',
+        fontSize: 26,
+        fontWeight: '800',
     },
     heroStatRow: {
         flexDirection: 'row',
-        marginTop: 18,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 18,
+        marginTop: 20,
+        backgroundColor: 'rgba(0,0,0,0.15)',
+        borderRadius: 20,
         paddingVertical: 12,
+        paddingHorizontal: 12,
     },
     heroStat: {
         flex: 1,

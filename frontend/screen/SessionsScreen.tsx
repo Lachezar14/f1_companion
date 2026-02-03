@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     View,
     Text,
@@ -10,12 +10,12 @@ import {
 import { getMeetingsByYear } from '../../backend/service/openf1Service';
 import type { Meeting } from '../../backend/types';
 import GPCard from '../component/gp/GPCard';
-import { DEFAULT_MEETING_YEAR } from '../config/appConfig';
+import { AVAILABLE_MEETING_YEARS, DEFAULT_MEETING_YEAR } from '../config/appConfig';
 import { useServiceRequest } from '../hooks/useServiceRequest';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const SessionsScreen = () => {
-    const seasonYear = DEFAULT_MEETING_YEAR;
+    const [seasonYear, setSeasonYear] = useState(DEFAULT_MEETING_YEAR);
     const { data, loading, error, reload } = useServiceRequest<Meeting[]>(
         () => getMeetingsByYear(seasonYear),
         [seasonYear]
@@ -35,6 +35,28 @@ const SessionsScreen = () => {
 
     const renderHero = () => (
         <View style={styles.heroCard}>
+            <View style={styles.yearRow}>
+                {AVAILABLE_MEETING_YEARS.map(year => (
+                    <TouchableOpacity
+                        key={year}
+                        onPress={() => setSeasonYear(year)}
+                        activeOpacity={0.85}
+                        style={[
+                            styles.yearChip,
+                            seasonYear === year && styles.yearChipActive,
+                        ]}
+                    >
+                        <Text
+                            style={[
+                                styles.yearChipText,
+                                seasonYear === year && styles.yearChipTextActive,
+                            ]}
+                        >
+                            {year}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
             <View>
                 <Text style={styles.heroSubtitle}>Formula 1 · Season {seasonYear}</Text>
                 <Text style={styles.heroTitle}>Grand Prix Calendar</Text>
@@ -135,6 +157,31 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 6 },
         elevation: 4,
+    },
+    yearRow: {
+        flexDirection: 'row',
+        marginBottom: 12,
+        flexWrap: 'wrap',
+        marginHorizontal: -4,
+    },
+    yearChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        marginHorizontal: 4,
+        marginBottom: 8,
+    },
+    yearChipActive: {
+        backgroundColor: '#FFF',
+    },
+    yearChipText: {
+        color: 'rgba(255,255,255,0.7)',
+        fontWeight: '600',
+        letterSpacing: 0.5,
+    },
+    yearChipTextActive: {
+        color: '#15151E',
     },
     heroTitle: {
         fontSize: 24,

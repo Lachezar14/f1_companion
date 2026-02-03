@@ -1,6 +1,7 @@
 import {
     fetchMeetingsByKey,
     fetchMeetingsByYear,
+    fetchSessionByKey,
     fetchSessionsByMeeting,
 } from '../api/openf1';
 import type { Meeting, Session } from '../types';
@@ -25,6 +26,13 @@ export function getSessionsByMeeting(meetingKey: number): Promise<Session[]> {
     return withServiceError(
         `Failed to fetch sessions for meeting ${meetingKey}`,
         () => fetchSessionsByMeeting(meetingKey)
+    );
+}
+
+export function getSessionByKey(sessionKey: number): Promise<Session | null> {
+    return withServiceError(
+        `Failed to fetch session ${sessionKey}`,
+        () => fetchSessionByKey(sessionKey)
     );
 }
 
