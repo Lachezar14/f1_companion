@@ -3,6 +3,12 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SessionDriverData } from '../../../backend/types';
+import {
+    deriveDriverCode,
+    formatDriverPosition,
+    getDriverPositionColor,
+    getTeamColorHex,
+} from '../../../utils/driver';
 
 export interface DriverSessionData {
     position: number | null;
@@ -37,42 +43,10 @@ type NavigationProp = NativeStackNavigationProp<any>;
 const DriverRow = ({ driver, sessionKey, isFirst = false, showDivider = false }: DriverCardProps) => {
     const navigation = useNavigation<NavigationProp>();
 
-    const formatPosition = (driver: DriverSessionData): string => {
-        if (driver.dns) return 'DNS';
-        if (driver.dnf) return 'DNF';
-        if (driver.dsq) return 'DSQ';
-        if (driver.position) return `P${driver.position}`;
-        return '-';
-    };
-
-    const getPositionColor = (driver: DriverSessionData): string => {
-        if (driver.dns || driver.dnf || driver.dsq) return '#999';
-        if (driver.position === 1) return '#FFD700';
-        if (driver.position === 2) return '#C0C0C0';
-        if (driver.position === 3) return '#CD7F32';
-        return '#15151E';
-    };
-
-    const deriveCodeFromName = (fullName: string): string => {
-        const parts = fullName.trim().split(' ');
-        const target = (parts[parts.length - 1] || fullName).replace(/[^A-Za-z]/g, '');
-        const upper = target.toUpperCase();
-        if (upper.length >= 3) return upper.slice(0, 3);
-        if (upper.length === 0 && fullName) {
-            return fullName.slice(0, 3).toUpperCase();
-        }
-        const lastChar = upper.charAt(upper.length - 1) || fullName.charAt(0).toUpperCase() || 'X';
-        return upper.padEnd(3, lastChar);
-    };
-
     const getDriverCode = (): string => {
         const shortCode = driver.driverEntry?.driver.shortName?.trim();
         if (shortCode) return shortCode.toUpperCase();
-        return deriveCodeFromName(driver.driverName);
-    };
-
-    const getTeamColor = (): string => {
-        return driver.teamColor ? `#${driver.teamColor}` : '#15151E';
+        return deriveDriverCode(driver.driverName);
     };
 
     const handlePress = () => {
@@ -90,13 +64,35 @@ const DriverRow = ({ driver, sessionKey, isFirst = false, showDivider = false }:
             activeOpacity={0.82}
         >
             <View style={styles.positionColumn}>
-                <Text style={[styles.positionText, { color: getPositionColor(driver) }]}>
-                    {formatPosition(driver)}
+                <Text
+                    style={[
+                        styles.positionText,
+                        {
+                            color: getDriverPositionColor({
+                                position: driver.position,
+                                dnf: driver.dnf,
+                                dns: driver.dns,
+                                dsq: driver.dsq,
+                            }),
+                        },
+                    ]}
+                >
+                    {formatDriverPosition({
+                        position: driver.position,
+                        dnf: driver.dnf,
+                        dns: driver.dns,
+                        dsq: driver.dsq,
+                    })}
                 </Text>
             </View>
 
             <View style={styles.driverColumn}>
-                <View style={[styles.driverBubble, { backgroundColor: getTeamColor() }]}>
+                <View
+                    style={[
+                        styles.driverBubble,
+                        { backgroundColor: getTeamColorHex(driver.teamColor) },
+                    ]}
+                >
                     <Text style={styles.driverBubbleText}>{driver.driverNumber}</Text>
                 </View>
                 <View style={styles.driverInfo}>

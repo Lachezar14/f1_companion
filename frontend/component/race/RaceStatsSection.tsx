@@ -3,6 +3,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Lap, Stint } from '../../../backend/types';
 import { formatLapTime } from '../../../shared/time';
+import { getCompoundColor, getCompoundLetter } from '../../../utils/tyre';
+import { calculateAvgLapTimePerCompound } from '../../../utils/lap';
 
 interface RaceStatsSectionProps {
     raceResult: any;
@@ -13,94 +15,6 @@ interface RaceStatsSectionProps {
     safetyCarLapSet?: Set<number>;
 }
 
-const getCompoundColor = (compound: string): string => {
-    const compoundLower = compound.toLowerCase();
-    switch (compoundLower) {
-        case 'soft':
-            return '#E10600';
-        case 'medium':
-            return '#d8b031';
-        case 'hard':
-            return '#9E9E9E';
-        case 'intermediate':
-            return '#4CAF50';
-        case 'wet':
-            return '#2196F3';
-        default:
-            return '#666';
-    }
-};
-
-const getCompoundLetter = (compound: string): string => {
-    const compoundLower = compound.toLowerCase();
-    switch (compoundLower) {
-        case 'soft':
-            return 'S';
-        case 'medium':
-            return 'M';
-        case 'hard':
-            return 'H';
-        case 'intermediate':
-            return 'I';
-        case 'wet':
-            return 'W';
-        default:
-            return compoundLower.charAt(0).toUpperCase();
-    }
-};
-
-// Helper function to format race result
-const formatRaceResult = (raceResult: any): string => {
-    if (!raceResult) return '-';
-
-    // Check for DNF, DSQ, DNS statuses (boolean flags)
-    if (raceResult.dnf) return 'DNF';
-    if (raceResult.dsq) return 'DSQ';
-    if (raceResult.dns) return 'DNS';
-
-    // Return position if available
-    if (raceResult.position) {
-        return `P${raceResult.position}`;
-    }
-
-    return '-';
-};
-
-// Helper function to calculate average lap time per compound
-const calculateAvgLapTimePerCompound = (
-    laps: Lap[],
-    stints: Stint[],
-    safetyCarLapSet?: Set<number>
-): { compound: string; avgTime: number; lapCount: number }[] => {
-    const compoundMap = new Map<string, { totalTime: number; count: number }>();
-
-    laps.forEach(lap => {
-        // Skip pit out laps and laps without duration
-        if (lap.is_pit_out_lap || !lap.lap_duration) return;
-        if (safetyCarLapSet?.has(lap.lap_number)) return;
-
-        // Find the stint for this lap
-        const stint = stints.find(
-            s => lap.lap_number >= s.lap_start && lap.lap_number <= s.lap_end
-        );
-
-        if (stint) {
-            const compound = stint.compound;
-            const existing = compoundMap.get(compound) || { totalTime: 0, count: 0 };
-            compoundMap.set(compound, {
-                totalTime: existing.totalTime + lap.lap_duration,
-                count: existing.count + 1,
-            });
-        }
-    });
-
-    return Array.from(compoundMap.entries()).map(([compound, data]) => ({
-        compound,
-        avgTime: data.totalTime / data.count,
-        lapCount: data.count,
-    }));
-};
-
 export default function RaceStatsSection({
     raceResult,
     lapCount,
@@ -110,12 +24,9 @@ export default function RaceStatsSection({
     safetyCarLapSet,
 }: RaceStatsSectionProps) {
     const pitStops = Math.max(0, stintCount - 1);
-    const avgLapTimesPerCompound = calculateAvgLapTimePerCompound(
-        laps,
-        stints,
-        safetyCarLapSet
-    ).sort((a, b) => b.lapCount - a.lapCount);
-    const formattedRaceResult = formatRaceResult(raceResult);
+    const avgLapTimesPerCompound = calculateAvgLapTimePerCompound(laps, stints, {
+        excludedLapNumbers: safetyCarLapSet,
+    }).sort((a, b) => b.lapCount - a.lapCount);
 
     const statCards: {
         key: string;

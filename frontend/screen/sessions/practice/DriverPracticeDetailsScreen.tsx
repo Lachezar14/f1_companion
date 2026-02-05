@@ -13,6 +13,13 @@ import { getPracticeDriverDetail } from '../../../../backend/service/openf1Servi
 import PracticeStatsSection from '../../../component/practice/PracticeStatsSection';
 import PracticeStintCard from '../../../component/practice/PracticeStintCard';
 import type { Lap, SessionDriverData, SessionResult, Stint } from '../../../../backend/types';
+import {
+    getTeamColorHex,
+    getDriverInitials,
+    formatSessionGap,
+    formatSessionResult,
+    getResultStatusLabel,
+} from '../../../../utils/driver';
 
 type RouteParams = {
     driverNumber: number;
@@ -26,66 +33,6 @@ interface DriverState {
     refreshing: boolean;
     error: string | null;
 }
-
-const getTeamColorHex = (teamColor?: string | null): string => {
-    if (!teamColor || !teamColor.trim()) {
-        return '#15151E';
-    }
-    return teamColor.startsWith('#') ? teamColor : `#${teamColor}`;
-};
-
-const getDriverInitials = (name: string): string => {
-    const parts = name.trim().split(/\s+/);
-    if (!parts.length) {
-        return '?';
-    }
-    return (
-        parts
-            .map(part => part[0]?.toUpperCase() ?? '')
-            .join('')
-            .slice(0, 2) || '?'
-    );
-};
-
-const formatGap = (gap: SessionResult['gap_to_leader']): string => {
-    if (gap === null || gap === undefined) {
-        return '—';
-    }
-    if (typeof gap === 'string') {
-        return gap.toUpperCase();
-    }
-    if (typeof gap === 'number') {
-        return `+${gap.toFixed(3)}s`;
-    }
-    if (Array.isArray(gap)) {
-        const numericGap = gap.find(value => typeof value === 'number') as number | undefined;
-        if (typeof numericGap === 'number') {
-            return `+${numericGap.toFixed(3)}s`;
-        }
-    }
-    return '—';
-};
-
-const formatResult = (result?: SessionResult | null): string => {
-    if (!result) {
-        return '—';
-    }
-    if (result.dsq) return 'DSQ';
-    if (result.dnf) return 'DNF';
-    if (result.dns) return 'DNS';
-    if (result.position) return `P${result.position}`;
-    return '—';
-};
-
-const getResultStatus = (result?: SessionResult | null): string => {
-    if (!result) {
-        return 'Practice Run';
-    }
-    if (result.dsq) return 'Disqualified';
-    if (result.dnf) return 'Did Not Finish';
-    if (result.dns) return 'Did Not Start';
-    return 'Classified';
-};
 
 export default function DriverPracticeDetailsScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
@@ -200,7 +147,7 @@ export default function DriverPracticeDetailsScreen() {
     const heroStats = [
         {
             label: 'Result',
-            value: formatResult(sessionResult),
+            value: formatSessionResult(sessionResult),
         },
         {
             label: 'Laps',
@@ -208,11 +155,11 @@ export default function DriverPracticeDetailsScreen() {
         },
         {
             label: 'Gap',
-            value: formatGap(sessionResult?.gap_to_leader),
+            value: formatSessionGap(sessionResult?.gap_to_leader),
         },
     ];
 
-    const statusLabel = getResultStatus(sessionResult);
+    const statusLabel = getResultStatusLabel(sessionResult, 'Practice Run');
 
     return (
         <ScrollView

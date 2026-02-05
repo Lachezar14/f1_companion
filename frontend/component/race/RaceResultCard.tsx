@@ -6,6 +6,7 @@ import {
     View,
 } from 'react-native';
 import type { RaceDriverClassification } from '../../../backend/types';
+import { deriveDriverCode } from '../../../utils/driver';
 
 type RaceResultRowProps = {
     data: RaceDriverClassification;
@@ -27,19 +28,7 @@ const RaceResultRow: React.FC<RaceResultRowProps> = ({ data, onPress, showDivide
         }
     };
 
-    const deriveCodeFromName = (fullName: string): string => {
-        const parts = fullName.trim().split(' ');
-        const target = (parts[parts.length - 1] || fullName).replace(/[^A-Za-z]/g, '');
-        const upper = target.toUpperCase();
-        if (upper.length >= 3) return upper.slice(0, 3);
-        if (upper.length === 0 && fullName) {
-            return fullName.slice(0, 3).toUpperCase();
-        }
-        const fallback = upper.charAt(upper.length - 1) || fullName.charAt(0).toUpperCase() || 'X';
-        return upper.padEnd(3, fallback);
-    };
-
-    const getDriverCode = (): string => deriveCodeFromName(data.driverName);
+    const getDriverCode = (): string => deriveDriverCode(data.driverName);
 
     const positionDisplay = (): string => {
         const status = data.status?.toUpperCase();

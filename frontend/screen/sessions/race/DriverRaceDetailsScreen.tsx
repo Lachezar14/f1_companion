@@ -13,6 +13,14 @@ import { getRaceDriverDetail } from '../../../../backend/service/openf1Service';
 import type { Lap, SessionDriverData, SessionResult, Stint } from '../../../../backend/types';
 import RaceStatsSection from "../../../component/race/RaceStatsSection";
 import { formatLapTime } from '../../../../shared/time';
+import {
+    getTeamColorHex,
+    getDriverInitials,
+    formatSessionGap,
+    formatSessionResult,
+    getResultStatusLabel,
+} from '../../../../utils/driver';
+import { getCompoundColor, getCompoundLetter } from '../../../../utils/tyre';
 
 type RouteParams = {
     driverNumber: number;
@@ -29,85 +37,6 @@ interface DriverState {
     refreshing: boolean;
     error: string | null;
 }
-
-const getTeamColorHex = (teamColor?: string | null): string => {
-    if (!teamColor || !teamColor.trim()) {
-        return '#15151E';
-    }
-    return teamColor.startsWith('#') ? teamColor : `#${teamColor}`;
-};
-
-const getDriverInitials = (name: string): string => {
-    const parts = name.trim().split(/\s+/);
-    if (!parts.length) {
-        return '?';
-    }
-    return (
-        parts
-            .map(part => part[0]?.toUpperCase() ?? '')
-            .join('')
-            .slice(0, 2) || '?'
-    );
-};
-
-const formatGap = (gap: SessionResult['gap_to_leader']): string => {
-    if (gap === null || gap === undefined) {
-        return '—';
-    }
-    if (typeof gap === 'string') {
-        return gap.toUpperCase();
-    }
-    if (typeof gap === 'number') {
-        return `+${gap.toFixed(3)}s`;
-    }
-    if (Array.isArray(gap)) {
-        const val = gap.find(item => typeof item === 'number') as number | undefined;
-        if (typeof val === 'number') {
-            return `+${val.toFixed(3)}s`;
-        }
-    }
-    return '—';
-};
-
-const formatResult = (result?: SessionResult | null): string => {
-    if (!result) {
-        return '—';
-    }
-    if (result.dsq) return 'DSQ';
-    if (result.dnf) return 'DNF';
-    if (result.dns) return 'DNS';
-    if (result.position) return `P${result.position}`;
-    return '—';
-};
-
-const formatDuration = (duration?: SessionResult['duration']): string => {
-    if (duration === null || duration === undefined) {
-        return '—';
-    }
-    if (typeof duration === 'number') {
-        return formatLapTime(duration);
-    }
-    if (typeof duration === 'string') {
-        return duration;
-    }
-    if (Array.isArray(duration)) {
-        const val = duration[duration.length - 1];
-        if (typeof val === 'number') {
-            return formatLapTime(val);
-        }
-    }
-    return '—';
-};
-
-const getResultStatus = (result?: SessionResult | null): string => {
-    if (!result) {
-        return 'Race Result';
-    }
-    if (result.dsq) return 'Disqualified';
-    if (result.dnf) return 'Did Not Finish';
-    if (result.dns) return 'Did Not Start';
-    return 'Classified';
-};
 
 export default function DriverOverviewScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
@@ -243,11 +172,11 @@ export default function DriverOverviewScreen() {
         ? { uri: driverInfo.headshotUrl }
         : null;
     const heroStats = [
-        { label: 'Result', value: formatResult(driverData.sessionResult) },
+        { label: 'Result', value: formatSessionResult(driverData.sessionResult) },
         { label: 'Laps', value: driverData.sessionResult?.number_of_laps ?? driverData.laps.length },
-        { label: 'Gap', value: formatGap(driverData.sessionResult?.gap_to_leader) }
+        { label: 'Gap', value: formatSessionGap(driverData.sessionResult?.gap_to_leader) }
     ];
-    const resultStatus = getResultStatus(driverData.sessionResult);
+    const resultStatus = getResultStatusLabel(driverData.sessionResult);
 
     return (
         <ScrollView
@@ -371,42 +300,6 @@ export default function DriverOverviewScreen() {
         </ScrollView>
     );
 }
-
-const getCompoundColor = (compound: string): string => {
-    const compoundLower = compound.toLowerCase();
-    switch (compoundLower) {
-        case 'soft':
-            return '#E10600';
-        case 'medium':
-            return '#d8b031';
-        case 'hard':
-            return '#9E9E9E';
-        case 'intermediate':
-            return '#4CAF50';
-        case 'wet':
-            return '#2196F3';
-        default:
-            return '#666';
-    }
-};
-
-const getCompoundLetter = (compound: string): string => {
-    const compoundLower = compound.toLowerCase();
-    switch (compoundLower) {
-        case 'soft':
-            return 'S';
-        case 'medium':
-            return 'M';
-        case 'hard':
-            return 'H';
-        case 'intermediate':
-            return 'I';
-        case 'wet':
-            return 'W';
-        default:
-            return compoundLower.charAt(0).toUpperCase();
-    }
-};
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F5F5F7' },

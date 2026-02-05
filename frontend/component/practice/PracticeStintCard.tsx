@@ -2,77 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Lap, Stint } from '../../../backend/types';
 import { formatLapTime } from '../../../shared/time';
+import { getCompoundColor, getCompoundLetter, getTyreStatus } from '../../../utils/tyre';
+import { getAverageLapTime, getBestLapTime } from '../../../utils/lap';
 
 interface PracticeStintCardProps {
     stint: Stint;
     laps: Lap[];
     showDivider?: boolean;
 }
-
-const getCompoundColor = (compound: string): string => {
-    const compoundLower = compound.toLowerCase();
-    switch (compoundLower) {
-        case 'soft':
-            return '#E10600';
-        case 'medium':
-            return '#d8b031';
-        case 'hard':
-            return '#9E9E9E';
-        case 'intermediate':
-            return '#4CAF50';
-        case 'wet':
-            return '#2196F3';
-        default:
-            return '#666';
-    }
-};
-
-const getCompoundLetter = (compound: string): string => {
-    const compoundLower = compound.toLowerCase();
-    switch (compoundLower) {
-        case 'soft':
-            return 'S';
-        case 'medium':
-            return 'M';
-        case 'hard':
-            return 'H';
-        case 'intermediate':
-            return 'I';
-        case 'wet':
-            return 'W';
-        default:
-            return compoundLower.charAt(0).toUpperCase();
-    }
-};
-
-const getTyreStatus = (age: number): string => {
-    if (age <= 0) {
-        return 'New set';
-    }
-    return age === 1 ? '1 lap old' : `${age} laps old`;
-};
-
-const getAverageLapTime = (laps: Lap[]): number | null => {
-    const cleanLaps = laps.filter(lap => lap.lap_duration && lap.lap_duration > 0);
-    if (!cleanLaps.length) {
-        return null;
-    }
-    const total = cleanLaps.reduce((sum, lap) => sum + (lap.lap_duration as number), 0);
-    return total / cleanLaps.length;
-};
-
-const getBestLapTime = (laps: Lap[]): number | null => {
-    let best: number | null = null;
-    laps.forEach(lap => {
-        if (!lap.lap_duration || lap.lap_duration <= 0) {
-            return;
-        }
-        if (best === null || lap.lap_duration < best) {
-            best = lap.lap_duration;
-        }
-    });
-    return best;
-};
 
 export default function PracticeStintCard({ stint, laps, showDivider = false }: PracticeStintCardProps) {
     const sortedLaps = useMemo(() => [...laps].sort((a, b) => a.lap_number - b.lap_number), [laps]);

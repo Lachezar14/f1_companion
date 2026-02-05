@@ -2,48 +2,15 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Session } from '../../../backend/types';
+import { resolveSessionTheme, formatSessionDateTime } from '../../../utils/session';
 
 interface SessionCardProps {
     session: Session;
     onPress?: (session: Session) => void;
 }
 
-type SessionTheme = {
-    icon: keyof typeof Ionicons.glyphMap;
-    accent: string;
-    tint: string;
-};
-
-const THEMES: Record<'practice' | 'qualifying' | 'sprint' | 'race' | 'default', SessionTheme> = {
-    practice: { icon: 'speedometer', accent: '#3EC5FF', tint: 'rgba(62,197,255,0.15)' },
-    qualifying: { icon: 'stopwatch', accent: '#FF8A5C', tint: 'rgba(255,138,92,0.15)' },
-    sprint: { icon: 'flag', accent: '#AC8CFF', tint: 'rgba(172,140,255,0.15)' },
-    race: { icon: 'trophy', accent: '#6DE19C', tint: 'rgba(109,225,156,0.15)' },
-    default: { icon: 'document-text', accent: '#9BA3AE', tint: 'rgba(155,163,174,0.15)' },
-};
-
-const resolveTheme = (sessionName: string): SessionTheme => {
-    const name = sessionName.toLowerCase();
-    if (name.includes('practice')) return THEMES.practice;
-    if (name.includes('qualifying') || name.includes('shootout')) return THEMES.qualifying;
-    if (name.includes('sprint')) return THEMES.sprint;
-    if (name.includes('race')) return THEMES.race;
-    return THEMES.default;
-};
-
-const formatDateTime = (session: Session): string => {
-    const date = new Date(session.date_start);
-    return `${date.toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    })}${session.gmt_offset ? ` · ${session.gmt_offset}` : ''}`;
-};
-
 export default function SessionCard({ session, onPress }: SessionCardProps) {
-    const theme = useMemo(() => resolveTheme(session.session_name), [session.session_name]);
+    const theme = useMemo(() => resolveSessionTheme(session.session_name), [session.session_name]);
 
     return (
         <TouchableOpacity
@@ -59,7 +26,7 @@ export default function SessionCard({ session, onPress }: SessionCardProps) {
                 <Text style={styles.name} numberOfLines={1}>
                     {session.session_name}
                 </Text>
-                <Text style={styles.date}>{formatDateTime(session)}</Text>
+                <Text style={styles.date}>{formatSessionDateTime(session)}</Text>
             </View>
 
             <Ionicons name="chevron-forward" size={20} color="#B8B8B8" />

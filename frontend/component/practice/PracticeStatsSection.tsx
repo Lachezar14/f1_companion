@@ -3,6 +3,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Lap, Stint } from '../../../backend/types';
 import { formatLapTime } from '../../../shared/time';
+import { getCompoundColor, getCompoundLetter } from '../../../utils/tyre';
+import { calculateTypicalLapDuration, calculateAvgLapTimePerCompound } from '../../../utils/lap';
 
 interface PracticeStatsSectionProps {
     lapCount: number;
@@ -10,108 +12,15 @@ interface PracticeStatsSectionProps {
     laps: Lap[];
 }
 
-type CompoundStat = {
-    compound: string;
-    avgTime: number;
-    lapCount: number;
-};
-
 const ALLOWED_LAP_DELTA_SECONDS = 5;
-
-const getCompoundColor = (compound: string): string => {
-    const compoundLower = compound.toLowerCase();
-    switch (compoundLower) {
-        case 'soft':
-            return '#E10600';
-        case 'medium':
-            return '#d8b031';
-        case 'hard':
-            return '#9E9E9E';
-        case 'intermediate':
-            return '#4CAF50';
-        case 'wet':
-            return '#2196F3';
-        default:
-            return '#666';
-    }
-};
-
-const getCompoundLetter = (compound: string): string => {
-    const compoundLower = compound.toLowerCase();
-    switch (compoundLower) {
-        case 'soft':
-            return 'S';
-        case 'medium':
-            return 'M';
-        case 'hard':
-            return 'H';
-        case 'intermediate':
-            return 'I';
-        case 'wet':
-            return 'W';
-        default:
-            return compoundLower.charAt(0).toUpperCase();
-    }
-};
-
-const calculateTypicalLapDuration = (laps: Lap[]): number | null => {
-    const sortedDurations = laps
-        .filter(lap => !lap.is_pit_out_lap && lap.lap_duration && lap.lap_duration > 0)
-        .map(lap => lap.lap_duration as number)
-        .sort((a, b) => a - b);
-
-    if (!sortedDurations.length) {
-        return null;
-    }
-
-    const middle = Math.floor(sortedDurations.length / 2);
-    if (sortedDurations.length % 2 === 0) {
-        return (sortedDurations[middle - 1] + sortedDurations[middle]) / 2;
-    }
-    return sortedDurations[middle];
-};
-
-const calculateAvgLapTimePerCompound = (
-    laps: Lap[],
-    stints: Stint[],
-    lapThreshold: number | null,
-): CompoundStat[] => {
-    const compoundMap = new Map<string, { total: number; count: number }>();
-
-    laps.forEach(lap => {
-        if (lap.is_pit_out_lap || !lap.lap_duration) {
-            return;
-        }
-
-        if (lapThreshold !== null && lap.lap_duration > lapThreshold) {
-            return;
-        }
-
-        const stint = stints.find(s => lap.lap_number >= s.lap_start && lap.lap_number <= s.lap_end);
-        if (!stint) {
-            return;
-        }
-
-        const compound = stint.compound;
-        const entry = compoundMap.get(compound) || { total: 0, count: 0 };
-        compoundMap.set(compound, {
-            total: entry.total + lap.lap_duration,
-            count: entry.count + 1,
-        });
-    });
-
-    return Array.from(compoundMap.entries()).map(([compound, data]) => ({
-        compound,
-        avgTime: data.total / data.count,
-        lapCount: data.count,
-    }));
-};
 
 export default function PracticeStatsSection({ lapCount, stints, laps }: PracticeStatsSectionProps) {
     const typicalLapDuration = calculateTypicalLapDuration(laps);
     const lapThreshold = typicalLapDuration !== null ? typicalLapDuration + ALLOWED_LAP_DELTA_SECONDS : null;
 
-    const avgLapTimesPerCompound = calculateAvgLapTimePerCompound(laps, stints, lapThreshold).sort(
+    const avgLapTimesPerCompound = calculateAvgLapTimePerCompound(laps, stints, {
+        lapThreshold,
+    }).sort(
         (a, b) => b.lapCount - a.lapCount
     );
     const compoundsUsed = new Set(stints.map(stint => stint.compound.toLowerCase())).size || '—';
