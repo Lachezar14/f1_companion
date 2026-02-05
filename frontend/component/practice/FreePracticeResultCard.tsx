@@ -22,11 +22,19 @@ interface DriverCardProps {
     driver: DriverSessionData;
     sessionKey: number;
     isFirst?: boolean;
+    showDivider?: boolean;
+}
+
+interface FreePracticeResultsSectionProps {
+    drivers: DriverSessionData[];
+    sessionKey: number;
+    title?: string;
+    emptyMessage?: string;
 }
 
 type NavigationProp = NativeStackNavigationProp<any>;
 
-export default function FreePracticeResultCard({ driver, sessionKey, isFirst = false }: DriverCardProps) {
+const DriverRow = ({ driver, sessionKey, isFirst = false, showDivider = false }: DriverCardProps) => {
     const navigation = useNavigation<NavigationProp>();
 
     const formatPosition = (driver: DriverSessionData): string => {
@@ -77,7 +85,7 @@ export default function FreePracticeResultCard({ driver, sessionKey, isFirst = f
 
     return (
         <TouchableOpacity
-            style={[styles.card, isFirst && styles.cardLeader]}
+            style={[styles.rowContainer, showDivider && styles.rowDivider]}
             onPress={handlePress}
             activeOpacity={0.82}
         >
@@ -99,37 +107,130 @@ export default function FreePracticeResultCard({ driver, sessionKey, isFirst = f
                 </View>
             </View>
 
+            <View style={styles.lapColumn}>
+                <Text style={styles.positionText}>
+                    {driver.lapCount}
+                </Text>
+            </View>
+
             <View style={styles.valueColumn}>
                 <Text style={styles.valueLabel}>Best</Text>
                 <Text style={styles.valueText}>{driver.fastestLap || '—'}</Text>
             </View>
         </TouchableOpacity>
     );
+};
+
+export default function FreePracticeResultsSection({
+    drivers,
+    sessionKey,
+    title = 'Session Results',
+    emptyMessage = 'No session data available',
+}: FreePracticeResultsSectionProps) {
+    return (
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{title}</Text>
+
+            {drivers.length > 0 ? (
+                <>
+                    <View style={styles.tableHeader}>
+                        <Text style={styles.tableHeaderPos}>Pos</Text>
+                        <Text style={styles.tableHeaderDriver}>Driver</Text>
+                        <Text style={styles.tableHeaderLaps}>Laps</Text>
+                        <Text style={styles.tableHeaderTime}>Best Time</Text>
+                    </View>
+                    {drivers.map((driver, index) => (
+                        <DriverRow
+                            key={driver.driverNumber}
+                            driver={driver}
+                            sessionKey={sessionKey}
+                            isFirst={driver.position === 1}
+                            showDivider={index < drivers.length - 1}
+                        />
+                    ))}
+                </>
+            ) : (
+                <Text style={styles.noData}>{emptyMessage}</Text>
+            )}
+        </View>
+    );
 }
 
 const styles = StyleSheet.create({
-    card: {
+    section: {
+        backgroundColor: '#FFF',
+        padding: 16,
+        marginHorizontal: 16,
+        marginTop: 16,
+        borderRadius: 20,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E3E3E3',
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 2,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#15151E',
+        marginBottom: 12,
+    },
+    tableHeader: {
+        flexDirection: 'row',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        backgroundColor: '#F8F8F8',
+        borderRadius: 10,
+        marginBottom: 8,
+    },
+    tableHeaderPos: {
+        width: 50,
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: '#666',
+    },
+    tableHeaderDriver: {
+        flex: 1,
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: '#666',
+    },
+    tableHeaderLaps: {
+        width: 50,
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: '#666',
+        textAlign: 'center',
+    },
+    tableHeaderTime: {
+        width: 80,
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: '#666',
+        textAlign: 'right',
+    },
+    noData: {
+        fontSize: 14,
+        color: '#999',
+        fontStyle: 'italic',
+        textAlign: 'center',
+        paddingVertical: 12,
+    },
+    rowContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFF',
-        paddingVertical: 10,
-        paddingHorizontal: 14,
-        borderRadius: 16,
-        marginBottom: 8,
-        borderWidth: 1,
-        borderColor: '#E7E7E7',
-        shadowColor: '#000',
-        shadowOpacity: 0.03,
-        shadowRadius: 4,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 1,
+        paddingVertical: 12,
     },
-    cardLeader: {
-        borderLeftWidth: 3,
-        borderLeftColor: '#FFD700',
+    rowDivider: {
+        borderBottomWidth: 1,
+        borderBottomColor: '#D2D6E2',
     },
     positionColumn: {
         width: 52,
+    },
+    lapColumn: {
     },
     positionText: {
         fontSize: 15,

@@ -153,6 +153,7 @@ export type QualifyingDriverClassification = {
     position: number | null;
     driverNumber: number;
     driverName: string;
+    shortName: string;
     teamName: string;
     teamColor?: string;
     q1: string | null;

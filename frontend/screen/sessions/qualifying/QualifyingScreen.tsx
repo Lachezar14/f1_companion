@@ -12,7 +12,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getQualifyingSessionDetail } from '../../../../backend/service/openf1Service';
 import type { QualifyingDriverClassification, QualifyingSessionDetail } from '../../../../backend/types';
-import QualifyingResultCard from '../../../component/session/QualifyingResultCard';
+import QualifyingResultsSection from '../../../component/qualifying/QualifyingResultCard';
 import { useServiceRequest } from '../../../hooks/useServiceRequest';
 
 type RouteParams = {
@@ -111,22 +111,7 @@ const QualifyingScreen = () => {
                 </View>
             </View>
 
-            <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Qualifying Classification</Text>
-                </View>
-                {rows.length === 0 ? (
-                    <Text style={styles.noData}>No classification available</Text>
-                ) : (
-                    rows.map(row => (
-                        <QualifyingResultCard
-                            key={row.driverNumber}
-                            data={row}
-                            onPress={handleDriverPress}
-                        />
-                    ))
-                )}
-            </View>
+            <QualifyingResultsSection rows={rows} onDriverPress={handleDriverPress} />
 
             <Text style={styles.refreshHint}>Pull down to refresh</Text>
         </ScrollView>
@@ -218,31 +203,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         letterSpacing: 0.4,
-    },
-    section: {
-        margin: 16,
-        backgroundColor: '#FFF',
-        padding: 16,
-        borderRadius: 20,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E3E3E3',
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 2,
-    },
-    sectionHeader: {
-        marginBottom: 12,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#15151E',
-    },
-    noData: {
-        textAlign: 'center',
-        color: '#999',
     },
     refreshHint: {
         paddingVertical: 28,

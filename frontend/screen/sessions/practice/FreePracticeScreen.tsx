@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { getPracticeSessionDetail } from '../../../../backend/service/openf1Service';
-import FreePracticeResultCard, { DriverSessionData } from "../../../component/session/FreePracticeResultCard";
+import FreePracticeResultsSection, { DriverSessionData } from "../../../component/practice/FreePracticeResultCard";
 import { formatLapTime } from '../../../../shared/time';
 import { useServiceRequest } from '../../../hooks/useServiceRequest';
 import type { PracticeSessionDetail } from '../../../../backend/types';
@@ -157,31 +157,7 @@ export default function FreePracticeScreen() {
                 </View>
             </View>
 
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Session Results</Text>
-
-                {drivers.length > 0 ? (
-                    <>
-                        <View style={styles.tableHeader}>
-                            <Text style={styles.tableHeaderPos}>Pos</Text>
-                            <Text style={styles.tableHeaderDriver}>Driver</Text>
-                            <Text style={styles.tableHeaderLaps}>Laps</Text>
-                            <Text style={styles.tableHeaderTime}>Best Time</Text>
-                        </View>
-
-                        {drivers.map(driver => (
-                            <FreePracticeResultCard
-                                key={driver.driverNumber}
-                                driver={driver}
-                                sessionKey={sessionKey}
-                                isFirst={driver.position === 1}
-                            />
-                        ))}
-                    </>
-                ) : (
-                    <Text style={styles.noData}>No session data available</Text>
-                )}
-            </View>
+            <FreePracticeResultsSection drivers={drivers} sessionKey={sessionKey} />
 
             <Text style={styles.refreshHint}>Pull down to refresh</Text>
         </ScrollView>
@@ -282,67 +258,6 @@ const styles = StyleSheet.create({
         width: 1,
         height: 36,
         backgroundColor: 'rgba(255,255,255,0.2)',
-    },
-    section: {
-        backgroundColor: '#FFF',
-        padding: 16,
-        marginHorizontal: 16,
-        marginTop: 16,
-        borderRadius: 20,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E3E3E3',
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 2,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#15151E',
-        marginBottom: 12,
-    },
-    tableHeader: {
-        flexDirection: 'row',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        backgroundColor: '#F8F8F8',
-        borderRadius: 10,
-        marginBottom: 8,
-    },
-    tableHeaderPos: {
-        width: 50,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#666',
-    },
-    tableHeaderDriver: {
-        flex: 1,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#666',
-    },
-    tableHeaderLaps: {
-        width: 50,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#666',
-        textAlign: 'center',
-    },
-    tableHeaderTime: {
-        width: 80,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#666',
-        textAlign: 'right',
-    },
-    noData: {
-        fontSize: 14,
-        color: '#999',
-        fontStyle: 'italic',
-        textAlign: 'center',
-        paddingVertical: 12,
     },
     refreshHint: {
         fontSize: 12,

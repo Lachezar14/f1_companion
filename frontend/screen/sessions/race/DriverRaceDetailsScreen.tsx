@@ -11,7 +11,7 @@ import {
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { getRaceDriverDetail } from '../../../../backend/service/openf1Service';
 import type { Lap, SessionDriverData, SessionResult, Stint } from '../../../../backend/types';
-import RaceStatsSection from "../../../component/driver/RaceStatsSection";
+import RaceStatsSection from "../../../component/race/RaceStatsSection";
 import { formatLapTime } from '../../../../shared/time';
 
 type RouteParams = {
@@ -316,13 +316,11 @@ export default function DriverOverviewScreen() {
                     <View style={styles.lapTable}>
                         <View style={[styles.lapRow, styles.lapHeaderRow]}>
                             <Text style={[styles.lapCell, styles.headerText]}>Lap</Text>
-                            <Text style={[styles.compoundHeaderCell, styles.headerText]}>
-                                Tyre
-                            </Text>
+                            <Text style={[styles.compoundHeaderCell, styles.headerText]}>Tyre</Text>
                             <Text style={[styles.timeCell, styles.headerText]}>Time</Text>
-                            <Text style={[styles.noteHeaderCell, styles.headerText]}>Note</Text>
+                            <Text style={[styles.noteHeaderCell, styles.headerText]}>Notes</Text>
                         </View>
-                        {lapRows.map(({ lap, compound, isPitOut, isPitIn, isSafetyCar }) => (
+                        {lapRows.map(({ lap, compound, isPitOut, isSafetyCar }) => (
                             <View
                                 key={lap.lap_number}
                                 style={[
@@ -344,36 +342,24 @@ export default function DriverOverviewScreen() {
                                     </View>
                                 </View>
                                 <Text style={styles.timeCell}>
-                                    {formatLapTime(lap.lap_duration)}
+                                    {lap.lap_duration ? formatLapTime(lap.lap_duration) : '—'}
                                 </Text>
                                 <View style={styles.noteCell}>
-                                    {isSafetyCar || isPitOut || isPitIn ? (
-                                        <View style={styles.noteCellContent}>
-                                            {isSafetyCar && (
-                                                <View style={[styles.badge, styles.safetyCarBadge]}>
-                                                    <Text style={[styles.badgeText, styles.safetyCarText]}>
-                                                        SC
-                                                    </Text>
-                                                </View>
-                                            )}
-                                            {isPitOut && (
-                                                <View style={[styles.badge, styles.pitOutBadge]}>
-                                                    <Text style={[styles.badgeText, styles.pitOutText]}>
-                                                        Pit Out
-                                                    </Text>
-                                                </View>
-                                            )}
-                                            {isPitIn && (
-                                                <View style={[styles.badge, styles.pitInBadge]}>
-                                                    <Text style={[styles.badgeText, styles.pitInText]}>
-                                                        Pit In
-                                                    </Text>
-                                                </View>
-                                            )}
-                                        </View>
-                                    ) : (
-                                        <Text style={styles.noBadge}>-</Text>
-                                    )}
+                                    <View style={styles.noteCellContent}>
+                                        {isSafetyCar && (
+                                            <View style={[styles.badge, styles.safetyCarBadge]}>
+                                                <Text style={[styles.badgeText, styles.safetyCarText]}>SC</Text>
+                                            </View>
+                                        )}
+                                        {isPitOut && (
+                                            <View style={[styles.badge, styles.pitOutBadge]}>
+                                                <Text style={[styles.badgeText, styles.pitOutText]}>Pit Out</Text>
+                                            </View>
+                                        )}
+                                        {!isSafetyCar && !isPitOut && (
+                                            <Text style={styles.noBadge}>-</Text>
+                                        )}
+                                    </View>
                                 </View>
                             </View>
                         ))}
@@ -546,7 +532,6 @@ const styles = StyleSheet.create({
         marginHorizontal: 16,
         backgroundColor: '#FFF',
         borderRadius: 20,
-        padding: 20,
         shadowColor: '#000',
         shadowOpacity: 0.06,
         shadowOffset: { width: 0, height: 6 },
@@ -554,7 +539,7 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
     sectionHeader: {
-        marginBottom: 16,
+        padding: 20
     },
     sectionTitle: {
         fontSize: 20,
@@ -569,7 +554,7 @@ const styles = StyleSheet.create({
     lapTable: {
         borderWidth: 1,
         borderColor: '#ECECF1',
-        borderRadius: 16,
+        borderRadius: 10,
         overflow: 'hidden',
     },
     lapRow: {
@@ -589,40 +574,16 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#333',
     },
+    compoundHeaderCell: {
+        flex: 1,
+        textAlign: 'center',
+        fontWeight: '600',
+    },
     compoundCell: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    timeCell: {
-        width: 90,
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#15151E',
-        textAlign: 'right',
-    },
-    noteCell: {
-        flex: 1,
-        minWidth: 90,
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-    },
-    noteCellContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    compoundHeaderCell: {
-        flex: 1,
-        fontWeight: '600',
-        textAlign: 'center',
-    },
-    noteHeaderCell: {
-        flex: 1,
-        minWidth: 70,
-        textAlign: 'right',
     },
     compoundCircle: {
         width: 28,
@@ -635,6 +596,30 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontWeight: '700',
     },
+    timeCell: {
+        width: 90,
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#15151E',
+        textAlign: 'right',
+    },
+    noteHeaderCell: {
+        flex: 1,
+        minWidth: 70,
+        textAlign: 'right',
+    },
+    noteCell: {
+        flex: 1,
+        minWidth: 90,
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+    },
+    noteCellContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
     headerText: {
         fontSize: 11,
         textTransform: 'uppercase',
@@ -643,7 +628,7 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     badge: {
-        paddingHorizontal: 10,
+        paddingHorizontal: 12,
         paddingVertical: 4,
         borderRadius: 999,
     },
@@ -658,25 +643,18 @@ const styles = StyleSheet.create({
     pitOutText: {
         color: '#B40012',
     },
-    pitInBadge: {
-        backgroundColor: 'rgba(62, 197, 255, 0.16)',
-    },
-    pitInText: {
-        color: '#0077B6',
-    },
     safetyCarBadge: {
-        backgroundColor: 'rgba(255, 218, 103, 0.2)',
+        backgroundColor: 'rgba(255, 218, 103, 0.35)',
     },
     safetyCarText: {
         color: '#8D6E00',
     },
+    safetyCarRow: {
+        backgroundColor: '#FFF8DC',
+    },
     noBadge: {
         fontSize: 13,
         color: '#999',
-    },
-    safetyCarRow: {
-        backgroundColor: '#FFF8DC',
-        borderColor: '#FFE082',
     },
     noData: {
         fontSize: 14,

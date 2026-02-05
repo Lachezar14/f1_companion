@@ -10,8 +10,8 @@ import {
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { getPracticeDriverDetail } from '../../../../backend/service/openf1Service';
-import PracticeStatsSection from '../../../component/driver/PracticeStatsSection';
-import PracticeStintCard from '../../../component/driver/PracticeStintCard';
+import PracticeStatsSection from '../../../component/practice/PracticeStatsSection';
+import PracticeStintCard from '../../../component/practice/PracticeStintCard';
 import type { Lap, SessionDriverData, SessionResult, Stint } from '../../../../backend/types';
 
 type RouteParams = {
@@ -275,8 +275,13 @@ export default function DriverPracticeDetailsScreen() {
                     <Text style={styles.sectionSubtitle}>Tyre evolution and stint detail</Text>
                 </View>
                 {stintsWithLaps.length > 0 ? (
-                    stintsWithLaps.map(({ stint, laps }) => (
-                        <PracticeStintCard key={stint.stint_number} stint={stint} laps={laps} />
+                    stintsWithLaps.map(({ stint, laps }, index) => (
+                        <PracticeStintCard
+                            key={stint.stint_number}
+                            stint={stint}
+                            laps={laps}
+                            showDivider={index < stintsWithLaps.length - 1}
+                        />
                     ))
                 ) : (
                     <Text style={styles.noData}>No stints recorded for this session</Text>

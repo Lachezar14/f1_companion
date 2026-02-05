@@ -12,7 +12,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getRaceSessionDetail } from '../../../../backend/service/openf1Service';
 import type { RaceSessionDetail } from '../../../../backend/types';
-import RaceResultCard from '../../../component/session/RaceResultCard';
+import RaceResultsSection from '../../../component/race/RaceResultCard';
 import { useServiceRequest } from '../../../hooks/useServiceRequest';
 
 type RouteParams = {
@@ -131,20 +131,7 @@ const RaceScreen = () => {
                 </View>
             </View>
 
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Race Classification</Text>
-                {rows.length === 0 ? (
-                    <Text style={styles.noData}>No classification available</Text>
-                ) : (
-                    rows.map(row => (
-                        <RaceResultCard
-                            key={row.driverNumber}
-                            data={row}
-                            onPress={handleDriverPress}
-                        />
-                    ))
-                )}
-            </View>
+            <RaceResultsSection rows={rows} onDriverPress={handleDriverPress} />
 
             <Text style={styles.refreshHint}>Pull down to refresh</Text>
         </ScrollView>
@@ -260,29 +247,6 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
         textTransform: 'uppercase',
         marginTop: 4,
-    },
-    section: {
-        margin: 16,
-        backgroundColor: '#FFF',
-        padding: 16,
-        borderRadius: 20,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E3E3E3',
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 2,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#15151E',
-        marginBottom: 12,
-    },
-    noData: {
-        textAlign: 'center',
-        color: '#999',
     },
     refreshHint: {
         paddingVertical: 24,

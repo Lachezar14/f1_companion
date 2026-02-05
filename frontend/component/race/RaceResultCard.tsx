@@ -4,17 +4,23 @@ import {
     Text,
     TouchableOpacity,
     View,
-    ViewStyle,
 } from 'react-native';
 import type { RaceDriverClassification } from '../../../backend/types';
 
-export type RaceResultCardProps = {
+type RaceResultRowProps = {
     data: RaceDriverClassification;
     onPress?: (driverNumber: number) => void;
-    style?: ViewStyle;
+    showDivider?: boolean;
 };
 
-const RaceResultCard: React.FC<RaceResultCardProps> = ({ data, onPress, style }) => {
+type RaceResultsSectionProps = {
+    rows: RaceDriverClassification[];
+    onDriverPress?: (driverNumber: number) => void;
+    title?: string;
+    emptyMessage?: string;
+};
+
+const RaceResultRow: React.FC<RaceResultRowProps> = ({ data, onPress, showDivider = false }) => {
     const handlePress = () => {
         if (onPress) {
             onPress(data.driverNumber);
@@ -54,7 +60,11 @@ const RaceResultCard: React.FC<RaceResultCardProps> = ({ data, onPress, style })
     };
 
     return (
-        <TouchableOpacity style={[styles.card, style]} activeOpacity={0.82} onPress={handlePress}>
+        <TouchableOpacity
+            style={[styles.rowContainer, showDivider && styles.rowDivider]}
+            activeOpacity={0.82}
+            onPress={handlePress}
+        >
             <View style={styles.positionColumn}>
                 <Text style={styles.positionText}>{positionDisplay()}</Text>
                 {data.gridPosition != null && (
@@ -87,22 +97,68 @@ const RaceResultCard: React.FC<RaceResultCardProps> = ({ data, onPress, style })
     );
 };
 
+const RaceResultsSection: React.FC<RaceResultsSectionProps> = ({
+    rows,
+    onDriverPress,
+    title = 'Race Classification',
+    emptyMessage = 'No classification available',
+}) => {
+    return (
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{title}</Text>
+            {rows.length === 0 ? (
+                <Text style={styles.noData}>{emptyMessage}</Text>
+            ) : (
+                rows.map((row, index) => (
+                    <RaceResultRow
+                        key={row.driverNumber}
+                        data={row}
+                        onPress={onDriverPress}
+                        showDivider={index < rows.length - 1}
+                    />
+                ))
+            )}
+        </View>
+    );
+};
+
 const styles = StyleSheet.create({
-    card: {
+    section: {
+        margin: 16,
         backgroundColor: '#FFF',
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 4,
+        borderRadius: 20,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E3E3E3',
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 2,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#15151E',
+        marginBottom: 12,
+    },
+    noData: {
+        fontSize: 14,
+        color: '#999',
+        textAlign: 'center',
+        paddingVertical: 20,
+        fontStyle: 'italic',
+    },
+    rowContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 14,
-        borderRadius: 16,
-        marginBottom: 8,
-        borderWidth: 1,
-        borderColor: '#E7E7E7',
-        shadowColor: '#000',
-        shadowOpacity: 0.03,
-        shadowRadius: 4,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 1,
+        paddingVertical: 14,
+    },
+    rowDivider: {
+        borderBottomWidth: 1,
+        borderBottomColor: '#C7CBD8',
     },
     positionColumn: {
         width: 56,
@@ -166,4 +222,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default React.memo(RaceResultCard);
+export default React.memo(RaceResultsSection);

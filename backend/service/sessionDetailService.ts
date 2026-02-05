@@ -293,6 +293,7 @@ function buildQualifyingClassificationFromData(
             position: typeof result.position === 'number' ? result.position : null,
             driverNumber: result.driver_number,
             driverName: driver.full_name,
+            shortName: driver.name_acronym,
             teamName: driver.team_name,
             teamColor: driver.team_colour,
             q1: formatLapSegment(durations[0]),
