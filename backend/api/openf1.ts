@@ -1,6 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import {Driver, Lap, Meeting, Session, SessionResult, Stint, StartingGrid, RaceControl} from '../types';
+import {
+    Driver,
+    Lap,
+    Meeting,
+    Session,
+    SessionResult,
+    Stint,
+    StartingGrid,
+    RaceControl,
+    Overtake,
+    Weather, ChampionshipDriver, ChampionshipTeam
+} from '../types';
 
 const openF1 = axios.create({
     baseURL: 'https://api.openf1.org/v1',
@@ -424,6 +435,91 @@ export async function fetchRaceControlBySession(
     sessionKey: number
 ): Promise<RaceControl[]> {
     return cachedGet<RaceControl[]>('/race_control', {
+        session_key: sessionKey,
+    });
+}
+
+/* =========================
+   Overtakes
+========================= */
+
+type RawOvertake = {
+    date: string;
+    meeting_key: number;
+    overtaken_driver_number: number;
+    overtaking_driver_number: number;
+    position: number;
+    session_key: number;
+};
+
+const normalizeOvertake = (raw: RawOvertake): Overtake => ({
+    date: raw.date,
+    meetingKey: raw.meeting_key,
+    overtakenDriverNumber: raw.overtaken_driver_number,
+    overtakingDriverNumber: raw.overtaking_driver_number,
+    position: raw.position,
+    sessionKey: raw.session_key,
+});
+
+/**
+ * Get all overtakes for a session
+ */
+export async function fetchOvertakesBySession(
+    sessionKey: number
+): Promise<Overtake[]> {
+    const data = await cachedGet<RawOvertake[]>('/overtakes', {
+        session_key: sessionKey,
+    });
+    return data.map(normalizeOvertake);
+}
+
+/* =========================
+   Pit
+========================= */
+
+/* =========================
+   Starting Grid
+========================= */
+
+/* =========================
+   Drivers Championship
+========================= */
+
+/**
+ * Get championship driver standing
+ */
+export async function fetchDriverStanding(): Promise<ChampionshipDriver[]> {
+    return cachedGet<ChampionshipDriver[]>('/championship_drivers', {
+        session_key: 'latest',
+    });
+}
+
+
+/* =========================
+   Teams Championship
+========================= */
+
+/**
+ * Get championship driver standing
+ */
+export async function fetchTeamStanding(): Promise<ChampionshipTeam[]> {
+    return cachedGet<ChampionshipTeam[]>('/championship_teams', {
+        session_key: 'latest',
+    });
+}
+
+
+/* =========================
+   Weather
+========================= */
+
+/**
+ * Get weather data for a session
+ */
+export async function fetchWeatherBySession(
+    sessionKey: number
+): Promise<Weather[]> {
+    return cachedGet<Weather[]>('/weather', {
         session_key: sessionKey,
     });
 }

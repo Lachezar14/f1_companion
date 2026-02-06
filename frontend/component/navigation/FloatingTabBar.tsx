@@ -144,7 +144,6 @@ const FloatingTabBar = ({ state, descriptors, navigation }: BottomTabBarProps) =
                         >
                             <View style={styles.iconLabelRow}>
                                 {icon ? <View style={styles.iconWrapper}>{icon}</View> : null}
-                                {renderLabel()}
                             </View>
                         </TouchableOpacity>
                     );

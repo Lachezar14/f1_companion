@@ -275,6 +275,7 @@ export interface SessionDetailBase extends Session {
 
 export interface RaceSessionDetail extends SessionDetailBase {
     detailType: 'race';
+    overtakes: Overtake[];
     classification: RaceDriverClassification[];
 }
 
@@ -286,3 +287,48 @@ export interface QualifyingSessionDetail extends SessionDetailBase {
 export interface PracticeSessionDetail extends SessionDetailBase {
     detailType: 'practice';
 }
+
+export type Overtake = {
+    date: string;
+    meetingKey: number;
+    overtakenDriverNumber: number;
+    overtakingDriverNumber: number;
+    position: number;
+    sessionKey: number;
+};
+
+export type Weather = {
+    air_temperature: number;
+    date: string;
+    humidity: number;
+    pressure: number;
+    rainfall: number;
+    session_key: number;
+    track_temperature: number;
+    wind_direction: number;
+    wind_speed: number;
+};
+
+export type ChampionshipDriver = {
+    driver_number: number;
+    meeting_key: number;
+    points_current: number;
+    points_start: number;
+    position_current: number;
+    position_start: number;
+    session_key: number;
+};
+
+export type ChampionshipTeam = {
+    meeting_key: number;
+    points_current: number;
+    points_start: number;
+    position_current: number;
+    position_start: number;
+    session_key: number;
+    team_name: string;
+};
+
+export type DriverChampionshipStanding = ChampionshipDriver & {
+    driver: Driver | null;
+};

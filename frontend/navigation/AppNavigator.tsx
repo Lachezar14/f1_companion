@@ -11,9 +11,11 @@ import GPScreen from "../screen/GPScreen";
 import FreePracticeScreen from "../screen/sessions/practice/FreePracticeScreen";
 import QualifyingScreen from "../screen/sessions/qualifying/QualifyingScreen";
 import RaceScreen from "../screen/sessions/race/RaceScreen";
+import RaceOvertakesScreen from "../screen/sessions/race/RaceOvertakesScreen";
 import DriverSeasonScreen from "../screen/drivers/DriverSeasonScreen";
 import FloatingTabBar from '../component/navigation/FloatingTabBar';
 import StackScreenWrapper from '../component/navigation/StackScreenWrapper';
+import StandingsScreen from '../screen/StandingsScreen';
 
 const Tab = createBottomTabNavigator();
 const SessionsStackNavigator = createNativeStackNavigator();
@@ -60,6 +62,10 @@ const QualifyingWithHeader = withStackScreenWrapper(QualifyingScreen, {
 
 const RaceWithHeader = withStackScreenWrapper(RaceScreen, {
     title: 'Race',
+});
+
+const RaceOvertakesWithHeader = withStackScreenWrapper(RaceOvertakesScreen, {
+    title: 'Overtakes',
 });
 
 const DriverSeasonWithHeader = withStackScreenWrapper(DriverSeasonScreen, {
@@ -111,6 +117,11 @@ function SessionsStack() {
                 name="RaceScreen"
                 component={RaceWithHeader}
                 options={{ title: 'Race' }}
+            />
+            <SessionsStackNavigator.Screen
+                name="RaceOvertakes"
+                component={RaceOvertakesWithHeader}
+                options={{ title: 'Overtakes' }}
             />
         </SessionsStackNavigator.Navigator>
     );
@@ -173,6 +184,20 @@ export default function AppNavigator() {
                             />
                         )
                     })}
+                />
+                <Tab.Screen
+                    name="StandingsTab"
+                    component={StandingsScreen}
+                    options={{
+                        title: 'Standings',
+                        tabBarIcon: ({ color }) => (
+                            <MaterialCommunityIcons
+                                name="trophy"
+                                size={24}
+                                color={color ?? 'black'}
+                            />
+                        )
+                    }}
                 />
             </Tab.Navigator>
         </NavigationContainer>

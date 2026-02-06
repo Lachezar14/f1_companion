@@ -75,30 +75,43 @@ const SessionsScreen = () => {
         </View>
     );
 
+    const renderScreenHeader = () => (
+        <View style={styles.screenHeader}>
+            <Text style={styles.screenTitle}>Races</Text>
+        </View>
+    );
+
     const renderMeeting = ({ item }: { item: Meeting }) => <GPCard meeting={item} />;
 
     if (loading) {
         return (
-            <View style={styles.center}>
-                <ActivityIndicator size="large" color="#E10600" />
-                <Text style={styles.loadingText}>Loading calendar…</Text>
-            </View>
+            <SafeAreaView style={styles.container} edges={['top']}>
+                {renderScreenHeader()}
+                <View style={styles.center}>
+                    <ActivityIndicator size="large" color="#E10600" />
+                    <Text style={styles.loadingText}>Loading calendar…</Text>
+                </View>
+            </SafeAreaView>
         );
     }
 
     if (error) {
         return (
-            <View style={styles.center}>
-                <Text style={styles.errorText}>{error}</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={reload}>
-                    <Text style={styles.retryText}>Retry</Text>
-                </TouchableOpacity>
-            </View>
+            <SafeAreaView style={styles.container} edges={['top']}>
+                {renderScreenHeader()}
+                <View style={styles.center}>
+                    <Text style={styles.errorText}>{error}</Text>
+                    <TouchableOpacity style={styles.retryButton} onPress={reload}>
+                        <Text style={styles.retryText}>Retry</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
         );
     }
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
+            {renderScreenHeader()}
             <FlatList
                 data={meetings}
                 keyExtractor={item => item.meeting_key.toString()}
@@ -116,6 +129,16 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#F5F5F7',
+    },
+    screenHeader: {
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        paddingBottom: 4,
+    },
+    screenTitle: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#15151E',
     },
     listContent: {
         padding: 16,

@@ -140,24 +140,36 @@ const DriversScreen = () => {
         </>
     );
 
+    const renderScreenHeader = () => (
+        <View style={styles.screenHeader}>
+            <Text style={styles.screenTitle}>Drivers</Text>
+        </View>
+    );
+
     if (loading) {
         return (
-            <View style={styles.center}>
-                <ActivityIndicator size="large" color="#E10600" />
-                <Text style={styles.loadingText}>Loading drivers…</Text>
-            </View>
+            <SafeAreaView style={styles.container} edges={['top']}>
+                {renderScreenHeader()}
+                <View style={styles.center}>
+                    <ActivityIndicator size="large" color="#E10600" />
+                    <Text style={styles.loadingText}>Loading drivers…</Text>
+                </View>
+            </SafeAreaView>
         );
     }
 
     if (error) {
         return (
-            <View style={styles.center}>
-                <Text style={styles.errorTitle}>Unable to Load Drivers</Text>
-                <Text style={styles.errorMessage}>{error}</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={reload}>
-                    <Text style={styles.retryButtonText}>Retry</Text>
-                </TouchableOpacity>
-            </View>
+            <SafeAreaView style={styles.container} edges={['top']}>
+                {renderScreenHeader()}
+                <View style={styles.center}>
+                    <Text style={styles.errorTitle}>Unable to Load Drivers</Text>
+                    <Text style={styles.errorMessage}>{error}</Text>
+                    <TouchableOpacity style={styles.retryButton} onPress={reload}>
+                        <Text style={styles.retryButtonText}>Retry</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
         );
     }
 
@@ -197,6 +209,7 @@ const DriversScreen = () => {
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
+            {renderScreenHeader()}
             <FlatList
                 data={filteredDrivers}
                 keyExtractor={driver => driver.driver_number.toString()}
@@ -224,6 +237,16 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#F5F5F7',
+    },
+    screenHeader: {
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        paddingBottom: 4,
+    },
+    screenTitle: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#15151E',
     },
     center: {
         flex: 1,

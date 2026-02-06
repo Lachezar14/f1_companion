@@ -14,6 +14,7 @@ import {
     SessionResult,
     StartingGrid,
     Stint,
+    Overtake,
 } from '../types';
 import { formatLapTime, formatRaceTime } from '../../shared/time';
 import { withServiceError } from './utils';
@@ -28,6 +29,7 @@ import {
     getDriverSessionResult,
     getLapsByDriverAndSession,
     getStintsByDriverAndSession,
+    getOvertakesBySession,
 } from './sessionDataService';
 import {
     getRaceControlBySession,
@@ -198,15 +200,17 @@ type SessionDetailResources = {
     raceControl: RaceControl[];
     raceControlSummary: RaceControlSummary;
     driverEntries: SessionDriverData[];
+    overtakes: Overtake[];
 };
 
 async function assembleSessionDetailResources(sessionKey: number): Promise<SessionDetailResources> {
-    const [drivers, laps, stints, results, raceControl] = await Promise.all([
+    const [drivers, laps, stints, results, raceControl, overtakes] = await Promise.all([
         getDriversBySession(sessionKey),
         getLapsBySession(sessionKey),
         getStintsBySession(sessionKey),
         getSessionResults(sessionKey),
         getRaceControlBySession(sessionKey),
+        getOvertakesBySession(sessionKey),
     ]);
 
     const session = await resolveSessionMetadata(sessionKey, drivers, results);
@@ -222,6 +226,7 @@ async function assembleSessionDetailResources(sessionKey: number): Promise<Sessi
         raceControl,
         raceControlSummary,
         driverEntries,
+        overtakes,
     };
 }
 
@@ -406,6 +411,7 @@ export function getRaceSessionDetail(sessionKey: number): Promise<RaceSessionDet
                 drivers: resources.driverEntries,
                 raceControl: resources.raceControl,
                 raceControlSummary: resources.raceControlSummary,
+                overtakes: resources.overtakes,
                 classification,
             };
         }

@@ -56,6 +56,46 @@ export async function getDriverByNumber(
     return drivers.find(d => d.driver_number === driverNumber) || null;
 }
 
+export type OvertakeDriverLookupParams = {
+    sessionKey: number;
+    driverNumber: [number, number];
+};
+
+export type OvertakeDriverLookupResult = {
+    overtakingDriver: Driver | null;
+    overtakenDriver: Driver | null;
+};
+
+const sessionDriverCache = new Map<number, Driver[]>();
+
+async function loadDriversForSession(sessionKey: number): Promise<Driver[]> {
+    if (sessionDriverCache.has(sessionKey)) {
+        return sessionDriverCache.get(sessionKey)!;
+    }
+    const drivers = await fetchDriversBySession(sessionKey);
+    sessionDriverCache.set(sessionKey, drivers);
+    return drivers;
+}
+
+export async function getDriversByOvertake({
+    sessionKey,
+    driverNumber,
+}: OvertakeDriverLookupParams): Promise<OvertakeDriverLookupResult> {
+    return withServiceError(
+        `Failed to fetch driver profiles ${driverNumber.join(' & ')} in session ${sessionKey}`,
+        async () => {
+            const drivers = await loadDriversForSession(sessionKey);
+            const driverMap = new Map(drivers.map(driver => [driver.driver_number, driver]));
+            const [overtakingDriverNumber, overtakenDriverNumber] = driverNumber;
+
+            return {
+                overtakingDriver: driverMap.get(overtakingDriverNumber) ?? null,
+                overtakenDriver: driverMap.get(overtakenDriverNumber) ?? null,
+            };
+        }
+    );
+}
+
 const calculateAverage = (values: number[]): number | null => {
     if (!values.length) return null;
     const sum = values.reduce((total, value) => total + value, 0);

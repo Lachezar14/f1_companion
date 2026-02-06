@@ -6,8 +6,9 @@ import {
     fetchStintsByDriverAndSession,
     fetchStintsBySession,
     fetchCarDataByDriverAndSession,
+    fetchOvertakesBySession,
 } from '../api/openf1';
-import type { Lap, SessionResult, Stint } from '../types';
+import type { Lap, SessionResult, Stint, Overtake } from '../types';
 import { withServiceError } from './utils';
 
 export function getSessionResults(sessionKey: number): Promise<SessionResult[]> {
@@ -73,5 +74,12 @@ export function getCarDataByDriverAndSession(
     return withServiceError(
         `Failed to fetch car data for driver ${driverNumber} in session ${sessionKey}`,
         () => fetchCarDataByDriverAndSession(sessionKey, driverNumber)
+    );
+}
+
+export function getOvertakesBySession(sessionKey: number): Promise<Overtake[]> {
+    return withServiceError(
+        `Failed to fetch overtakes for session ${sessionKey}`,
+        () => fetchOvertakesBySession(sessionKey)
     );
 }

@@ -45,6 +45,8 @@ const RaceScreen = () => {
     const rows = data?.classification ?? [];
     const safetyCarLaps = data?.raceControlSummary.safetyCarLaps ?? EMPTY_SAFETY_CAR_LAPS;
     const driverEntries = data?.drivers ?? [];
+    const overtakes = data?.overtakes ?? [];
+    const hasOvertakes = overtakes.length > 0;
 
     const handleDriverPress = useCallback(
         (driverNumber: number) => {
@@ -59,6 +61,17 @@ const RaceScreen = () => {
         },
         [navigation, sessionKey, safetyCarLaps, driverEntries]
     );
+
+    const handleViewOvertakes = useCallback(() => {
+        if (!data) return;
+        navigation.navigate('RaceOvertakes', {
+            sessionKey,
+            sessionName,
+            meetingName,
+            overtakes: overtakes,
+            driverEntries: driverEntries,
+        });
+    }, [data, driverEntries, meetingName, navigation, overtakes, sessionKey, sessionName]);
 
     if (loading) {
         return (
@@ -130,6 +143,15 @@ const RaceScreen = () => {
                     ))}
                 </View>
             </View>
+            <TouchableOpacity
+                style={[styles.ctaButton, !hasOvertakes && styles.ctaButtonDisabled]}
+                onPress={handleViewOvertakes}
+                disabled={!hasOvertakes}
+            >
+                <Text style={styles.ctaButtonText}>
+                    {hasOvertakes ? `View ${overtakes.length} Overtakes` : 'No Overtakes Available'}
+                </Text>
+            </TouchableOpacity>
 
             <RaceResultsSection rows={rows} onDriverPress={handleDriverPress} />
 
@@ -188,6 +210,23 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 6 },
         elevation: 6,
+    },
+    ctaButton: {
+        marginHorizontal: 16,
+        marginBottom: 12,
+        backgroundColor: '#00C853',
+        borderRadius: 20,
+        paddingVertical: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    ctaButtonDisabled: {
+        backgroundColor: '#BDBDBD',
+    },
+    ctaButtonText: {
+        color: '#FFFFFF',
+        fontWeight: '600',
+        fontSize: 15,
     },
     heroContent: {
         marginBottom: 16,

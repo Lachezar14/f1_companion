@@ -3,6 +3,7 @@ export * from './driversService';
 export * from './sessionDataService';
 export * from './raceControlService';
 export * from './sessionDetailService';
+export * from './championshipService';
 
 // Legacy helpers retained for reference. Uncomment and move to the appropriate module if needed again.
 /*
