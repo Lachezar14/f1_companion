@@ -7,8 +7,10 @@ import {
     fetchStintsBySession,
     fetchCarDataByDriverAndSession,
     fetchOvertakesBySession,
+    fetchSessionPits,
+    fetchStartingGridByMeeting,
 } from '../api/openf1';
-import type { Lap, SessionResult, Stint, Overtake } from '../types';
+import type { Lap, SessionResult, Stint, Overtake, PitStop, StartingGrid } from '../types';
 import { withServiceError } from './utils';
 
 export function getSessionResults(sessionKey: number): Promise<SessionResult[]> {
@@ -81,5 +83,27 @@ export function getOvertakesBySession(sessionKey: number): Promise<Overtake[]> {
     return withServiceError(
         `Failed to fetch overtakes for session ${sessionKey}`,
         () => fetchOvertakesBySession(sessionKey)
+    );
+}
+
+export function getPitStopsBySession(sessionKey: number): Promise<PitStop[]> {
+    return withServiceError(
+        `Failed to fetch pit stops for session ${sessionKey}`,
+        () => fetchSessionPits(sessionKey)
+    );
+}
+
+export async function getPitStopsByDriverAndSession(
+    sessionKey: number,
+    driverNumber: number
+): Promise<PitStop[]> {
+    const pitStops = await getPitStopsBySession(sessionKey);
+    return pitStops.filter(stop => stop.driver_number === driverNumber);
+}
+
+export function getRaceStartingGrid(meetingKey: number): Promise<StartingGrid[]> {
+    return withServiceError(
+        `Failed to fetch race starting grid for meeting ${meetingKey}`,
+        () => fetchStartingGridByMeeting(meetingKey)
     );
 }

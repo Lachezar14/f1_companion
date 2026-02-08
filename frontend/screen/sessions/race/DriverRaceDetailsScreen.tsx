@@ -173,6 +173,7 @@ export default function DriverOverviewScreen() {
         : null;
     const heroStats = [
         { label: 'Result', value: formatSessionResult(driverData.sessionResult) },
+        { label: 'Grid', value: driverData.startingPosition ?? '—' },
         { label: 'Laps', value: driverData.sessionResult?.number_of_laps ?? driverData.laps.length },
         { label: 'Gap', value: formatSessionGap(driverData.sessionResult?.gap_to_leader) }
     ];
@@ -230,9 +231,9 @@ export default function DriverOverviewScreen() {
             <RaceStatsSection
                 raceResult={driverData.sessionResult}
                 lapCount={driverData.laps.length}
-                stintCount={driverData.stints.length}
                 laps={driverData.laps}
                 stints={driverData.stints}
+                pitStops={driverData.pitStops ?? []}
                 safetyCarLapSet={safetyCarLapSet}
             />
 

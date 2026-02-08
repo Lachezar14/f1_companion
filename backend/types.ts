@@ -263,6 +263,8 @@ export type SessionDriverData = {
     };
     laps: Lap[];
     stints: Stint[];
+    pitStops: PitStop[];
+    startingPosition: number | null;
     sessionResult: SessionResult | null;
 };
 
@@ -277,6 +279,8 @@ export interface RaceSessionDetail extends SessionDetailBase {
     detailType: 'race';
     overtakes: Overtake[];
     classification: RaceDriverClassification[];
+    pitStops: PitStop[];
+    startingGrid: StartingGrid[];
 }
 
 export interface QualifyingSessionDetail extends SessionDetailBase {
@@ -331,4 +335,15 @@ export type ChampionshipTeam = {
 
 export type DriverChampionshipStanding = ChampionshipDriver & {
     driver: Driver | null;
+};
+
+export type PitStop = {
+    date: string;
+    driver_number: number;
+    lane_duration: number;
+    lap_number: number;
+    meeting_key: number;
+    pit_duration: number;
+    session_key: number;
+    stop_duration: number;
 };

@@ -223,12 +223,12 @@ export default function GPScreen() {
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Weekend Schedule</Text>
                 {sortedSessions.length > 0 ? (
-                    sortedSessions.map(session => (
+                    sortedSessions.map((session, index) => (
                         <SessionCard
                             key={session.session_key}
                             session={session}
-                            meetingName={meeting.meeting_official_name}
                             onPress={handleSessionPress}
+                            showDivider={index < sortedSessions.length - 1}
                         />
                     ))
                 ) : (

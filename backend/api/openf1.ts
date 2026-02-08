@@ -10,7 +10,7 @@ import {
     StartingGrid,
     RaceControl,
     Overtake,
-    Weather, ChampionshipDriver, ChampionshipTeam
+    Weather, ChampionshipDriver, ChampionshipTeam, PitStop
 } from '../types';
 
 const openF1 = axios.create({
@@ -477,9 +477,28 @@ export async function fetchOvertakesBySession(
    Pit
 ========================= */
 
+/**
+ * Get pit stops per session
+ */
+export async function fetchSessionPits(sessionKey: number): Promise<PitStop[]> {
+    return cachedGet<PitStop[]>('/pit', {
+        session_key: sessionKey,
+    });
+}
+
+
 /* =========================
    Starting Grid
 ========================= */
+
+/**
+ * Get race starting grid for a race
+ */
+export async function fetchStartingGridByMeeting(meetingKey: number): Promise<StartingGrid[]> {
+    return cachedGet<StartingGrid[]>('/starting_grid', {
+        meeting_key: meetingKey,
+    });
+}
 
 /* =========================
    Drivers Championship

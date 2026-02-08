@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Lap, Stint } from '../../../backend/types';
+import { Lap, Stint, PitStop } from '../../../backend/types';
 import { formatLapTime } from '../../../shared/time';
 import { getCompoundColor, getCompoundLetter } from '../../../utils/tyre';
 import { calculateAvgLapTimePerCompound } from '../../../utils/lap';
@@ -9,21 +9,31 @@ import { calculateAvgLapTimePerCompound } from '../../../utils/lap';
 interface RaceStatsSectionProps {
     raceResult: any;
     lapCount: number;
-    stintCount: number;
     laps: Lap[];
     stints: Stint[];
+    pitStops: PitStop[];
     safetyCarLapSet?: Set<number>;
 }
 
 export default function RaceStatsSection({
     raceResult,
     lapCount,
-    stintCount,
     laps,
     stints,
+    pitStops,
     safetyCarLapSet,
 }: RaceStatsSectionProps) {
-    const pitStops = Math.max(0, stintCount - 1);
+    const pitStopCount = pitStops?.length ?? 0;
+    const avgPitStopDuration = (() => {
+        if (!pitStopCount) return null;
+        const durations = pitStops
+            .map(stop => stop.stop_duration)
+            .filter((value): value is number => typeof value === 'number' && !Number.isNaN(value));
+        if (!durations.length) return null;
+        const sum = durations.reduce((total, duration) => total + duration, 0);
+        return sum / durations.length;
+    })();
+
     const avgLapTimesPerCompound = calculateAvgLapTimePerCompound(laps, stints, {
         excludedLapNumbers: safetyCarLapSet,
     }).sort((a, b) => b.lapCount - a.lapCount);
@@ -37,7 +47,15 @@ export default function RaceStatsSection({
         accent: string;
     }[] = [
         /*{ key: 'result', label: 'Result', value: formattedRaceResult, icon: 'trophy', tint: 'rgba(109,225,156,0.18)', accent: '#6DE19C' },*/
-        { key: 'pitStops', label: 'Pit Stops', value: pitStops, icon: 'build', tint: 'rgba(255,138,92,0.15)', accent: '#FF8A5C' },
+        { key: 'pitStops', label: 'Pit Stops', value: pitStopCount, icon: 'build', tint: 'rgba(255,138,92,0.15)', accent: '#FF8A5C' },
+        {
+            key: 'avgPitStop',
+            label: 'Avg Pit Stop',
+            value: avgPitStopDuration ? `${avgPitStopDuration.toFixed(2)}s` : '—',
+            icon: 'timer-outline',
+            tint: 'rgba(131,146,255,0.18)',
+            accent: '#8392FF',
+        },
         { key: 'laps', label: 'Laps', value: lapCount, icon: 'flag', tint: 'rgba(62,197,255,0.2)', accent: '#3EC5FF' },
     ];
 

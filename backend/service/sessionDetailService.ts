@@ -1,4 +1,3 @@
-import { fetchStartingGridBySession } from '../api/openf1';
 import {
     Driver,
     Lap,
@@ -15,6 +14,7 @@ import {
     StartingGrid,
     Stint,
     Overtake,
+    PitStop,
 } from '../types';
 import { formatLapTime, formatRaceTime } from '../../shared/time';
 import { withServiceError } from './utils';
@@ -30,6 +30,9 @@ import {
     getLapsByDriverAndSession,
     getStintsByDriverAndSession,
     getOvertakesBySession,
+    getPitStopsBySession,
+    getPitStopsByDriverAndSession,
+    getRaceStartingGrid,
 } from './sessionDataService';
 import {
     getRaceControlBySession,
@@ -83,7 +86,9 @@ function buildSessionDriverData(
     drivers: Driver[],
     laps: Lap[],
     stints: Stint[],
-    results: SessionResult[]
+    results: SessionResult[],
+    pitStops: PitStop[] = [],
+    startingGrid: StartingGrid[] = []
 ): SessionDriverData[] {
     const lapsByDriver = new Map<number, Lap[]>();
     laps.forEach(lap => {
@@ -105,6 +110,22 @@ function buildSessionDriverData(
 
     const resultMap = new Map(results.map(result => [result.driver_number, result]));
 
+    const pitStopsByDriver = new Map<number, PitStop[]>();
+    pitStops.forEach(stop => {
+        if (!pitStopsByDriver.has(stop.driver_number)) {
+            pitStopsByDriver.set(stop.driver_number, []);
+        }
+        pitStopsByDriver.get(stop.driver_number)!.push(stop);
+    });
+    pitStopsByDriver.forEach(list => list.sort((a, b) => a.lap_number - b.lap_number));
+
+    const startingPositionByDriver = new Map<number, number>();
+    startingGrid.forEach(entry => {
+        if (!startingPositionByDriver.has(entry.driver_number)) {
+            startingPositionByDriver.set(entry.driver_number, entry.position);
+        }
+    });
+
     return drivers.map(driver => ({
         driverNumber: driver.driver_number,
         driver: {
@@ -117,13 +138,20 @@ function buildSessionDriverData(
         },
         laps: lapsByDriver.get(driver.driver_number) ?? [],
         stints: stintsByDriver.get(driver.driver_number) ?? [],
+        pitStops: pitStopsByDriver.get(driver.driver_number) ?? [],
+        startingPosition: startingPositionByDriver.get(driver.driver_number) ?? null,
         sessionResult: resultMap.get(driver.driver_number) ?? null,
     }));
 }
 
+type DriverEntryOptions = {
+    includeStartingGrid?: boolean;
+};
+
 async function assembleSingleDriverEntry(
     sessionKey: number,
-    driverNumber: number
+    driverNumber: number,
+    options: DriverEntryOptions = {}
 ): Promise<SessionDriverData | null> {
     const driver = await getDriverByNumber(sessionKey, driverNumber);
     if (!driver) {
@@ -133,17 +161,25 @@ async function assembleSingleDriverEntry(
         return null;
     }
 
-    const [laps, stints, sessionResult] = await Promise.all([
+    const includeStartingGrid = options.includeStartingGrid ?? false;
+
+    const [laps, stints, sessionResult, pitStops, startingGrid] = await Promise.all([
         getLapsByDriverAndSession(sessionKey, driverNumber),
         getStintsByDriverAndSession(sessionKey, driverNumber),
         getDriverSessionResult(sessionKey, driverNumber),
+        getPitStopsByDriverAndSession(sessionKey, driverNumber),
+        includeStartingGrid && driver.meeting_key
+            ? getRaceStartingGrid(driver.meeting_key)
+            : Promise.resolve([]),
     ]);
 
     const driverEntries = buildSessionDriverData(
         [driver],
         laps,
         stints,
-        sessionResult ? [sessionResult] : []
+        sessionResult ? [sessionResult] : [],
+        pitStops,
+        startingGrid
     );
 
     return driverEntries[0] ?? null;
@@ -197,6 +233,8 @@ type SessionDetailResources = {
     laps: Lap[];
     stints: Stint[];
     results: SessionResult[];
+    pitStops: PitStop[];
+    startingGrid: StartingGrid[];
     raceControl: RaceControl[];
     raceControlSummary: RaceControlSummary;
     driverEntries: SessionDriverData[];
@@ -204,18 +242,37 @@ type SessionDetailResources = {
 };
 
 async function assembleSessionDetailResources(sessionKey: number): Promise<SessionDetailResources> {
-    const [drivers, laps, stints, results, raceControl, overtakes] = await Promise.all([
+    const [drivers, laps, stints, results, raceControl, overtakes, pitStops] = await Promise.all([
         getDriversBySession(sessionKey),
         getLapsBySession(sessionKey),
         getStintsBySession(sessionKey),
         getSessionResults(sessionKey),
         getRaceControlBySession(sessionKey),
         getOvertakesBySession(sessionKey),
+        getPitStopsBySession(sessionKey),
     ]);
 
     const session = await resolveSessionMetadata(sessionKey, drivers, results);
     const raceControlSummary = summarizeRaceControl(raceControl, getMaxLapCount(results));
-    const driverEntries = buildSessionDriverData(drivers, laps, stints, results);
+    const sessionType = (session.session_type || '').toLowerCase();
+    const sessionName = (session.session_name || '').toLowerCase();
+    const isRaceSession =
+        sessionType.includes('race') ||
+        sessionName.includes('race') ||
+        sessionName.includes('grand prix');
+
+    let startingGrid: StartingGrid[] = [];
+    if (isRaceSession && session.meeting_key) {
+        try {
+            startingGrid = await getRaceStartingGrid(session.meeting_key);
+        } catch (error) {
+            console.warn(
+                `[SERVICE] Starting grid unavailable for meeting ${session.meeting_key}:`,
+                error
+            );
+        }
+    }
+    const driverEntries = buildSessionDriverData(drivers, laps, stints, results, pitStops, startingGrid);
 
     return {
         session,
@@ -223,6 +280,8 @@ async function assembleSessionDetailResources(sessionKey: number): Promise<Sessi
         laps,
         stints,
         results,
+        pitStops,
+        startingGrid,
         raceControl,
         raceControlSummary,
         driverEntries,
@@ -387,20 +446,10 @@ export function getRaceSessionDetail(sessionKey: number): Promise<RaceSessionDet
         async () => {
             const resources = await assembleSessionDetailResources(sessionKey);
 
-            let startingGrid: StartingGrid[] = [];
-            try {
-                startingGrid = await fetchStartingGridBySession(sessionKey);
-            } catch (error) {
-                console.warn(
-                    `[SERVICE] Starting grid unavailable for session ${sessionKey}:`,
-                    error
-                );
-            }
-
             const classification = buildRaceClassificationFromData(
                 resources.results,
                 resources.drivers,
-                startingGrid,
+                resources.startingGrid,
                 resources.stints,
                 sessionKey
             );
@@ -411,6 +460,8 @@ export function getRaceSessionDetail(sessionKey: number): Promise<RaceSessionDet
                 drivers: resources.driverEntries,
                 raceControl: resources.raceControl,
                 raceControlSummary: resources.raceControlSummary,
+                pitStops: resources.pitStops,
+                startingGrid: resources.startingGrid,
                 overtakes: resources.overtakes,
                 classification,
             };
@@ -463,7 +514,7 @@ export function getRaceDriverDetail(
 ): Promise<SessionDriverData | null> {
     return withServiceError(
         `Failed to build race driver detail for driver ${driverNumber} in session ${sessionKey}`,
-        () => assembleSingleDriverEntry(sessionKey, driverNumber)
+        () => assembleSingleDriverEntry(sessionKey, driverNumber, { includeStartingGrid: true })
     );
 }
 

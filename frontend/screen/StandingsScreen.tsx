@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
     },
     rowTitle: {
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: '700',
         color: '#111120',
     },
     rowSubtitle: {
