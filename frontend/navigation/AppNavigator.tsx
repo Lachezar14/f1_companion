@@ -10,8 +10,10 @@ import DriverPracticeDetailsScreen from "../screen/sessions/practice/DriverPract
 import GPScreen from "../screen/GPScreen";
 import FreePracticeScreen from "../screen/sessions/practice/FreePracticeScreen";
 import QualifyingScreen from "../screen/sessions/qualifying/QualifyingScreen";
+import QualifyingClassificationScreen from "../screen/sessions/qualifying/QualifyingClassificationScreen";
 import RaceScreen from "../screen/sessions/race/RaceScreen";
 import RaceOvertakesScreen from "../screen/sessions/race/RaceOvertakesScreen";
+import RaceClassificationScreen from "../screen/sessions/race/RaceClassificationScreen";
 import DriverSeasonScreen from "../screen/drivers/DriverSeasonScreen";
 import FloatingTabBar from '../component/navigation/FloatingTabBar';
 import StackScreenWrapper from '../component/navigation/StackScreenWrapper';
@@ -60,12 +62,20 @@ const QualifyingWithHeader = withStackScreenWrapper(QualifyingScreen, {
     title: 'Qualifying',
 });
 
+const QualifyingClassificationWithHeader = withStackScreenWrapper(QualifyingClassificationScreen, {
+    title: 'Qualifying Classification',
+});
+
 const RaceWithHeader = withStackScreenWrapper(RaceScreen, {
     title: 'Race',
 });
 
 const RaceOvertakesWithHeader = withStackScreenWrapper(RaceOvertakesScreen, {
     title: 'Overtakes',
+});
+
+const RaceClassificationWithHeader = withStackScreenWrapper(RaceClassificationScreen, {
+    title: 'Classification',
 });
 
 const DriverSeasonWithHeader = withStackScreenWrapper(DriverSeasonScreen, {
@@ -114,6 +124,11 @@ function SessionsStack() {
                 options={{ title: 'Qualifying' }}
             />
             <SessionsStackNavigator.Screen
+                name="QualifyingClassification"
+                component={QualifyingClassificationWithHeader}
+                options={{ title: 'Qualifying Classification' }}
+            />
+            <SessionsStackNavigator.Screen
                 name="RaceScreen"
                 component={RaceWithHeader}
                 options={{ title: 'Race' }}
@@ -122,6 +137,11 @@ function SessionsStack() {
                 name="RaceOvertakes"
                 component={RaceOvertakesWithHeader}
                 options={{ title: 'Overtakes' }}
+            />
+            <SessionsStackNavigator.Screen
+                name="RaceClassification"
+                component={RaceClassificationWithHeader}
+                options={{ title: 'Classification' }}
             />
         </SessionsStackNavigator.Navigator>
     );
