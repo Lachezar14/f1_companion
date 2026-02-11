@@ -199,7 +199,6 @@ export default function DriverOverviewScreen() {
     const heroStats = [
         { label: 'Result', value: formatSessionResult(driverData.sessionResult) },
         { label: 'Grid', value: driverData.startingPosition ?? '—' },
-        { label: 'Laps', value: driverData.sessionResult?.number_of_laps ?? driverData.laps.length },
         { label: 'Gap', value: formatSessionGap(driverData.sessionResult?.gap_to_leader) }
     ];
     const resultStatus = getResultStatusLabel(driverData.sessionResult);
@@ -309,8 +308,8 @@ export default function DriverOverviewScreen() {
                 <View style={styles.strategyCard}>
                     <View style={styles.strategyHeader}>
                         <View>
-                            <Text style={styles.strategyOverline}>Strategy Overview</Text>
-                            <Text style={styles.strategySubhead}>Lap coverage & tyre freshness</Text>
+                            <Text style={styles.sectionTitle}>Strategy Overview</Text>
+                            <Text style={styles.sectionSubtitle}>Lap coverage & tyre freshness</Text>
                         </View>
                         <TouchableOpacity
                             style={styles.sectionToggle}
@@ -408,6 +407,18 @@ export default function DriverOverviewScreen() {
         </ScrollView>
     );
 }
+
+const CARD_BASE = {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E1E4EF',
+    shadowColor: '#0F1325',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
+    elevation: 5,
+};
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F5F5F7' },
@@ -565,41 +576,21 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
     },
     strategyCard: {
+        ...CARD_BASE,
         marginTop: 20,
         marginHorizontal: 16,
-        backgroundColor: '#FFF',
-        borderRadius: 20,
-        paddingVertical: 12,
-        borderWidth: 1,
-        borderColor: '#E5E8F0',
-        shadowColor: '#000',
-        shadowOpacity: 0.04,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 12,
-        elevation: 3,
+        paddingHorizontal: 20,
+        paddingVertical: 20,
     },
     strategyHeader: {
-        paddingHorizontal: 16,
-        paddingBottom: 8,
+        marginBottom: 12,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-    },
-    strategyOverline: {
-        fontSize: 12,
-        color: '#7C7F93',
-        fontWeight: '700',
-        letterSpacing: 1,
-        textTransform: 'uppercase',
-    },
-    strategySubhead: {
-        fontSize: 13,
-        color: '#7C7F93',
-        marginTop: 2,
+        gap: 12,
     },
     strategyListCard: {
-        marginTop: 12,
-        marginHorizontal: 12,
+        marginTop: 16,
         backgroundColor: '#F8F9FC',
         borderRadius: 18,
         padding: 16,
@@ -678,15 +669,9 @@ const styles = StyleSheet.create({
         color: '#6A6F87',
     },
     section: {
+        ...CARD_BASE,
         marginTop: 20,
         marginHorizontal: 16,
-        backgroundColor: '#FFF',
-        borderRadius: 20,
-        shadowColor: '#000',
-        shadowOpacity: 0.06,
-        shadowOffset: { width: 0, height: 6 },
-        shadowRadius: 12,
-        elevation: 4,
     },
     sectionHeader: {
         padding: 20,

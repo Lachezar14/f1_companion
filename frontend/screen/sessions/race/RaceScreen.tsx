@@ -47,6 +47,7 @@ const RaceScreen = () => {
 
     const rows = data?.classification ?? [];
     const safetyCarLaps = data?.raceControlSummary.safetyCarLaps ?? EMPTY_SAFETY_CAR_LAPS;
+    const safetyCarIntervals = data?.raceControlSummary.safetyCarIntervals ?? [];
     const driverEntries = data?.drivers ?? [];
     const [selectedDriverCompound, setSelectedDriverCompound] = useState<string | null>(null);
     const [selectedTeamCompound, setSelectedTeamCompound] = useState<string | null>(null);
@@ -82,6 +83,24 @@ const RaceScreen = () => {
         }
         return driverEntries[0]?.driverNumber ?? null;
     }, [rows, driverEntries]);
+
+    const safetyCarEvents = useMemo(() => {
+        if (!safetyCarIntervals.length) return [];
+        return [...safetyCarIntervals]
+            .sort((a, b) => a.start - b.start)
+            .map((interval, index) => {
+                const lapCount = Math.max(0, interval.end - interval.start + 1);
+                const rangeLabel =
+                    interval.start === interval.end
+                        ? `Lap ${interval.start}`
+                        : `Laps ${interval.start}–${interval.end}`;
+                return {
+                    index: index + 1,
+                    rangeLabel,
+                    lapCount,
+                };
+            });
+    }, [safetyCarIntervals]);
 
     const driverOptionsPayload = useMemo(() => {
         const map = new Map<
@@ -517,6 +536,57 @@ const RaceScreen = () => {
                         ) : null}
                     </View>
                 </View>
+                <View style={styles.safetyCarCard}>
+                    <View style={styles.safetyCarHeader}>
+                        <Text style={styles.safetyCarTitle}>Safety Car Summary</Text>
+                        <View
+                            style={[
+                                styles.safetyCarBadge,
+                                safetyCarEvents.length
+                                    ? styles.safetyCarBadgeActive
+                                    : styles.safetyCarBadgeInactive,
+                            ]}
+                        >
+                            <Text
+                                style={[
+                                    styles.safetyCarBadgeText,
+                                    safetyCarEvents.length
+                                        ? styles.safetyCarBadgeTextActive
+                                        : styles.safetyCarBadgeTextInactive,
+                                ]}
+                            >
+                                {safetyCarEvents.length
+                                    ? `${safetyCarEvents.length} ${
+                                          safetyCarEvents.length === 1 ? 'Deployment' : 'Deployments'
+                                      }`
+                                    : 'No Deployments'}
+                            </Text>
+                        </View>
+                    </View>
+                    {safetyCarEvents.length ? (
+                        <>
+                            <Text style={styles.safetyCarMeta}>
+                                Total SC laps: {safetyCarLapCount || 0}
+                            </Text>
+                            {safetyCarEvents.map(event => (
+                                <View key={`sc-${event.index}`} style={styles.safetyCarRow}>
+                                    <View>
+                                        <Text style={styles.safetyCarRowLabel}>SC #{event.index}</Text>
+                                        <Text style={styles.safetyCarRowRange}>{event.rangeLabel}</Text>
+                                    </View>
+                                    <Text style={styles.safetyCarRowCount}>
+                                        {event.lapCount}{' '}
+                                        {event.lapCount === 1 ? 'lap' : 'laps'}
+                                    </Text>
+                                </View>
+                            ))}
+                        </>
+                    ) : (
+                        <Text style={styles.noSafetyCarText}>
+                            Timing data indicates no safety car periods.
+                        </Text>
+                    )}
+                </View>
             </View>
 
             <View style={styles.listCard}>
@@ -900,6 +970,84 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#5A6AA3',
         marginTop: 2,
+    },
+    safetyCarCard: {
+        marginTop: 16,
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(255,166,0,0.5)',
+        backgroundColor: 'rgba(255,166,0,0.15)',
+    },
+    safetyCarHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    safetyCarTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#15151E',
+    },
+    safetyCarBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 999,
+        borderWidth: 1,
+    },
+    safetyCarBadgeActive: {
+        borderColor: '#E0A200',
+        backgroundColor: '#FFD977',
+    },
+    safetyCarBadgeInactive: {
+        borderColor: '#D8DBE8',
+        backgroundColor: '#F0F1F6',
+    },
+    safetyCarBadgeText: {
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 0.4,
+        textTransform: 'uppercase',
+    },
+    safetyCarBadgeTextActive: {
+        color: '#7A4A00',
+    },
+    safetyCarBadgeTextInactive: {
+        color: '#7C7F93',
+    },
+    safetyCarMeta: {
+        fontSize: 13,
+        color: '#6C738F',
+        marginBottom: 8,
+    },
+    safetyCarRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 8,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: '#E7E9F4',
+    },
+    safetyCarRowLabel: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#2B2F3F',
+    },
+    safetyCarRowRange: {
+        fontSize: 12,
+        color: '#7A7F97',
+        marginTop: 2,
+    },
+    safetyCarRowCount: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#2B2F3F',
+    },
+    noSafetyCarText: {
+        fontSize: 13,
+        color: '#7A7F97',
+        fontStyle: 'italic',
     },
     climberCard: {
         marginTop: 16,

@@ -85,6 +85,14 @@ export default function RaceStintCard({
                     <Text style={styles.title}>{compoundName} Run</Text>
                 </View>
                 <View style={styles.tyreInfo}>
+                    <Text
+                        style={[
+                            styles.tyreStateLabel,
+                            isNewTyre ? styles.tyreStateLabelNew : styles.tyreStateLabelUsed,
+                        ]}
+                    >
+                        {isNewTyre ? 'New Tyre' : 'Used Tyre'}
+                    </Text>
                     <View
                         style={[
                             styles.tyreBadgeWrapper,
@@ -93,14 +101,6 @@ export default function RaceStintCard({
                     >
                         <TyreCompoundBadge compound={stint.compound} size={40} />
                     </View>
-                    <Text
-                        style={[
-                            styles.tyreStateLabel,
-                            isNewTyre ? styles.tyreStateLabelNew : styles.tyreStateLabelUsed,
-                        ]}
-                    >
-                        {isNewTyre ? 'New' : 'Used'}
-                    </Text>
                 </View>
             </View>
 
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     tyreInfo: {
-        alignItems: 'flex-end',
+        alignItems: 'center',
     },
     tyreBadgeWrapper: {
         padding: 6,
@@ -243,6 +243,8 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         letterSpacing: 0.3,
         textTransform: 'uppercase',
+        textAlign: 'center',
+        marginBottom: 6,
     },
     tyreStateLabelNew: {
         color: '#2A8C49',

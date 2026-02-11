@@ -124,20 +124,24 @@ export default function RaceStatsSection({
     );
 }
 
+const CARD_BASE = {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E1E4EF',
+    shadowColor: '#0F1325',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
+    elevation: 5,
+};
+
 const styles = StyleSheet.create({
     card: {
+        ...CARD_BASE,
         marginHorizontal: 16,
         marginTop: 20,
-        backgroundColor: '#FFF',
-        borderRadius: 24,
         padding: 20,
-        shadowColor: '#000',
-        shadowOpacity: 0.09,
-        shadowOffset: { width: 0, height: 6 },
-        shadowRadius: 16,
-        elevation: 6,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#EBEFF5',
     },
     header: {
         marginBottom: 20,
@@ -168,9 +172,9 @@ const styles = StyleSheet.create({
         flex: 1,
         borderRadius: 18,
         padding: 16,
-        backgroundColor: '#F7F8FA',
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E5E8F0',
+        backgroundColor: '#F8F9FC',
+        borderWidth: 1,
+        borderColor: '#DFE3EE',
     },
     statIcon: {
         width: 42,
@@ -250,10 +254,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 6,
         borderRadius: 999,
-        backgroundColor: '#FFF',
+        backgroundColor: '#FFFFFF',
         paddingHorizontal: 14,
         paddingVertical: 6,
-        borderWidth: StyleSheet.hairlineWidth,
+        borderWidth: 1,
         borderColor: '#E1E4EF',
     },
     compoundStatTime: {
