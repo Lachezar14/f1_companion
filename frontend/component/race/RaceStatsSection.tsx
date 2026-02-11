@@ -5,6 +5,7 @@ import { Lap, Stint, PitStop } from '../../../backend/types';
 import { formatLapTime } from '../../../shared/time';
 import TyreCompoundBadge from '../common/TyreCompoundBadge';
 import { calculateAvgLapTimePerCompound } from '../../../utils/lap';
+import { getCompoundName } from '../../../utils/tyre';
 
 interface RaceStatsSectionProps {
     raceResult: any;
@@ -85,7 +86,9 @@ export default function RaceStatsSection({
                         <Text style={styles.compoundTitle}>Average Lap Time by Compound</Text>
                         <Text style={styles.compoundSubtitle}>Ignoring pit exit laps & safety car tours</Text>
                     </View>
-                    {avgLapTimesPerCompound.map((stat, index) => (
+                    {avgLapTimesPerCompound.map((stat, index) => {
+                        const compoundName = getCompoundName(stat.compound);
+                        return (
                         <View
                             key={stat.compound}
                             style={[
@@ -100,7 +103,7 @@ export default function RaceStatsSection({
                                     style={styles.compoundBadge}
                                 />
                                 <View>
-                                    <Text style={styles.compoundName}>{stat.compound}</Text>
+                                    <Text style={styles.compoundName}>{compoundName}</Text>
                                     <Text style={styles.compoundLapCount}>
                                         {stat.lapCount} {stat.lapCount === 1 ? 'lap' : 'laps'}
                                     </Text>
@@ -113,7 +116,8 @@ export default function RaceStatsSection({
                                 </Text>
                             </View>
                         </View>
-                    ))}
+                        );
+                    })}
                 </View>
             )}
         </View>

@@ -16,6 +16,7 @@ import { useServiceRequest } from '../../../hooks/useServiceRequest';
 import { calculateAvgLapTimePerCompound } from '../../../../utils/lap';
 import { formatLapTime } from '../../../../shared/time';
 import { getTeamColorHex } from '../../../../utils/driver';
+import { getCompoundName } from '../../../../utils/tyre';
 
 type RouteParams = {
     sessionKey: number;
@@ -393,6 +394,13 @@ const RaceScreen = () => {
     const formatPace = (value?: number | null) =>
         typeof value === 'number' && value > 0 ? formatLapTime(value) : '—';
 
+    const selectedTeamCompoundName = selectedTeamCompound
+        ? getCompoundName(selectedTeamCompound)
+        : null;
+    const selectedDriverCompoundName = selectedDriverCompound
+        ? getCompoundName(selectedDriverCompound)
+        : null;
+
     const heroStats = [
         { label: 'Drivers', value: driverEntries.length || '–' },
         { label: 'SC Laps', value: safetyCarLapCount || '0' },
@@ -525,6 +533,7 @@ const RaceScreen = () => {
                     >
                         {compoundOptions.map(option => {
                             const isActive = option === selectedTeamCompound;
+                            const label = getCompoundName(option);
                             return (
                                 <TouchableOpacity
                                     key={`team-compound-${option}`}
@@ -542,7 +551,7 @@ const RaceScreen = () => {
                                             isActive && styles.filterChipLabelActive,
                                         ]}
                                     >
-                                        {option}
+                                        {label}
                                     </Text>
                                 </TouchableOpacity>
                             );
@@ -555,15 +564,17 @@ const RaceScreen = () => {
                             <View style={[styles.teamDot, { backgroundColor: getTeamColorHex(team.color) }]} />
                             <View style={styles.listDriverBlock}>
                                 <Text style={styles.listDriverName}>{team.teamName}</Text>
-                                <Text style={styles.listMeta}>Average pace on {selectedTeamCompound}</Text>
+                                <Text style={styles.listMeta}>
+                                    Average pace on {getCompoundName(selectedTeamCompound)}
+                                </Text>
                             </View>
                             <Text style={styles.listValue}>{formatPace(team.avgTime)}</Text>
                         </View>
                     ))
                 ) : (
                     <Text style={styles.noData}>
-                        {selectedTeamCompound
-                            ? `No representative team pace on ${selectedTeamCompound}`
+                        {selectedTeamCompoundName
+                            ? `No representative team pace on ${selectedTeamCompoundName}`
                             : 'No team pace data'}
                     </Text>
                 )}
@@ -593,6 +604,7 @@ const RaceScreen = () => {
                     >
                         {compoundOptions.map(option => {
                             const isActive = option === selectedDriverCompound;
+                            const label = getCompoundName(option);
                             return (
                                 <TouchableOpacity
                                     key={`driver-compound-${option}`}
@@ -605,7 +617,7 @@ const RaceScreen = () => {
                                             isActive && styles.filterChipLabelActive,
                                         ]}
                                     >
-                                        {option}
+                                        {label}
                                     </Text>
                                 </TouchableOpacity>
                             );
@@ -621,7 +633,7 @@ const RaceScreen = () => {
                             <View style={styles.listDriverBlock}>
                                 <Text style={styles.listDriverName}>{stat.driverName}</Text>
                                 <Text style={styles.listMeta}>
-                                    {stat.teamName} • {selectedDriverCompound} • {stat.lapCount}{' '}
+                                    {stat.teamName} • {selectedDriverCompoundName ?? 'Unknown'} • {stat.lapCount}{' '}
                                     {stat.lapCount === 1 ? 'lap' : 'laps'}
                                 </Text>
                             </View>
@@ -630,8 +642,8 @@ const RaceScreen = () => {
                     ))
                 ) : (
                     <Text style={styles.noData}>
-                        {selectedDriverCompound
-                            ? `No clean laps for ${selectedDriverCompound} yet`
+                        {selectedDriverCompoundName
+                            ? `No clean laps for ${selectedDriverCompoundName} yet`
                             : 'No compound data available'}
                     </Text>
                 )}

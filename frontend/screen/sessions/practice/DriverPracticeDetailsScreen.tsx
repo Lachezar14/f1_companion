@@ -122,6 +122,7 @@ export default function DriverPracticeDetailsScreen() {
     );
 
     const driverData = state.driverData;
+    const [stintsExpanded, setStintsExpanded] = useState(true);
 
     const stintsWithLaps = useMemo(() => {
         if (!driverData) {
@@ -289,21 +290,33 @@ export default function DriverPracticeDetailsScreen() {
 
             <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Stints & Laps</Text>
-                    <Text style={styles.sectionSubtitle}>Tyre evolution and stint detail</Text>
+                    <View>
+                        <Text style={styles.sectionTitle}>Stints & Laps</Text>
+                        <Text style={styles.sectionSubtitle}>Tyre evolution and stint detail</Text>
+                    </View>
+                    <TouchableOpacity
+                        style={styles.sectionToggle}
+                        onPress={() => setStintsExpanded(prev => !prev)}
+                    >
+                        <Text style={styles.sectionToggleText}>
+                            {stintsExpanded ? 'Hide' : 'Show'}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
-                {stintsWithLaps.length > 0 ? (
-                    stintsWithLaps.map(({ stint, laps }, index) => (
-                        <PracticeStintCard
-                            key={stint.stint_number}
-                            stint={stint}
-                            laps={laps}
-                            showDivider={index < stintsWithLaps.length - 1}
-                        />
-                    ))
-                ) : (
-                    <Text style={styles.noData}>No stints recorded for this session</Text>
-                )}
+                {stintsExpanded ? (
+                    stintsWithLaps.length > 0 ? (
+                        stintsWithLaps.map(({ stint, laps }, index) => (
+                            <PracticeStintCard
+                                key={stint.stint_number}
+                                stint={stint}
+                                laps={laps}
+                                showDivider={index < stintsWithLaps.length - 1}
+                            />
+                        ))
+                    ) : (
+                        <Text style={styles.noData}>No stints recorded for this session</Text>
+                    )
+                ) : null}
             </View>
         </ScrollView>
     );
@@ -495,6 +508,9 @@ const styles = StyleSheet.create({
     },
     sectionHeader: {
         marginBottom: 16,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     sectionTitle: {
         fontSize: 20,
@@ -505,6 +521,17 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#7C7C85',
         marginTop: 4,
+    },
+    sectionToggle: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 999,
+        backgroundColor: '#EFF0F7',
+    },
+    sectionToggleText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#4D5166',
     },
     noData: {
         fontSize: 14,

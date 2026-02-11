@@ -13,8 +13,8 @@ import { RouteProp, useRoute } from '@react-navigation/native';
 import { getRaceDriverDetail } from '../../../../backend/service/openf1Service';
 import type { Lap, SessionDriverData, SessionResult, Stint } from '../../../../backend/types';
 import RaceStatsSection from "../../../component/race/RaceStatsSection";
+import RaceStintCard from '../../../component/race/RaceStintCard';
 import TyreCompoundBadge from '../../../component/common/TyreCompoundBadge';
-import { formatLapTime } from '../../../../shared/time';
 import {
     getTeamColorHex,
     getDriverInitials,
@@ -22,6 +22,7 @@ import {
     formatSessionResult,
     getResultStatusLabel,
 } from '../../../../utils/driver';
+import { getCompoundName } from '../../../../utils/tyre';
 
 type RouteParams = {
     driverNumber: number;
@@ -134,38 +135,34 @@ export default function DriverOverviewScreen() {
     const safetyCarLapSet = useMemo(() => new Set(safetyCarLaps), [safetyCarLaps]);
 
     const driverData = state.driverData;
+    const [stintsExpanded, setStintsExpanded] = useState(true);
 
     const sortedStints = useMemo(() => {
         if (!driverData) return [];
         return [...driverData.stints].sort((a, b) => a.lap_start - b.lap_start);
     }, [driverData]);
 
-    const lapRows = useMemo(() => {
-        if (!driverData) return [];
-        return driverData.laps.map((lap: Lap) => {
-            const currentStint = sortedStints.find(
-                (stint: Stint) =>
-                    lap.lap_number >= stint.lap_start && lap.lap_number <= stint.lap_end
+    const stintsWithLaps = useMemo(() => {
+        if (!driverData) {
+            return [];
+        }
+        return sortedStints.map(stint => {
+            const lapsForStint = driverData.laps.filter(
+                (lap: Lap) => lap.lap_number >= stint.lap_start && lap.lap_number <= stint.lap_end
             );
-            const stintIndex = currentStint
-                ? sortedStints.findIndex(s => s.stint_number === currentStint.stint_number)
-                : -1;
-            const hasNextStint = stintIndex > -1 && stintIndex < sortedStints.length - 1;
-            const isPitIn =
-                Boolean(currentStint) && hasNextStint && lap.lap_number === currentStint.lap_end;
-
-            const compound = currentStint?.compound ?? 'Unknown';
-            const isSafetyCar = safetyCarLapSet.has(lap.lap_number);
-
-            return {
-                lap,
-                compound,
-                isPitOut: lap.is_pit_out_lap,
-                isPitIn,
-                isSafetyCar,
-            };
+            return { stint, laps: lapsForStint };
         });
-    }, [driverData, sortedStints, safetyCarLapSet]);
+    }, [driverData, sortedStints]);
+
+    const [strategyExpanded, setStrategyExpanded] = useState(true);
+    const strategySummary = useMemo(() => {
+        return sortedStints.map(stint => ({
+            stintNumber: stint.stint_number,
+            lapRange: `Laps ${stint.lap_start} – ${stint.lap_end}`,
+            compoundCode: stint.compound,
+            isNewTyre: !stint.tyre_age_at_start || stint.tyre_age_at_start <= 0,
+        }));
+    }, [sortedStints]);
 
     if (state.loading) {
         return (
@@ -308,61 +305,105 @@ export default function DriverOverviewScreen() {
                 safetyCarLapSet={safetyCarLapSet}
             />
 
+            {strategySummary.length ? (
+                <View style={styles.strategyCard}>
+                    <View style={styles.strategyHeader}>
+                        <View>
+                            <Text style={styles.strategyOverline}>Strategy Overview</Text>
+                            <Text style={styles.strategySubhead}>Lap coverage & tyre freshness</Text>
+                        </View>
+                        <TouchableOpacity
+                            style={styles.sectionToggle}
+                            onPress={() => setStrategyExpanded(prev => !prev)}
+                        >
+                            <Text style={styles.sectionToggleText}>
+                                {strategyExpanded ? 'Hide' : 'Show'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                    {strategyExpanded ? (
+                        <View style={styles.strategyListCard}>
+                            {strategySummary.map((summary, index) => {
+                                const compoundLabel = getCompoundName(summary.compoundCode);
+                                return (
+                                    <View
+                                        key={summary.stintNumber}
+                                        style={[
+                                            styles.strategyListRow,
+                                            index === strategySummary.length - 1 && styles.strategyListRowLast,
+                                        ]}
+                                    >
+                                        <View style={styles.strategyListInfo}>
+                                            <TyreCompoundBadge
+                                                compound={summary.compoundCode}
+                                                size={42}
+                                                style={styles.strategyCompoundBadge}
+                                            />
+                                            <View>
+                                                <Text style={styles.strategyStintLabel}>Stint {summary.stintNumber}</Text>
+                                                <Text style={styles.strategyCompoundLabel}>{compoundLabel}</Text>
+                                                <Text style={styles.strategyLapValue}>{summary.lapRange}</Text>
+                                            </View>
+                                        </View>
+                                        <View
+                                            style={[
+                                                styles.strategyTyrePill,
+                                                summary.isNewTyre
+                                                    ? styles.strategyTyrePillNew
+                                                    : styles.strategyTyrePillUsed,
+                                            ]}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.strategyTyreState,
+                                                    summary.isNewTyre
+                                                        ? styles.strategyTyreStateNew
+                                                        : styles.strategyTyreStateUsed,
+                                                ]}
+                                            >
+                                                {summary.isNewTyre ? 'New Tyre' : 'Used Tyre'}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    ) : null}
+                </View>
+            ) : null}
+
             <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Lap Timeline</Text>
-                    <Text style={styles.sectionSubtitle}>Tyres, pace and safety car notes</Text>
-                </View>
-                {driverData.laps.length > 0 ? (
-                    <View style={styles.lapTable}>
-                        <View style={[styles.lapRow, styles.lapHeaderRow]}>
-                            <Text style={[styles.lapCell, styles.headerText]}>Lap</Text>
-                            <Text style={[styles.compoundHeaderCell, styles.headerText]}>Tyre</Text>
-                            <Text style={[styles.timeCell, styles.headerText]}>Time</Text>
-                            <Text style={[styles.noteHeaderCell, styles.headerText]}>Notes</Text>
-                        </View>
-                        {lapRows.map(({ lap, compound, isPitOut, isSafetyCar }) => (
-                            <View
-                                key={lap.lap_number}
-                                style={[
-                                    styles.lapRow,
-                                    isSafetyCar && styles.safetyCarRow,
-                                ]}
-                            >
-                                <Text style={styles.lapCell}>#{lap.lap_number}</Text>
-                                <View style={styles.compoundCell}>
-                                    <TyreCompoundBadge
-                                        compound={compound}
-                                        size={38}
-                                        style={styles.compoundBadge}
-                                    />
-                                </View>
-                                <Text style={styles.timeCell}>
-                                    {lap.lap_duration ? formatLapTime(lap.lap_duration) : '—'}
-                                </Text>
-                                <View style={styles.noteCell}>
-                                    <View style={styles.noteCellContent}>
-                                        {isSafetyCar && (
-                                            <View style={[styles.badge, styles.safetyCarBadge]}>
-                                                <Text style={[styles.badgeText, styles.safetyCarText]}>SC</Text>
-                                            </View>
-                                        )}
-                                        {isPitOut && (
-                                            <View style={[styles.badge, styles.pitOutBadge]}>
-                                                <Text style={[styles.badgeText, styles.pitOutText]}>Pit Out</Text>
-                                            </View>
-                                        )}
-                                        {!isSafetyCar && !isPitOut && (
-                                            <Text style={styles.noBadge}>-</Text>
-                                        )}
-                                    </View>
-                                </View>
-                            </View>
-                        ))}
+                    <View>
+                        <Text style={styles.sectionTitle}>Stints & Laps</Text>
+                        <Text style={styles.sectionSubtitle}>Tyre evolution with safety car markers</Text>
                     </View>
-                ) : (
-                    <Text style={styles.noData}>Lap times not available</Text>
-                )}
+                    <TouchableOpacity
+                        style={styles.sectionToggle}
+                        onPress={() => setStintsExpanded(prev => !prev)}
+                    >
+                        <Text style={styles.sectionToggleText}>
+                            {stintsExpanded ? 'Hide' : 'Show'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+                {stintsExpanded ? (
+                    <View style={styles.sectionBody}>
+                        {stintsWithLaps.length ? (
+                            stintsWithLaps.map(({ stint, laps }, index) => (
+                                <RaceStintCard
+                                    key={stint.stint_number}
+                                    stint={stint}
+                                    laps={laps}
+                                    showDivider={index < stintsWithLaps.length - 1}
+                                    safetyCarLapSet={safetyCarLapSet}
+                                />
+                            ))
+                        ) : (
+                            <Text style={styles.noData}>No stints recorded for this driver</Text>
+                        )}
+                    </View>
+                ) : null}
             </View>
         </ScrollView>
     );
@@ -523,6 +564,119 @@ const styles = StyleSheet.create({
         letterSpacing: 0.6,
         textTransform: 'uppercase',
     },
+    strategyCard: {
+        marginTop: 20,
+        marginHorizontal: 16,
+        backgroundColor: '#FFF',
+        borderRadius: 20,
+        paddingVertical: 12,
+        borderWidth: 1,
+        borderColor: '#E5E8F0',
+        shadowColor: '#000',
+        shadowOpacity: 0.04,
+        shadowOffset: { width: 0, height: 4 },
+        shadowRadius: 12,
+        elevation: 3,
+    },
+    strategyHeader: {
+        paddingHorizontal: 16,
+        paddingBottom: 8,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    strategyOverline: {
+        fontSize: 12,
+        color: '#7C7F93',
+        fontWeight: '700',
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+    },
+    strategySubhead: {
+        fontSize: 13,
+        color: '#7C7F93',
+        marginTop: 2,
+    },
+    strategyListCard: {
+        marginTop: 12,
+        marginHorizontal: 12,
+        backgroundColor: '#F8F9FC',
+        borderRadius: 18,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#DFE3EE',
+    },
+    strategyListRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: '#DDE1ED',
+    },
+    strategyListRowLast: {
+        borderBottomWidth: 0,
+        paddingBottom: 0,
+    },
+    strategyListInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        gap: 12,
+    },
+    strategyCompoundBadge: {
+        marginRight: 2,
+    },
+    strategyStintLabel: {
+        fontSize: 12,
+        letterSpacing: 0.8,
+        textTransform: 'uppercase',
+        color: '#8B8FA8',
+        fontWeight: '700',
+    },
+    strategyCompoundLabel: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#15151E',
+        textTransform: 'capitalize',
+        marginTop: 2,
+    },
+    strategyLapValue: {
+        marginTop: 2,
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#15151E',
+    },
+    strategyTyrePill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        borderRadius: 999,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E1E4EF',
+        backgroundColor: '#FFF',
+    },
+    strategyTyrePillNew: {
+        backgroundColor: 'rgba(31,138,77,0.12)',
+        borderColor: 'rgba(31,138,77,0.4)',
+    },
+    strategyTyrePillUsed: {
+        backgroundColor: 'rgba(106,111,135,0.12)',
+        borderColor: 'rgba(106,111,135,0.4)',
+    },
+    strategyTyreState: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    strategyTyreStateNew: {
+        color: '#1F8A4D',
+    },
+    strategyTyreStateUsed: {
+        color: '#6A6F87',
+    },
     section: {
         marginTop: 20,
         marginHorizontal: 16,
@@ -535,7 +689,11 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
     sectionHeader: {
-        padding: 20
+        padding: 20,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 12,
     },
     sectionTitle: {
         fontSize: 20,
@@ -547,102 +705,20 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#7C7C85',
     },
-    lapTable: {
-        borderWidth: 1,
-        borderColor: '#ECECF1',
-        borderRadius: 10,
-        overflow: 'hidden',
-    },
-    lapRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 11,
-        paddingHorizontal: 14,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#F3F3F5',
-    },
-    lapHeaderRow: {
-        backgroundColor: '#F6F6F9',
-    },
-    lapCell: {
-        width: 70,
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#333',
-    },
-    compoundHeaderCell: {
-        flex: 1,
-        textAlign: 'center',
-        fontWeight: '600',
-    },
-    compoundCell: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    compoundBadge: {
-        marginVertical: 2,
-    },
-    timeCell: {
-        width: 90,
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#15151E',
-        textAlign: 'right',
-    },
-    noteHeaderCell: {
-        flex: 1,
-        minWidth: 70,
-        textAlign: 'right',
-    },
-    noteCell: {
-        flex: 1,
-        minWidth: 90,
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-    },
-    noteCellContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    headerText: {
-        fontSize: 11,
-        textTransform: 'uppercase',
-        color: '#888',
-        letterSpacing: 0.8,
-        fontWeight: '700',
-    },
-    badge: {
+    sectionToggle: {
         paddingHorizontal: 12,
-        paddingVertical: 4,
+        paddingVertical: 6,
         borderRadius: 999,
+        backgroundColor: '#EFF0F7',
     },
-    badgeText: {
-        fontSize: 11,
+    sectionToggleText: {
+        fontSize: 12,
         fontWeight: '700',
-        letterSpacing: 0.4,
+        color: '#4D5166',
     },
-    pitOutBadge: {
-        backgroundColor: 'rgba(225, 6, 0, 0.08)',
-    },
-    pitOutText: {
-        color: '#B40012',
-    },
-    safetyCarBadge: {
-        backgroundColor: 'rgba(255, 218, 103, 0.35)',
-    },
-    safetyCarText: {
-        color: '#8D6E00',
-    },
-    safetyCarRow: {
-        backgroundColor: '#FFF8DC',
-    },
-    noBadge: {
-        fontSize: 13,
-        color: '#999',
+    sectionBody: {
+        paddingHorizontal: 20,
+        paddingBottom: 20,
     },
     noData: {
         fontSize: 14,

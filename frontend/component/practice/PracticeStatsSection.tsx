@@ -5,6 +5,7 @@ import { Lap, Stint } from '../../../backend/types';
 import { formatLapTime } from '../../../shared/time';
 import TyreCompoundBadge from '../common/TyreCompoundBadge';
 import { calculateTypicalLapDuration, calculateAvgLapTimePerCompound } from '../../../utils/lap';
+import { getCompoundName } from '../../../utils/tyre';
 
 interface PracticeStatsSectionProps {
     lapCount: number;
@@ -85,7 +86,9 @@ export default function PracticeStatsSection({ lapCount, stints, laps }: Practic
                         <Text style={styles.compoundTitle}>Tyre Compounds</Text>
                         <Text style={styles.compoundSubtitle}>Average lap (excludes slow-down laps)</Text>
                     </View>
-                    {avgLapTimesPerCompound.map((stat, index) => (
+                    {avgLapTimesPerCompound.map((stat, index) => {
+                        const compoundName = getCompoundName(stat.compound);
+                        return (
                         <View
                             key={stat.compound}
                             style={[
@@ -100,7 +103,7 @@ export default function PracticeStatsSection({ lapCount, stints, laps }: Practic
                                     style={styles.compoundBadge}
                                 />
                                 <View>
-                                    <Text style={styles.compoundName}>{stat.compound}</Text>
+                                    <Text style={styles.compoundName}>{compoundName}</Text>
                                     <Text style={styles.compoundLapCount}>
                                         {stat.lapCount} {stat.lapCount === 1 ? 'lap' : 'laps'}
                                     </Text>
@@ -111,7 +114,8 @@ export default function PracticeStatsSection({ lapCount, stints, laps }: Practic
                                 <Text style={styles.compoundTime}>{formatLapTime(stat.avgTime)}</Text>
                             </View>
                         </View>
-                    ))}
+                        );
+                    })}
                 </View>
             )}
         </View>

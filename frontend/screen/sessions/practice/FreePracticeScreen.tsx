@@ -17,6 +17,7 @@ import { useServiceRequest } from '../../../hooks/useServiceRequest';
 import type { PracticeSessionDetail } from '../../../../backend/types';
 import { calculateAvgLapTimePerCompound, calculateTypicalLapDuration } from '../../../../utils/lap';
 import { getTeamColorHex } from '../../../../utils/driver';
+import { getCompoundName } from '../../../../utils/tyre';
 
 type RouteParams = {
     sessionKey: number;
@@ -314,6 +315,13 @@ export default function FreePracticeScreen() {
     const formatPace = (value?: number | null) =>
         typeof value === 'number' && value > 0 ? formatLapTime(value) : '—';
 
+    const selectedTeamCompoundName = selectedTeamCompound
+        ? getCompoundName(selectedTeamCompound)
+        : null;
+    const selectedDriverCompoundName = selectedDriverCompound
+        ? getCompoundName(selectedDriverCompound)
+        : null;
+
     const handleOpenClassification = useCallback(() => {
         navigation.navigate('PracticeClassification', {
             sessionKey,
@@ -455,6 +463,7 @@ export default function FreePracticeScreen() {
                     >
                         {compoundOptions.map(option => {
                             const isActive = option === selectedTeamCompound;
+                            const label = getCompoundName(option);
                             return (
                                 <TouchableOpacity
                                     key={`team-compound-${option}`}
@@ -472,7 +481,7 @@ export default function FreePracticeScreen() {
                                             isActive && styles.filterChipLabelActive,
                                         ]}
                                     >
-                                        {option}
+                                        {label}
                                     </Text>
                                 </TouchableOpacity>
                             );
@@ -485,15 +494,17 @@ export default function FreePracticeScreen() {
                             <View style={[styles.teamDot, { backgroundColor: getTeamColorHex(team.color) }]} />
                             <View style={styles.listDriverBlock}>
                                 <Text style={styles.listDriverName}>{team.teamName}</Text>
-                                <Text style={styles.listMeta}>Avg pace on {selectedTeamCompound}</Text>
+                                <Text style={styles.listMeta}>
+                                    Avg pace on {getCompoundName(selectedTeamCompound)}
+                                </Text>
                             </View>
                             <Text style={styles.listValue}>{formatPace(team.avgTime)}</Text>
                         </View>
                     ))
                 ) : (
                     <Text style={styles.noData}>
-                        {selectedTeamCompound
-                            ? `No representative pace on ${selectedTeamCompound}`
+                        {selectedTeamCompoundName
+                            ? `No representative pace on ${selectedTeamCompoundName}`
                             : 'No team pace data yet'}
                     </Text>
                 )}
@@ -523,6 +534,7 @@ export default function FreePracticeScreen() {
                     >
                         {compoundOptions.map(option => {
                             const isActive = option === selectedDriverCompound;
+                            const label = getCompoundName(option);
                             return (
                                 <TouchableOpacity
                                     key={`driver-compound-${option}`}
@@ -535,7 +547,7 @@ export default function FreePracticeScreen() {
                                             isActive && styles.filterChipLabelActive,
                                         ]}
                                     >
-                                        {option}
+                                        {label}
                                     </Text>
                                 </TouchableOpacity>
                             );
@@ -554,8 +566,8 @@ export default function FreePracticeScreen() {
                             <View style={styles.listDriverBlock}>
                                 <Text style={styles.listDriverName}>{stat.driverName}</Text>
                                 <Text style={styles.listMeta}>
-                                    {stat.teamName} • {selectedDriverCompound} • {stat.lapCount}{' '}
-                                    {stat.lapCount === 1 ? 'lap' : 'laps'}
+                                    {stat.teamName} • {selectedDriverCompoundName ?? 'Unknown'} •{' '}
+                                    {stat.lapCount} {stat.lapCount === 1 ? 'lap' : 'laps'}
                                 </Text>
                             </View>
                             <Text style={styles.listValue}>{formatPace(stat.avgTime)}</Text>
@@ -563,8 +575,8 @@ export default function FreePracticeScreen() {
                     ))
                 ) : (
                     <Text style={styles.noData}>
-                        {selectedDriverCompound
-                            ? `No clean laps for ${selectedDriverCompound}`
+                        {selectedDriverCompoundName
+                            ? `No clean laps for ${selectedDriverCompoundName}`
                             : 'No driver pace data yet'}
                     </Text>
                 )}
