@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Lap, Stint } from '../../../backend/types';
 import { formatLapTime } from '../../../shared/time';
-import { getCompoundColor, getCompoundLetter } from '../../../utils/tyre';
+import TyreCompoundBadge from '../common/TyreCompoundBadge';
 import { calculateTypicalLapDuration, calculateAvgLapTimePerCompound } from '../../../utils/lap';
 
 interface PracticeStatsSectionProps {
@@ -23,7 +23,13 @@ export default function PracticeStatsSection({ lapCount, stints, laps }: Practic
     }).sort(
         (a, b) => b.lapCount - a.lapCount
     );
-    const compoundsUsed = new Set(stints.map(stint => stint.compound.toLowerCase())).size || '—';
+
+    const normalizedCompoundNames = stints
+        .map(stint => stint.compound?.trim().toLowerCase())
+        .filter((compound): compound is string => Boolean(compound));
+
+    const compoundsUsed =
+        normalizedCompoundNames.length > 0 ? new Set(normalizedCompoundNames).size : '—';
 
     const statCards: { key: string; label: string; value: string | number; icon: keyof typeof Ionicons.glyphMap; tint: string; accent: string }[] = [
         {
@@ -88,13 +94,11 @@ export default function PracticeStatsSection({ lapCount, stints, laps }: Practic
                             ]}
                         >
                             <View style={styles.compoundInfo}>
-                                <View
-                                    style={[styles.compoundCircle, { backgroundColor: getCompoundColor(stat.compound) }]}
-                                >
-                                    <Text style={styles.compoundCircleText}>
-                                        {getCompoundLetter(stat.compound)}
-                                    </Text>
-                                </View>
+                                <TyreCompoundBadge
+                                    compound={stat.compound}
+                                    size={46}
+                                    style={styles.compoundBadge}
+                                />
                                 <View>
                                     <Text style={styles.compoundName}>{stat.compound}</Text>
                                     <Text style={styles.compoundLapCount}>
@@ -221,20 +225,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 12,
     },
-    compoundCircle: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOpacity: 0.12,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 8,
-    },
-    compoundCircleText: {
-        color: '#FFF',
-        fontWeight: '700',
+    compoundBadge: {
+        marginRight: 2,
     },
     compoundName: {
         fontSize: 15,

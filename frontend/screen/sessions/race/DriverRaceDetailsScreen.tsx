@@ -13,6 +13,7 @@ import { RouteProp, useRoute } from '@react-navigation/native';
 import { getRaceDriverDetail } from '../../../../backend/service/openf1Service';
 import type { Lap, SessionDriverData, SessionResult, Stint } from '../../../../backend/types';
 import RaceStatsSection from "../../../component/race/RaceStatsSection";
+import TyreCompoundBadge from '../../../component/common/TyreCompoundBadge';
 import { formatLapTime } from '../../../../shared/time';
 import {
     getTeamColorHex,
@@ -21,7 +22,6 @@ import {
     formatSessionResult,
     getResultStatusLabel,
 } from '../../../../utils/driver';
-import { getCompoundColor, getCompoundLetter } from '../../../../utils/tyre';
 
 type RouteParams = {
     driverNumber: number;
@@ -331,16 +331,11 @@ export default function DriverOverviewScreen() {
                             >
                                 <Text style={styles.lapCell}>#{lap.lap_number}</Text>
                                 <View style={styles.compoundCell}>
-                                    <View
-                                        style={[
-                                            styles.compoundCircle,
-                                            { backgroundColor: getCompoundColor(compound) }
-                                        ]}
-                                    >
-                                        <Text style={styles.compoundLetter}>
-                                            {getCompoundLetter(compound)}
-                                        </Text>
-                                    </View>
+                                    <TyreCompoundBadge
+                                        compound={compound}
+                                        size={38}
+                                        style={styles.compoundBadge}
+                                    />
                                 </View>
                                 <Text style={styles.timeCell}>
                                     {lap.lap_duration ? formatLapTime(lap.lap_duration) : '—'}
@@ -586,16 +581,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    compoundCircle: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    compoundLetter: {
-        color: '#FFF',
-        fontWeight: '700',
+    compoundBadge: {
+        marginVertical: 2,
     },
     timeCell: {
         width: 90,

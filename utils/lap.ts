@@ -1,5 +1,13 @@
 import type { Lap, Stint } from '../backend/types';
 
+const normalizeCompoundLabel = (compound?: string | null): string | null => {
+    if (typeof compound !== 'string') {
+        return null;
+    }
+    const trimmed = compound.trim();
+    return trimmed.length ? trimmed : null;
+};
+
 export const getAverageLapTime = (laps: Lap[]): number | null => {
     const cleanLaps = laps.filter(lap => lap.lap_duration && lap.lap_duration > 0);
     if (!cleanLaps.length) {
@@ -66,7 +74,7 @@ export const calculateAvgLapTimePerCompound = (
         ? new Set(excludedLapNumbers)
         : excludedLapNumbers ?? new Set<number>();
 
-    const compoundMap = new Map<string, { total: number; count: number }>();
+    const compoundMap = new Map<string, { total: number; count: number; label: string }>();
 
     laps.forEach(lap => {
         if (!lap.lap_duration || lap.lap_duration <= 0) {
@@ -87,17 +95,30 @@ export const calculateAvgLapTimePerCompound = (
             return;
         }
 
-        const existing = compoundMap.get(stint.compound) || { total: 0, count: 0 };
-        compoundMap.set(stint.compound, {
-            total: existing.total + lap.lap_duration,
-            count: existing.count + 1,
-        });
+        const compoundLabel = normalizeCompoundLabel(stint.compound);
+        if (!compoundLabel) {
+            return;
+        }
+
+        const compoundKey = compoundLabel.toLowerCase();
+        const lapDuration = lap.lap_duration as number;
+        const existing = compoundMap.get(compoundKey);
+
+        if (existing) {
+            existing.total += lapDuration;
+            existing.count += 1;
+        } else {
+            compoundMap.set(compoundKey, {
+                total: lapDuration,
+                count: 1,
+                label: compoundLabel,
+            });
+        }
     });
 
-    return Array.from(compoundMap.entries()).map(([compound, data]) => ({
-        compound,
+    return Array.from(compoundMap.values()).map(data => ({
+        compound: data.label,
         avgTime: data.total / data.count,
         lapCount: data.count,
     }));
 };
-

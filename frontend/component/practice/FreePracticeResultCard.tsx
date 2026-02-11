@@ -24,11 +24,19 @@ export interface DriverSessionData {
     driverEntry?: SessionDriverData | null;
 }
 
+export type DriverOption = {
+    driverNumber: number;
+    name: string;
+    team: string;
+    teamColor?: string | null;
+};
+
 interface DriverCardProps {
     driver: DriverSessionData;
     sessionKey: number;
     isFirst?: boolean;
     showDivider?: boolean;
+    driverOptions?: DriverOption[];
 }
 
 interface FreePracticeResultsSectionProps {
@@ -36,11 +44,18 @@ interface FreePracticeResultsSectionProps {
     sessionKey: number;
     title?: string;
     emptyMessage?: string;
+    driverOptions?: DriverOption[];
 }
 
 type NavigationProp = NativeStackNavigationProp<any>;
 
-const DriverRow = ({ driver, sessionKey, isFirst = false, showDivider = false }: DriverCardProps) => {
+const DriverRow = ({
+    driver,
+    sessionKey,
+    driverOptions,
+    isFirst = false,
+    showDivider = false,
+}: DriverCardProps) => {
     const navigation = useNavigation<NavigationProp>();
 
     const getDriverCode = (): string => {
@@ -54,6 +69,7 @@ const DriverRow = ({ driver, sessionKey, isFirst = false, showDivider = false }:
             driverNumber: driver.driverNumber,
             sessionKey: sessionKey,
             driverData: driver.driverEntry ?? undefined,
+            driverOptions,
         });
     };
 
@@ -122,6 +138,7 @@ export default function FreePracticeResultsSection({
     sessionKey,
     title = 'Session Results',
     emptyMessage = 'No session data available',
+    driverOptions,
 }: FreePracticeResultsSectionProps) {
     return (
         <View style={styles.section}>
@@ -142,6 +159,7 @@ export default function FreePracticeResultsSection({
                             sessionKey={sessionKey}
                             isFirst={driver.position === 1}
                             showDivider={index < drivers.length - 1}
+                            driverOptions={driverOptions}
                         />
                     ))}
                 </>

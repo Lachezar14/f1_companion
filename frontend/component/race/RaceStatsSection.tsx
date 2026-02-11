@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Lap, Stint, PitStop } from '../../../backend/types';
 import { formatLapTime } from '../../../shared/time';
-import { getCompoundColor, getCompoundLetter } from '../../../utils/tyre';
+import TyreCompoundBadge from '../common/TyreCompoundBadge';
 import { calculateAvgLapTimePerCompound } from '../../../utils/lap';
 
 interface RaceStatsSectionProps {
@@ -94,13 +94,11 @@ export default function RaceStatsSection({
                             ]}
                         >
                             <View style={styles.compoundInfo}>
-                                <View
-                                    style={[styles.compoundCircle, { backgroundColor: getCompoundColor(stat.compound) }]}
-                                >
-                                    <Text style={styles.compoundLetter}>
-                                        {getCompoundLetter(stat.compound)}
-                                    </Text>
-                                </View>
+                                <TyreCompoundBadge
+                                    compound={stat.compound}
+                                    size={42}
+                                    style={styles.compoundBadge}
+                                />
                                 <View>
                                     <Text style={styles.compoundName}>{stat.compound}</Text>
                                     <Text style={styles.compoundLapCount}>
@@ -229,21 +227,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 12,
     },
-    compoundCircle: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOpacity: 0.12,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 8,
-    },
-    compoundLetter: {
-        color: '#FFF',
-        fontWeight: '700',
-        fontSize: 14,
+    compoundBadge: {
+        marginRight: 2,
     },
     compoundName: {
         fontSize: 15,

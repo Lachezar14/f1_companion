@@ -1,7 +1,13 @@
 const DEFAULT_COMPOUND_COLOR = '#666';
 
-export const getCompoundColor = (compound: string): string => {
-    const compoundLower = compound.toLowerCase();
+const normalizeCompound = (compound?: string | null): string =>
+    compound?.trim().toLowerCase() ?? '';
+
+export const getCompoundColor = (compound?: string | null): string => {
+    const compoundLower = normalizeCompound(compound);
+    if (!compoundLower) {
+        return DEFAULT_COMPOUND_COLOR;
+    }
     switch (compoundLower) {
         case 'soft':
             return '#E10600';
@@ -18,8 +24,11 @@ export const getCompoundColor = (compound: string): string => {
     }
 };
 
-export const getCompoundLetter = (compound: string): string => {
-    const compoundLower = compound.toLowerCase();
+export const getCompoundLetter = (compound?: string | null): string => {
+    const compoundLower = normalizeCompound(compound);
+    if (!compoundLower) {
+        return '?';
+    }
     switch (compoundLower) {
         case 'soft':
             return 'S';
@@ -42,4 +51,3 @@ export const getTyreStatus = (age: number): string => {
     }
     return age === 1 ? '1 lap old' : `${age} laps old`;
 };
-

@@ -7,11 +7,13 @@ import {
     ActivityIndicator,
     RefreshControl,
     Image,
+    TouchableOpacity,
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { getPracticeDriverDetail } from '../../../../backend/service/openf1Service';
 import PracticeStatsSection from '../../../component/practice/PracticeStatsSection';
 import PracticeStintCard from '../../../component/practice/PracticeStintCard';
+import type { DriverOption } from '../../../component/practice/FreePracticeResultCard';
 import type { Lap, SessionDriverData, SessionResult, Stint } from '../../../../backend/types';
 import {
     getTeamColorHex,
@@ -25,6 +27,7 @@ type RouteParams = {
     driverNumber: number;
     sessionKey: number;
     driverData?: SessionDriverData | null;
+    driverOptions?: DriverOption[];
 };
 
 interface DriverState {
@@ -36,7 +39,14 @@ interface DriverState {
 
 export default function DriverPracticeDetailsScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
-    const { driverNumber, sessionKey, driverData: driverDataParam } = route.params;
+    const {
+        driverNumber,
+        sessionKey,
+        driverData: driverDataParam,
+        driverOptions: driverOptionsParam,
+    } = route.params;
+    const driverOptions = driverOptionsParam ?? [];
+    const [selectedDriverNumber, setSelectedDriverNumber] = useState(driverNumber);
 
     const [state, setState] = useState<DriverState>({
         driverData: driverDataParam ?? null,
@@ -46,16 +56,21 @@ export default function DriverPracticeDetailsScreen() {
     });
 
     const fetchDriver = useCallback(
-        async (isRefresh = false) => {
-            setState(prev => ({
-                ...prev,
-                loading: !isRefresh && !prev.driverData,
-                refreshing: isRefresh,
-                error: null,
-            }));
+        async (targetDriver: number, isRefresh = false) => {
+            setState(prev => {
+                const shouldShowLoading =
+                    !isRefresh &&
+                    (!prev.driverData || prev.driverData.driverNumber !== targetDriver);
+                return {
+                    ...prev,
+                    loading: shouldShowLoading,
+                    refreshing: isRefresh,
+                    error: null,
+                };
+            });
 
             try {
-                const detail = await getPracticeDriverDetail(sessionKey, driverNumber);
+                const detail = await getPracticeDriverDetail(sessionKey, targetDriver);
                 setState({
                     driverData: detail,
                     loading: false,
@@ -71,27 +86,40 @@ export default function DriverPracticeDetailsScreen() {
                 });
             }
         },
-        [driverNumber, sessionKey]
+        [sessionKey]
     );
 
     useEffect(() => {
-        if (driverDataParam) {
-            setState(prev => ({
-                ...prev,
+        if (driverDataParam && driverDataParam.driverNumber === driverNumber) {
+            setState({
                 driverData: driverDataParam,
                 loading: false,
+                refreshing: false,
                 error: null,
-            }));
+            });
         }
-    }, [driverDataParam]);
+    }, [driverDataParam, driverNumber]);
 
     useEffect(() => {
-        if (!driverDataParam) {
-            fetchDriver();
-        }
-    }, [driverDataParam, fetchDriver]);
+        fetchDriver(selectedDriverNumber);
+    }, [selectedDriverNumber, fetchDriver]);
 
-    const handleRefresh = useCallback(() => fetchDriver(true), [fetchDriver]);
+    useEffect(() => {
+        setSelectedDriverNumber(driverNumber);
+    }, [driverNumber]);
+
+    const handleRefresh = useCallback(
+        () => fetchDriver(selectedDriverNumber, true),
+        [fetchDriver, selectedDriverNumber]
+    );
+
+    const handleSelectDriver = useCallback(
+        (optionNumber: number) => {
+            if (optionNumber === selectedDriverNumber) return;
+            setSelectedDriverNumber(optionNumber);
+        },
+        [selectedDriverNumber]
+    );
 
     const driverData = state.driverData;
 
@@ -173,6 +201,49 @@ export default function DriverPracticeDetailsScreen() {
                 />
             }
         >
+            {driverOptions.length > 0 && (
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.driverSwitchScroll}
+                    contentContainerStyle={styles.driverSwitchContent}
+                >
+                    {driverOptions.map(option => {
+                        const isActive = option.driverNumber === selectedDriverNumber;
+                        return (
+                            <TouchableOpacity
+                                key={option.driverNumber}
+                                style={[
+                                    styles.driverChip,
+                                    isActive && [
+                                        styles.driverChipActive,
+                                        { borderColor: getTeamColorHex(option.teamColor) },
+                                    ],
+                                ]}
+                                activeOpacity={0.85}
+                                onPress={() => handleSelectDriver(option.driverNumber)}
+                            >
+                                <Text
+                                    style={[
+                                        styles.driverChipName,
+                                        isActive && styles.driverChipNameActive,
+                                    ]}
+                                >
+                                    {option.name}
+                                </Text>
+                                <Text
+                                    style={[
+                                        styles.driverChipNumber,
+                                        isActive && styles.driverChipNumberActive,
+                                    ]}
+                                >
+                                    #{option.driverNumber}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+            )}
             <View style={[styles.heroCard, { backgroundColor: headerColor }]}>
                 <View style={styles.heroRow}>
                     <View style={styles.heroTextBlock}>
@@ -245,6 +316,43 @@ const styles = StyleSheet.create({
     },
     contentContainer: {
         paddingBottom: 32,
+    },
+    driverSwitchScroll: {
+        marginHorizontal: 16,
+        marginBottom: 12,
+    },
+    driverSwitchContent: {
+        paddingVertical: 4,
+    },
+    driverChip: {
+        borderRadius: 18,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#D9DEEC',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        marginRight: 8,
+        backgroundColor: '#FFFFFF',
+    },
+    driverChipActive: {
+        backgroundColor: '#15151E',
+        borderColor: '#15151E',
+    },
+    driverChipName: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#5F6683',
+    },
+    driverChipNameActive: {
+        color: '#FFFFFF',
+    },
+    driverChipNumber: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#9AA0BA',
+        marginTop: 2,
+    },
+    driverChipNumberActive: {
+        color: '#FFFFFF',
     },
     center: {
         flex: 1,

@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Lap, Stint } from '../../../backend/types';
 import { formatLapTime } from '../../../shared/time';
-import { getCompoundColor, getCompoundLetter, getTyreStatus } from '../../../utils/tyre';
+import { getTyreStatus } from '../../../utils/tyre';
+import TyreCompoundBadge from '../common/TyreCompoundBadge';
 import { getAverageLapTime, getBestLapTime } from '../../../utils/lap';
 
 interface PracticeStintCardProps {
@@ -69,16 +70,11 @@ export default function PracticeStintCard({ stint, laps, showDivider = false }: 
                         Tyre age • {tyreStatus}
                     </Text>
                 </View>
-                <View
-                    style={[
-                        styles.compoundChip,
-                        { backgroundColor: getCompoundColor(stint.compound) }
-                    ]}
-                >
-                    <Text style={styles.compoundChipText}>
-                        {getCompoundLetter(stint.compound)}
-                    </Text>
-                </View>
+                <TyreCompoundBadge
+                    compound={stint.compound}
+                    size={58}
+                    style={styles.compoundBadge}
+                />
             </View>
 
             <View style={styles.statRow}>
@@ -207,21 +203,8 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: '#8E93A8',
     },
-    compoundChip: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOpacity: 0.15,
-        shadowOffset: { width: 0, height: 6 },
-        shadowRadius: 10,
-    },
-    compoundChipText: {
-        color: '#FFF',
-        fontSize: 20,
-        fontWeight: '800',
+    compoundBadge: {
+        marginLeft: 12,
     },
     statRow: {
         flexDirection: 'row',
