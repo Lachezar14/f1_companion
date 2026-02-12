@@ -12,6 +12,7 @@ import FreePracticeScreen from "../screen/sessions/practice/FreePracticeScreen";
 import PracticeClassificationScreen from "../screen/sessions/practice/PracticeClassificationScreen";
 import QualifyingScreen from "../screen/sessions/qualifying/QualifyingScreen";
 import QualifyingClassificationScreen from "../screen/sessions/qualifying/QualifyingClassificationScreen";
+import DriverQualifyingDetailsScreen from "../screen/sessions/qualifying/DriverQualifyingDetailsScreen";
 import RaceScreen from "../screen/sessions/race/RaceScreen";
 import RaceOvertakesScreen from "../screen/sessions/race/RaceOvertakesScreen";
 import RaceClassificationScreen from "../screen/sessions/race/RaceClassificationScreen";
@@ -69,6 +70,10 @@ const QualifyingWithHeader = withStackScreenWrapper(QualifyingScreen, {
 
 const QualifyingClassificationWithHeader = withStackScreenWrapper(QualifyingClassificationScreen, {
     title: 'Qualifying Classification',
+});
+
+const DriverQualifyingDetailsWithHeader = withStackScreenWrapper(DriverQualifyingDetailsScreen, {
+    title: 'Qualifying Driver',
 });
 
 const RaceWithHeader = withStackScreenWrapper(RaceScreen, {
@@ -137,6 +142,11 @@ function SessionsStack() {
                 name="QualifyingClassification"
                 component={QualifyingClassificationWithHeader}
                 options={{ title: 'Qualifying Classification' }}
+            />
+            <SessionsStackNavigator.Screen
+                name="DriverQualifyingOverview"
+                component={DriverQualifyingDetailsWithHeader}
+                options={{ title: 'Qualifying Driver' }}
             />
             <SessionsStackNavigator.Screen
                 name="RaceScreen"

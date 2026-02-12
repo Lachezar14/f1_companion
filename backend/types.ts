@@ -251,6 +251,143 @@ export type RaceControlSummary = {
     safetyCarIntervals: SafetyCarInterval[];
 };
 
+export type InsightDriverRef = {
+    driverNumber: number;
+    driverName: string;
+    teamName: string;
+    teamColor?: string | null;
+};
+
+export type OvertakeDriverInsight = InsightDriverRef & {
+    made: number;
+    suffered: number;
+    net: number;
+};
+
+export type OvertakeTeamInsight = {
+    teamName: string;
+    teamColor?: string | null;
+    made: number;
+    suffered: number;
+    net: number;
+};
+
+export type TyreDegradationInsight = InsightDriverRef & {
+    compound: string;
+    stintNumber: number;
+    lapCount: number;
+    slope: number | null;
+    deltaFirstToLast: number | null;
+};
+
+export type PitTeamInsight = {
+    teamName: string;
+    teamColor?: string | null;
+    stopCount: number;
+    medianStop: number | null;
+    averageStop: number | null;
+    fastestStop: number | null;
+};
+
+export type FastestPitStopInsight = InsightDriverRef & {
+    lap: number | null;
+    duration: number;
+};
+
+export type PitImpactInsight = InsightDriverRef & {
+    stopCount: number;
+    averageDelta: number | null;
+};
+
+export type PaceConsistencyInsight = InsightDriverRef & {
+    lapCount: number;
+    averageLap: number;
+    standardDeviation: number;
+    coefficientOfVariation: number;
+};
+
+export type PositionGainInsight = InsightDriverRef & {
+    start: number;
+    finish: number;
+    gain: number;
+};
+
+export type TeamPositionGainInsight = {
+    teamName: string;
+    teamColor?: string | null;
+    netGain: number;
+};
+
+export type RaceInsights = {
+    overtakeLeaderboard: {
+        drivers: OvertakeDriverInsight[];
+        teams: OvertakeTeamInsight[];
+    };
+    tyreDegradation: {
+        stints: TyreDegradationInsight[];
+    };
+    pitStrategy: {
+        teams: PitTeamInsight[];
+        fastestStop: FastestPitStopInsight | null;
+        safetyCarPitStops: number;
+        pitImpact: PitImpactInsight[];
+    };
+    paceConsistency: {
+        drivers: PaceConsistencyInsight[];
+    };
+    positionChanges: {
+        drivers: PositionGainInsight[];
+        teams: TeamPositionGainInsight[];
+    };
+};
+
+export type QualifyingImprovementInsight = InsightDriverRef & {
+    q1: number | null;
+    q2: number | null;
+    q3: number | null;
+    best: number | null;
+    improvementToBest: number | null;
+    q1ToQ2: number | null;
+    q2ToQ3: number | null;
+};
+
+export type QualifyingSectorRecord = InsightDriverRef & {
+    sector: 1 | 2 | 3;
+    time: number;
+};
+
+export type QualifyingSectorWinInsight = InsightDriverRef & {
+    wins: number;
+};
+
+export type QualifyingTeamSectorWinInsight = {
+    teamName: string;
+    teamColor?: string | null;
+    wins: number;
+};
+
+export type QualifyingIdealLapInsight = InsightDriverRef & {
+    idealLap: number | null;
+    bestLap: number | null;
+    potentialGain: number | null;
+};
+
+export type QualifyingInsights = {
+    improvementIndex: {
+        drivers: QualifyingImprovementInsight[];
+    };
+    sectorKings: {
+        fastestSectors: {
+            s1: QualifyingSectorRecord | null;
+            s2: QualifyingSectorRecord | null;
+            s3: QualifyingSectorRecord | null;
+        };
+        driverWins: QualifyingSectorWinInsight[];
+        teamWins: QualifyingTeamSectorWinInsight[];
+        idealLaps: QualifyingIdealLapInsight[];
+    };
+};
+
 export type SessionDriverData = {
     driverNumber: number;
     driver: {
@@ -281,11 +418,13 @@ export interface RaceSessionDetail extends SessionDetailBase {
     classification: RaceDriverClassification[];
     pitStops: PitStop[];
     startingGrid: StartingGrid[];
+    insights: RaceInsights;
 }
 
 export interface QualifyingSessionDetail extends SessionDetailBase {
     detailType: 'qualifying';
     classification: QualifyingDriverClassification[];
+    insights: QualifyingInsights;
 }
 
 export interface PracticeSessionDetail extends SessionDetailBase {

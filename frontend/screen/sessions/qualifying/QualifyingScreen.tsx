@@ -13,6 +13,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getQualifyingSessionDetail } from '../../../../backend/service/openf1Service';
 import type { QualifyingSessionDetail } from '../../../../backend/types';
 import { useServiceRequest } from '../../../hooks/useServiceRequest';
+import { formatLapTime } from '../../../../shared/time';
 
 type RouteParams = {
     sessionKey: number;
@@ -25,6 +26,12 @@ type SectorResult = {
     driverName: string;
     teamName: string;
     time: number;
+};
+type DriverOption = {
+    driverNumber: number;
+    name: string;
+    team: string;
+    teamColor?: string | null;
 };
 
 const QualifyingScreen = () => {
@@ -48,6 +55,31 @@ const QualifyingScreen = () => {
 
     const rows = data?.classification ?? [];
     const driverEntries = data?.drivers ?? [];
+    const improvementInsights = data?.insights.improvementIndex.drivers ?? [];
+    const sectorKings = data?.insights.sectorKings;
+    const idealLapInsights = sectorKings?.idealLaps ?? [];
+    const displayedImprovementInsights = improvementInsights.slice(0, 5);
+    const topImprovementDriverNumber = displayedImprovementInsights[0]?.driverNumber ?? null;
+    const displayedIdealLapInsights = idealLapInsights.slice(0, 5);
+    const topIdealDriverNumber = displayedIdealLapInsights[0]?.driverNumber ?? null;
+
+    const driverEntryMap = useMemo(
+        () => new Map(driverEntries.map(entry => [entry.driverNumber, entry])),
+        [driverEntries]
+    );
+    const driverOptions = useMemo<DriverOption[]>(
+        () =>
+            rows.map(row => {
+                const entry = driverEntryMap.get(row.driverNumber);
+                return {
+                    driverNumber: row.driverNumber,
+                    name: row.driverName,
+                    team: row.teamName,
+                    teamColor: entry?.driver.teamColor ?? row.teamColor ?? null,
+                };
+            }),
+        [driverEntryMap, rows]
+    );
 
     const heroDate = data?.date_start
         ? new Date(data.date_start).toLocaleDateString('en-US', {
@@ -117,6 +149,13 @@ const QualifyingScreen = () => {
 
     const formatSectorTime = (value?: number) =>
         typeof value === 'number' && value > 0 ? `${value.toFixed(3)}s` : '—';
+    const formatSignedDelta = (value?: number | null) => {
+        if (typeof value !== 'number' || Number.isNaN(value)) return '—';
+        const prefix = value > 0 ? '+' : '';
+        return `${prefix}${value.toFixed(3)}s`;
+    };
+    const formatLapValue = (value?: number | null) =>
+        typeof value === 'number' && value > 0 ? formatLapTime(value) : '—';
 
     const handleOpenClassification = useCallback(() => {
         navigation.navigate('QualifyingClassification', {
@@ -125,6 +164,21 @@ const QualifyingScreen = () => {
             meetingName,
         });
     }, [meetingName, navigation, sessionKey, sessionName]);
+
+    const handleOpenDriverQualifyingDetails = useCallback(
+        (driverNumber: number | null) => {
+            if (typeof driverNumber !== 'number') return;
+            navigation.navigate('DriverQualifyingOverview', {
+                driverNumber,
+                sessionKey,
+                sessionName,
+                meetingName,
+                driverData: driverEntryMap.get(driverNumber) ?? null,
+                driverOptions,
+            });
+        },
+        [driverEntryMap, driverOptions, meetingName, navigation, sessionKey, sessionName]
+    );
 
     if (loading) {
         return (
@@ -255,6 +309,81 @@ const QualifyingScreen = () => {
                         </Text>
                     </View>
                 ))}
+            </View>
+
+            <View style={styles.analyticsCard}>
+                <View style={styles.cardHeader}>
+                    <Text style={styles.cardOverline}>Quali Improvement Index</Text>
+                    <Text style={styles.cardTitle}>Who found the biggest gains?</Text>
+                    <Text style={styles.cardSubtitle}>Measured from Q1 baseline to best lap</Text>
+                </View>
+                {displayedImprovementInsights.length ? (
+                    displayedImprovementInsights.map((entry, index) => (
+                        <View key={`improvement-${entry.driverNumber}`} style={styles.analyticsRow}>
+                            <View style={styles.analyticsRank}>
+                                <Text style={styles.analyticsRankText}>{index + 1}</Text>
+                            </View>
+                            <View style={styles.analyticsInfo}>
+                                <Text style={styles.analyticsName}>{entry.driverName}</Text>
+                                <Text style={styles.analyticsMeta}>
+                                    {entry.teamName} • Q1→Q2 {formatSignedDelta(entry.q1ToQ2)} • Q2→Q3{' '}
+                                    {formatSignedDelta(entry.q2ToQ3)}
+                                </Text>
+                            </View>
+                            <Text style={styles.analyticsValue}>
+                                {formatSignedDelta(entry.improvementToBest)}
+                            </Text>
+                        </View>
+                    ))
+                ) : (
+                    <Text style={styles.noDataText}>No qualifying phase deltas available.</Text>
+                )}
+                {topImprovementDriverNumber != null ? (
+                    <TouchableOpacity
+                        style={styles.detailsButton}
+                        onPress={() => handleOpenDriverQualifyingDetails(topImprovementDriverNumber)}
+                    >
+                        <Text style={styles.detailsButtonText}>Open Driver Details</Text>
+                    </TouchableOpacity>
+                ) : null}
+            </View>
+
+            <View style={styles.analyticsCard}>
+                <View style={styles.cardHeader}>
+                    <Text style={styles.cardOverline}>Sector Kings</Text>
+                    <Text style={styles.cardTitle}>Ideal lap potential</Text>
+                    <Text style={styles.cardSubtitle}>
+                        Top 5 drivers by ideal lap (best sectors across qualifying)
+                    </Text>
+                </View>
+                {displayedIdealLapInsights.length ? (
+                    displayedIdealLapInsights.map((entry, index) => (
+                        <View key={`ideal-${entry.driverNumber}`} style={styles.analyticsRow}>
+                            <View style={styles.analyticsRank}>
+                                <Text style={styles.analyticsRankText}>{index + 1}</Text>
+                            </View>
+                            <View style={styles.analyticsInfo}>
+                                <Text style={styles.analyticsName}>{entry.driverName}</Text>
+                                <Text style={styles.analyticsMeta}>
+                                    {entry.teamName} • Best {formatLapValue(entry.bestLap)} • Potential{' '}
+                                    {formatSignedDelta(entry.potentialGain)}
+                                </Text>
+                            </View>
+                            <Text style={styles.analyticsValue}>{formatLapValue(entry.idealLap)}</Text>
+                        </View>
+                    ))
+                ) : null}
+                {topIdealDriverNumber != null ? (
+                    <TouchableOpacity
+                        style={styles.detailsButton}
+                        onPress={() => handleOpenDriverQualifyingDetails(topIdealDriverNumber)}
+                    >
+                        <Text style={styles.detailsButtonText}>Open Driver Details</Text>
+                    </TouchableOpacity>
+                ) : null}
+                {!displayedIdealLapInsights.length ? (
+                    <Text style={styles.noDataText}>No ideal lap insights available.</Text>
+                ) : null}
             </View>
 
             <Text style={styles.refreshHint}>Pull down to refresh</Text>
@@ -552,6 +681,91 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#15151E',
         marginLeft: 12,
+    },
+    analyticsCard: {
+        marginHorizontal: 16,
+        marginTop: 16,
+        padding: 20,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E6E8F0',
+        shadowColor: '#000',
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 3,
+    },
+    analyticsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: '#ECEFF5',
+    },
+    analyticsRank: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#EEF2FF',
+        marginRight: 10,
+    },
+    analyticsRankText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#4B58D8',
+    },
+    analyticsInfo: {
+        flex: 1,
+    },
+    analyticsName: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#1F2435',
+    },
+    analyticsMeta: {
+        marginTop: 2,
+        fontSize: 12,
+        color: '#7A819D',
+    },
+    analyticsValue: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1F2435',
+        marginLeft: 12,
+    },
+    detailsButton: {
+        marginTop: 12,
+        paddingVertical: 10,
+        borderRadius: 14,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#D5DAE7',
+        alignItems: 'center',
+        backgroundColor: '#F8FAFF',
+    },
+    detailsButtonText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#2C2C34',
+    },
+    analyticsSubSection: {
+        marginTop: 12,
+    },
+    analyticsSubTitle: {
+        fontSize: 12,
+        color: '#7A7E92',
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    noDataText: {
+        fontSize: 13,
+        color: '#8A8FA6',
+        paddingVertical: 8,
+        textAlign: 'center',
     },
     refreshHint: {
         paddingVertical: 24,

@@ -26,6 +26,42 @@ type RouteParams = {
 type NavigationProp = NativeStackNavigationProp<any>;
 
 const EMPTY_SAFETY_CAR_LAPS: number[] = [];
+type InsightViewMode = 'drivers' | 'teams';
+type FuelLoad = 'heavy' | 'medium' | 'low';
+const INSIGHT_LIST_LIMIT = 5;
+const FUEL_LOAD_ORDER: FuelLoad[] = ['heavy', 'medium', 'low'];
+const FUEL_LOAD_LABEL: Record<FuelLoad, string> = {
+    heavy: 'Heavy Fuel',
+    medium: 'Medium Fuel',
+    low: 'Low Fuel',
+};
+
+const isValidPositiveNumber = (value: number | null | undefined): value is number =>
+    typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+const average = (values: number[]): number | null => {
+    if (!values.length) return null;
+    const sum = values.reduce((acc, value) => acc + value, 0);
+    return sum / values.length;
+};
+
+const median = (values: number[]): number | null => {
+    if (!values.length) return null;
+    const sorted = [...values].sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 0) {
+        return (sorted[middle - 1] + sorted[middle]) / 2;
+    }
+    return sorted[middle];
+};
+
+const standardDeviation = (values: number[]): number | null => {
+    const avg = average(values);
+    if (avg == null) return null;
+    const variance =
+        values.reduce((acc, value) => acc + (value - avg) * (value - avg), 0) / values.length;
+    return Math.sqrt(variance);
+};
 
 const RaceScreen = () => {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
@@ -49,9 +85,15 @@ const RaceScreen = () => {
     const safetyCarLaps = data?.raceControlSummary.safetyCarLaps ?? EMPTY_SAFETY_CAR_LAPS;
     const safetyCarIntervals = data?.raceControlSummary.safetyCarIntervals ?? [];
     const driverEntries = data?.drivers ?? [];
+    const raceInsights = data?.insights;
     const [selectedDriverCompound, setSelectedDriverCompound] = useState<string | null>(null);
     const [selectedTeamCompound, setSelectedTeamCompound] = useState<string | null>(null);
     const [showAllTeams, setShowAllTeams] = useState(false);
+    const [insightViewMode, setInsightViewMode] = useState<InsightViewMode>('drivers');
+    const [showAllOvertakeTeams, setShowAllOvertakeTeams] = useState(false);
+    const [showAllPositionTeams, setShowAllPositionTeams] = useState(false);
+    const [showAllConsistencyTeams, setShowAllConsistencyTeams] = useState(false);
+    const [showAllDegradationTeams, setShowAllDegradationTeams] = useState(false);
 
     const safetyCarLapSet = useMemo(() => new Set(safetyCarLaps), [safetyCarLaps]);
 
@@ -59,6 +101,30 @@ const RaceScreen = () => {
         if (rows[0]?.laps) return rows[0].laps;
         return driverEntries.reduce((max, entry) => Math.max(max, entry.laps.length), 0);
     }, [rows, driverEntries]);
+
+    const fuelLoadBounds = useMemo(() => {
+        const maxLapFromEntries = driverEntries.reduce((max, entry) => {
+            const entryMax = entry.laps.reduce(
+                (lapMax, lap) => Math.max(lapMax, lap.lap_number),
+                0
+            );
+            return Math.max(max, entryMax);
+        }, 0);
+
+        const totalLaps =
+            typeof raceLapCount === 'number' && raceLapCount > 0
+                ? raceLapCount
+                : maxLapFromEntries;
+        const normalizedTotal = Math.max(1, totalLaps);
+        const heavyEndLap = Math.ceil(normalizedTotal / 3);
+        const mediumEndLap = Math.ceil((2 * normalizedTotal) / 3);
+
+        return {
+            totalLaps: normalizedTotal,
+            heavyEndLap,
+            mediumEndLap,
+        };
+    }, [driverEntries, raceLapCount]);
 
     const totalRaceLapsDisplay =
         typeof raceLapCount === 'number' && raceLapCount > 0 ? raceLapCount : '–';
@@ -166,6 +232,13 @@ const RaceScreen = () => {
     useEffect(() => {
         setShowAllTeams(false);
     }, [selectedTeamCompound]);
+
+    useEffect(() => {
+        setShowAllOvertakeTeams(false);
+        setShowAllPositionTeams(false);
+        setShowAllConsistencyTeams(false);
+        setShowAllDegradationTeams(false);
+    }, [insightViewMode]);
 
     type DriverCompoundStat = {
         driverName: string;
@@ -283,6 +356,313 @@ const RaceScreen = () => {
         return showAllTeams ? teamLeaders : teamLeaders.slice(0, 5);
     }, [teamLeaders, showAllTeams]);
 
+    const overtakeDriverLeaders = raceInsights?.overtakeLeaderboard.drivers ?? [];
+    const overtakeTeamLeaders = raceInsights?.overtakeLeaderboard.teams ?? [];
+    const degradationLeaders = raceInsights?.tyreDegradation.stints ?? [];
+    const pitTeamInsights = raceInsights?.pitStrategy.teams ?? [];
+    const pitImpactInsights = raceInsights?.pitStrategy.pitImpact ?? [];
+    const consistencyInsights = raceInsights?.paceConsistency.drivers ?? [];
+    const positionChangeInsights = raceInsights?.positionChanges.drivers ?? [];
+    const teamPositionChanges = raceInsights?.positionChanges.teams ?? [];
+    const isTeamInsightsMode = insightViewMode === 'teams';
+
+    const displayedOvertakeDriverLeaders = overtakeDriverLeaders.slice(0, INSIGHT_LIST_LIMIT);
+    const displayedPositionChangeInsights = positionChangeInsights.slice(0, INSIGHT_LIST_LIMIT);
+    const displayedConsistencyInsights = consistencyInsights.slice(0, INSIGHT_LIST_LIMIT);
+    const displayedDegradationLeaders = degradationLeaders.slice(0, INSIGHT_LIST_LIMIT);
+
+    const displayedOvertakeTeamLeaders = useMemo(() => {
+        if (showAllOvertakeTeams) return overtakeTeamLeaders;
+        return overtakeTeamLeaders.slice(0, INSIGHT_LIST_LIMIT);
+    }, [overtakeTeamLeaders, showAllOvertakeTeams]);
+
+    const displayedTeamPositionChanges = useMemo(() => {
+        if (showAllPositionTeams) return teamPositionChanges;
+        return teamPositionChanges.slice(0, INSIGHT_LIST_LIMIT);
+    }, [teamPositionChanges, showAllPositionTeams]);
+
+    type TeamConsistencyInsight = {
+        teamName: string;
+        driverCount: number;
+        lapCount: number;
+        standardDeviation: number;
+        coefficientOfVariation: number;
+    };
+
+    const getFuelLoadForLap = useCallback(
+        (lapNumber: number): FuelLoad => {
+            if (lapNumber <= fuelLoadBounds.heavyEndLap) return 'heavy';
+            if (lapNumber <= fuelLoadBounds.mediumEndLap) return 'medium';
+            return 'low';
+        },
+        [fuelLoadBounds.heavyEndLap, fuelLoadBounds.mediumEndLap]
+    );
+
+    const teamConsistencyInsights = useMemo<TeamConsistencyInsight[]>(() => {
+        const teamSamples = new Map<
+            string,
+            { teamName: string; driverCount: number; durations: number[] }
+        >();
+
+        driverEntries.forEach(entry => {
+            const rawDurations = entry.laps
+                .filter(
+                    lap =>
+                        !lap.is_pit_out_lap &&
+                        !safetyCarLapSet.has(lap.lap_number) &&
+                        isValidPositiveNumber(lap.lap_duration)
+                )
+                .map(lap => lap.lap_duration as number);
+
+            if (rawDurations.length < 5) return;
+
+            const typical = median(rawDurations);
+            const filteredDurations =
+                typical == null
+                    ? rawDurations
+                    : rawDurations.filter(duration => duration <= typical * 1.08);
+            const sample = filteredDurations.length >= 5 ? filteredDurations : rawDurations;
+
+            if (sample.length < 5) return;
+
+            const teamName = entry.driver.team;
+            const existing = teamSamples.get(teamName) ?? {
+                teamName,
+                driverCount: 0,
+                durations: [],
+            };
+            existing.driverCount += 1;
+            existing.durations.push(...sample);
+            teamSamples.set(teamName, existing);
+        });
+
+        const teams: TeamConsistencyInsight[] = [];
+        teamSamples.forEach(team => {
+            if (team.durations.length < 5) return;
+            const avg = average(team.durations);
+            const sd = standardDeviation(team.durations);
+            if (avg == null || sd == null || avg <= 0) return;
+            teams.push({
+                teamName: team.teamName,
+                driverCount: team.driverCount,
+                lapCount: team.durations.length,
+                standardDeviation: sd,
+                coefficientOfVariation: (sd / avg) * 100,
+            });
+        });
+
+        teams.sort(
+            (a, b) =>
+                a.standardDeviation - b.standardDeviation ||
+                a.coefficientOfVariation - b.coefficientOfVariation
+        );
+
+        return teams;
+    }, [driverEntries, safetyCarLapSet]);
+
+    type TeamFuelConsistencyInsight = TeamConsistencyInsight & {
+        fuelLoad: FuelLoad;
+    };
+
+    const teamConsistencyByFuelLoad = useMemo<Record<FuelLoad, TeamFuelConsistencyInsight[]>>(() => {
+        const fuelMaps: Record<
+            FuelLoad,
+            Map<string, { teamName: string; driverNumbers: Set<number>; durations: number[] }>
+        > = {
+            heavy: new Map(),
+            medium: new Map(),
+            low: new Map(),
+        };
+
+        driverEntries.forEach(entry => {
+            const rawLaps = entry.laps
+                .filter(
+                    lap =>
+                        !lap.is_pit_out_lap &&
+                        !safetyCarLapSet.has(lap.lap_number) &&
+                        isValidPositiveNumber(lap.lap_duration)
+                )
+                .map(lap => ({
+                    lapNumber: lap.lap_number,
+                    duration: lap.lap_duration as number,
+                }));
+
+            if (rawLaps.length < 5) return;
+
+            const typical = median(rawLaps.map(lap => lap.duration));
+            const filteredLaps =
+                typical == null
+                    ? rawLaps
+                    : rawLaps.filter(lap => lap.duration <= typical * 1.08);
+            const sampleLaps = filteredLaps.length >= 5 ? filteredLaps : rawLaps;
+
+            if (sampleLaps.length < 5) return;
+
+            sampleLaps.forEach(lap => {
+                const fuelLoad = getFuelLoadForLap(lap.lapNumber);
+                const teamBucket = fuelMaps[fuelLoad];
+                const teamName = entry.driver.team;
+                const existing = teamBucket.get(teamName) ?? {
+                    teamName,
+                    driverNumbers: new Set<number>(),
+                    durations: [],
+                };
+
+                existing.driverNumbers.add(entry.driverNumber);
+                existing.durations.push(lap.duration);
+                teamBucket.set(teamName, existing);
+            });
+        });
+
+        const toSortedInsights = (fuelLoad: FuelLoad): TeamFuelConsistencyInsight[] => {
+            const insights: TeamFuelConsistencyInsight[] = [];
+            fuelMaps[fuelLoad].forEach(team => {
+                if (team.durations.length < 3) return;
+                const avg = average(team.durations);
+                const sd = standardDeviation(team.durations);
+                if (avg == null || sd == null || avg <= 0) return;
+                insights.push({
+                    fuelLoad,
+                    teamName: team.teamName,
+                    driverCount: team.driverNumbers.size,
+                    lapCount: team.durations.length,
+                    standardDeviation: sd,
+                    coefficientOfVariation: (sd / avg) * 100,
+                });
+            });
+
+            insights.sort(
+                (a, b) =>
+                    a.standardDeviation - b.standardDeviation ||
+                    a.coefficientOfVariation - b.coefficientOfVariation
+            );
+
+            return insights;
+        };
+
+        return {
+            heavy: toSortedInsights('heavy'),
+            medium: toSortedInsights('medium'),
+            low: toSortedInsights('low'),
+        };
+    }, [driverEntries, getFuelLoadForLap, safetyCarLapSet]);
+
+    type TeamTyreDegradationInsight = {
+        teamName: string;
+        teamColor?: string | null;
+        stintCount: number;
+        lapCount: number;
+        averageSlope: number | null;
+        averageDeltaFirstToLast: number | null;
+    };
+
+    const teamDegradationInsights = useMemo<TeamTyreDegradationInsight[]>(() => {
+        const teamMap = new Map<
+            string,
+            {
+                teamName: string;
+                teamColor?: string | null;
+                stintCount: number;
+                lapCount: number;
+                slopeWeightedTotal: number;
+                slopeWeight: number;
+                deltaWeightedTotal: number;
+                deltaWeight: number;
+            }
+        >();
+
+        degradationLeaders.forEach(entry => {
+            const team = teamMap.get(entry.teamName) ?? {
+                teamName: entry.teamName,
+                teamColor: entry.teamColor,
+                stintCount: 0,
+                lapCount: 0,
+                slopeWeightedTotal: 0,
+                slopeWeight: 0,
+                deltaWeightedTotal: 0,
+                deltaWeight: 0,
+            };
+
+            team.stintCount += 1;
+            team.lapCount += entry.lapCount;
+
+            if (typeof entry.slope === 'number' && Number.isFinite(entry.slope)) {
+                team.slopeWeightedTotal += entry.slope * entry.lapCount;
+                team.slopeWeight += entry.lapCount;
+            }
+
+            if (
+                typeof entry.deltaFirstToLast === 'number' &&
+                Number.isFinite(entry.deltaFirstToLast)
+            ) {
+                team.deltaWeightedTotal += entry.deltaFirstToLast * entry.lapCount;
+                team.deltaWeight += entry.lapCount;
+            }
+
+            team.teamColor = team.teamColor ?? entry.teamColor;
+            teamMap.set(entry.teamName, team);
+        });
+
+        const teams: TeamTyreDegradationInsight[] = [];
+        teamMap.forEach(team => {
+            teams.push({
+                teamName: team.teamName,
+                teamColor: team.teamColor,
+                stintCount: team.stintCount,
+                lapCount: team.lapCount,
+                averageSlope:
+                    team.slopeWeight > 0 ? team.slopeWeightedTotal / team.slopeWeight : null,
+                averageDeltaFirstToLast:
+                    team.deltaWeight > 0 ? team.deltaWeightedTotal / team.deltaWeight : null,
+            });
+        });
+
+        teams.sort((a, b) => {
+            if (a.averageDeltaFirstToLast == null && b.averageDeltaFirstToLast == null) return 0;
+            if (a.averageDeltaFirstToLast == null) return 1;
+            if (b.averageDeltaFirstToLast == null) return -1;
+
+            const deltaDiff = b.averageDeltaFirstToLast - a.averageDeltaFirstToLast;
+            if (deltaDiff !== 0) return deltaDiff;
+
+            if (a.averageSlope == null && b.averageSlope == null) return 0;
+            if (a.averageSlope == null) return 1;
+            if (b.averageSlope == null) return -1;
+            return b.averageSlope - a.averageSlope;
+        });
+
+        return teams;
+    }, [degradationLeaders]);
+
+    const displayedTeamConsistencyInsights = useMemo(() => {
+        if (showAllConsistencyTeams) return teamConsistencyInsights;
+        return teamConsistencyInsights.slice(0, INSIGHT_LIST_LIMIT);
+    }, [showAllConsistencyTeams, teamConsistencyInsights]);
+
+    const displayedTeamConsistencyByFuelLoad = useMemo<
+        Record<FuelLoad, TeamFuelConsistencyInsight[]>
+    >(() => {
+        if (showAllConsistencyTeams) {
+            return teamConsistencyByFuelLoad;
+        }
+        return {
+            heavy: teamConsistencyByFuelLoad.heavy.slice(0, INSIGHT_LIST_LIMIT),
+            medium: teamConsistencyByFuelLoad.medium.slice(0, INSIGHT_LIST_LIMIT),
+            low: teamConsistencyByFuelLoad.low.slice(0, INSIGHT_LIST_LIMIT),
+        };
+    }, [showAllConsistencyTeams, teamConsistencyByFuelLoad]);
+
+    const hasMoreTeamConsistencyRows =
+        teamConsistencyInsights.length > INSIGHT_LIST_LIMIT ||
+        FUEL_LOAD_ORDER.some(
+            fuelLoad => teamConsistencyByFuelLoad[fuelLoad].length > INSIGHT_LIST_LIMIT
+        );
+
+    const displayedTeamDegradationInsights = useMemo(() => {
+        if (showAllDegradationTeams) return teamDegradationInsights;
+        return teamDegradationInsights.slice(0, INSIGHT_LIST_LIMIT);
+    }, [showAllDegradationTeams, teamDegradationInsights]);
+
     type FastestPitStop = {
         duration: number;
         team: string;
@@ -310,7 +690,13 @@ const RaceScreen = () => {
         return record;
     }, [driverEntries]);
 
-    const positionsGainedLeader = useMemo(() => {
+    const positionsGainedLeader = useMemo<{
+        driverName: string;
+        teamName: string;
+        gain: number;
+        start: number;
+        finish: number;
+    } | null>(() => {
         // Break ties by choosing the driver who finished higher overall
         let leader: {
             driverName: string;
@@ -367,18 +753,36 @@ const RaceScreen = () => {
         });
     }, [meetingName, navigation, sessionKey, sessionName]);
 
-    const handleOpenDriverData = useCallback(() => {
-        if (!defaultDriverNumber) return;
-        const driverDataEntry =
-            driverEntries.find(entry => entry.driverNumber === defaultDriverNumber) ?? null;
-        navigation.navigate('DriverOverview', {
-            driverNumber: defaultDriverNumber,
+    const handleOpenOvertakes = useCallback(() => {
+        if (!data) return;
+        navigation.navigate('RaceOvertakes', {
             sessionKey,
-            safetyCarLaps,
-            driverData: driverDataEntry,
-            driverOptions: driverOptionsPayload,
+            sessionName,
+            meetingName,
+            overtakes: data.overtakes ?? [],
+            driverEntries: data.drivers ?? [],
         });
-    }, [defaultDriverNumber, driverEntries, driverOptionsPayload, navigation, safetyCarLaps, sessionKey]);
+    }, [data, meetingName, navigation, sessionKey, sessionName]);
+
+    const openDriverOverview = useCallback(
+        (driverNumber: number | null | undefined) => {
+            if (typeof driverNumber !== 'number') return;
+            const driverDataEntry =
+                driverEntries.find(entry => entry.driverNumber === driverNumber) ?? null;
+            navigation.navigate('DriverOverview', {
+                driverNumber,
+                sessionKey,
+                safetyCarLaps,
+                driverData: driverDataEntry,
+                driverOptions: driverOptionsPayload,
+            });
+        },
+        [driverEntries, driverOptionsPayload, navigation, safetyCarLaps, sessionKey]
+    );
+
+    const handleOpenDriverData = useCallback(() => {
+        openDriverOverview(defaultDriverNumber);
+    }, [defaultDriverNumber, openDriverOverview]);
 
     if (loading) {
         return (
@@ -412,6 +816,11 @@ const RaceScreen = () => {
 
     const formatPace = (value?: number | null) =>
         typeof value === 'number' && value > 0 ? formatLapTime(value) : '—';
+    const formatSignedSeconds = (value?: number | null) => {
+        if (typeof value !== 'number' || Number.isNaN(value)) return '—';
+        const prefix = value > 0 ? '+' : '';
+        return `${prefix}${value.toFixed(3)}s`;
+    };
 
     const selectedTeamCompoundName = selectedTeamCompound
         ? getCompoundName(selectedTeamCompound)
@@ -420,11 +829,34 @@ const RaceScreen = () => {
         ? getCompoundName(selectedDriverCompound)
         : null;
 
+    const biggestDropper = positionChangeInsights.length
+        ? [...positionChangeInsights].sort((a, b) => a.gain - b.gain)[0]
+        : null;
+    const bestTeamPositionGain = teamPositionChanges.length ? teamPositionChanges[0] : null;
+    const bestPitImpact = pitImpactInsights.length ? pitImpactInsights[0] : null;
+    const worstPitImpact = pitImpactInsights.length
+        ? pitImpactInsights[pitImpactInsights.length - 1]
+        : null;
+
     const heroStats = [
         { label: 'Drivers', value: driverEntries.length || '–' },
         { label: 'SC Laps', value: safetyCarLapCount || '0' },
         { label: 'Laps', value: totalRaceLapsDisplay },
     ];
+
+    const mediumStartLap = fuelLoadBounds.heavyEndLap + 1;
+    const lowStartLap = fuelLoadBounds.mediumEndLap + 1;
+    const fuelLoadRangeLabel: Record<FuelLoad, string> = {
+        heavy: `Laps 1-${fuelLoadBounds.heavyEndLap}`,
+        medium:
+            mediumStartLap <= fuelLoadBounds.mediumEndLap
+                ? `Laps ${mediumStartLap}-${fuelLoadBounds.mediumEndLap}`
+                : 'No mapped laps',
+        low:
+            lowStartLap <= fuelLoadBounds.totalLaps
+                ? `Laps ${lowStartLap}-${fuelLoadBounds.totalLaps}`
+                : 'No mapped laps',
+    };
 
     return (
         <ScrollView
@@ -484,6 +916,23 @@ const RaceScreen = () => {
                     <Text style={[styles.actionButtonText, styles.actionButtonTextDark]}>Driver Data</Text>
                     <Text style={[styles.actionButtonSubtitle, styles.actionButtonSubtitleDark]}>
                         Dive into driver telemetry & laps
+                    </Text>
+                </TouchableOpacity>
+            </View>
+            <View style={styles.actionRowSingle}>
+                <TouchableOpacity
+                    style={[
+                        styles.actionButton,
+                        styles.actionButtonTertiary,
+                        !(data?.overtakes?.length ?? 0) && styles.actionButtonDisabled,
+                    ]}
+                    activeOpacity={0.9}
+                    onPress={handleOpenOvertakes}
+                    disabled={!(data?.overtakes?.length ?? 0)}
+                >
+                    <Text style={styles.actionButtonText}>Overtakes</Text>
+                    <Text style={styles.actionButtonSubtitle}>
+                        {(data?.overtakes?.length ?? 0)} recorded passes
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -589,135 +1038,611 @@ const RaceScreen = () => {
                 </View>
             </View>
 
+            <View style={styles.insightModeCard}>
+                <Text style={styles.insightModeLabel}>Insights View</Text>
+                <View style={styles.insightModeOptions}>
+                    <TouchableOpacity
+                        style={[
+                            styles.filterChip,
+                            insightViewMode === 'teams' && styles.filterChipActive,
+                        ]}
+                        onPress={() => setInsightViewMode('teams')}
+                    >
+                        <Text
+                            style={[
+                                styles.filterChipLabel,
+                                insightViewMode === 'teams' && styles.filterChipLabelActive,
+                            ]}
+                        >
+                            Teams
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[
+                            styles.filterChip,
+                            insightViewMode === 'drivers' && styles.filterChipActive,
+                        ]}
+                        onPress={() => setInsightViewMode('drivers')}
+                    >
+                        <Text
+                            style={[
+                                styles.filterChipLabel,
+                                insightViewMode === 'drivers' && styles.filterChipLabelActive,
+                            ]}
+                        >
+                            Drivers
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
             <View style={styles.listCard}>
                 <View style={styles.listHeader}>
-                    <Text style={styles.listTitle}>Team Avg Pace by Compound</Text>
-                    <Text style={styles.listSubtitle}>Combined average of both drivers</Text>
+                    <Text style={styles.listTitle}>Overtake Leaderboard</Text>
+                    <Text style={styles.listSubtitle}>
+                        {isTeamInsightsMode
+                            ? 'Made / suffered / net by team'
+                            : 'Made / suffered / net by driver'}
+                    </Text>
                 </View>
-                {compoundOptions.length ? (
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.filterScroll}
-                        contentContainerStyle={styles.filterContent}
-                    >
-                        {compoundOptions.map(option => {
-                            const isActive = option === selectedTeamCompound;
-                            const label = getCompoundName(option);
-                            return (
-                                <TouchableOpacity
-                                    key={`team-compound-${option}`}
-                                    style={[styles.filterChip, isActive && styles.filterChipActive]}
-                                    onPress={() => {
-                                        if (option !== selectedTeamCompound) {
-                                            setSelectedTeamCompound(option);
-                                            setShowAllTeams(false);
-                                        }
-                                    }}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.filterChipLabel,
-                                            isActive && styles.filterChipLabelActive,
-                                        ]}
-                                    >
-                                        {label}
+                {isTeamInsightsMode ? (
+                    overtakeTeamLeaders.length ? (
+                        displayedOvertakeTeamLeaders.map((team, index) => (
+                            <View key={`overtake-team-${team.teamName}`} style={styles.listRow}>
+                                <View style={styles.rankPill}>
+                                    <Text style={styles.rankText}>{index + 1}</Text>
+                                </View>
+                                <View style={styles.listDriverBlock}>
+                                    <Text style={styles.listDriverName}>{team.teamName}</Text>
+                                    <Text style={styles.listMeta}>
+                                        Made {team.made} • Suffered {team.suffered}
                                     </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </ScrollView>
-                ) : null}
-                {selectedTeamCompound && displayedTeamLeaders.length ? (
-                    displayedTeamLeaders.map(team => (
-                        <View key={team.teamName} style={styles.listRow}>
-                            <View style={[styles.teamDot, { backgroundColor: getTeamColorHex(team.color) }]} />
-                            <View style={styles.listDriverBlock}>
-                                <Text style={styles.listDriverName}>{team.teamName}</Text>
-                                <Text style={styles.listMeta}>
-                                    Average pace on {getCompoundName(selectedTeamCompound)}
+                                </View>
+                                <Text style={styles.listValue}>
+                                    {team.net > 0 ? '+' : ''}
+                                    {team.net}
                                 </Text>
                             </View>
-                            <Text style={styles.listValue}>{formatPace(team.avgTime)}</Text>
+                        ))
+                    ) : (
+                        <Text style={styles.noData}>No team overtake data for this session.</Text>
+                    )
+                ) : overtakeDriverLeaders.length ? (
+                    displayedOvertakeDriverLeaders.map((entry, index) => (
+                        <View key={`overtake-driver-${entry.driverNumber}`} style={styles.listRow}>
+                            <View style={styles.rankPill}>
+                                <Text style={styles.rankText}>{index + 1}</Text>
+                            </View>
+                            <View style={styles.listDriverBlock}>
+                                <Text style={styles.listDriverName}>{entry.driverName}</Text>
+                                <Text style={styles.listMeta}>
+                                    {entry.teamName} • Made {entry.made} • Suffered {entry.suffered}
+                                </Text>
+                            </View>
+                            <Text style={styles.listValue}>
+                                {entry.net > 0 ? '+' : ''}
+                                {entry.net}
+                            </Text>
                         </View>
                     ))
                 ) : (
-                    <Text style={styles.noData}>
-                        {selectedTeamCompoundName
-                            ? `No representative team pace on ${selectedTeamCompoundName}`
-                            : 'No team pace data'}
-                    </Text>
+                    <Text style={styles.noData}>No overtakes recorded in this session.</Text>
                 )}
-                {selectedTeamCompound && teamLeaders.length > 5 ? (
+                {isTeamInsightsMode && overtakeTeamLeaders.length > INSIGHT_LIST_LIMIT ? (
                     <TouchableOpacity
                         style={styles.expandButton}
-                        onPress={() => setShowAllTeams(prev => !prev)}
+                        onPress={() => setShowAllOvertakeTeams(prev => !prev)}
                     >
                         <Text style={styles.expandButtonText}>
-                            {showAllTeams ? 'Show Less' : 'Show All Teams'}
+                            {showAllOvertakeTeams ? 'Show Top 5 Teams' : 'Show All Teams'}
                         </Text>
+                    </TouchableOpacity>
+                ) : null}
+                {!isTeamInsightsMode && overtakeDriverLeaders.length > INSIGHT_LIST_LIMIT ? (
+                    <TouchableOpacity
+                        style={styles.expandButton}
+                        onPress={() =>
+                            openDriverOverview(displayedOvertakeDriverLeaders[0]?.driverNumber)
+                        }
+                    >
+                        <Text style={styles.expandButtonText}>Open Driver Details</Text>
                     </TouchableOpacity>
                 ) : null}
             </View>
 
             <View style={styles.listCard}>
                 <View style={styles.listHeader}>
-                    <Text style={styles.listTitle}>Top Driver Pace by Compound</Text>
-                    <Text style={styles.listSubtitle}>Excludes pit exit & safety car laps</Text>
+                    <Text style={styles.listTitle}>Position Gain Story</Text>
+                    <Text style={styles.listSubtitle}>
+                        {isTeamInsightsMode
+                            ? 'Combined grid-to-finish movement by team'
+                            : 'Grid vs finish movement by driver'}
+                    </Text>
                 </View>
-                {compoundOptions.length ? (
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.filterScroll}
-                        contentContainerStyle={styles.filterContent}
-                    >
-                        {compoundOptions.map(option => {
-                            const isActive = option === selectedDriverCompound;
-                            const label = getCompoundName(option);
-                            return (
-                                <TouchableOpacity
-                                    key={`driver-compound-${option}`}
-                                    style={[styles.filterChip, isActive && styles.filterChipActive]}
-                                    onPress={() => setSelectedDriverCompound(option)}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.filterChipLabel,
-                                            isActive && styles.filterChipLabelActive,
-                                        ]}
-                                    >
-                                        {label}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </ScrollView>
-                ) : null}
-                {selectedDriverCompound && driverLeaders.length ? (
-                    driverLeaders.map((stat, index) => (
-                        <View key={`${stat.driverNumber}-${selectedDriverCompound}`} style={styles.listRow}>
+                {isTeamInsightsMode ? (
+                    teamPositionChanges.length ? (
+                        displayedTeamPositionChanges.map((team, index) => (
+                            <View key={`team-gain-${team.teamName}`} style={styles.listRow}>
+                                <View style={styles.rankPill}>
+                                    <Text style={styles.rankText}>{index + 1}</Text>
+                                </View>
+                                <View style={styles.listDriverBlock}>
+                                    <Text style={styles.listDriverName}>{team.teamName}</Text>
+                                </View>
+                                <Text style={styles.listValue}>
+                                    {team.netGain > 0 ? '+' : ''}
+                                    {team.netGain}
+                                </Text>
+                            </View>
+                        ))
+                    ) : (
+                        <Text style={styles.noData}>No team position gain data for this race.</Text>
+                    )
+                ) : positionChangeInsights.length ? (
+                    displayedPositionChangeInsights.map((entry, index) => (
+                        <View key={`position-change-${entry.driverNumber}`} style={styles.listRow}>
                             <View style={styles.rankPill}>
                                 <Text style={styles.rankText}>{index + 1}</Text>
                             </View>
                             <View style={styles.listDriverBlock}>
-                                <Text style={styles.listDriverName}>{stat.driverName}</Text>
+                                <Text style={styles.listDriverName}>{entry.driverName}</Text>
                                 <Text style={styles.listMeta}>
-                                    {stat.teamName} • {selectedDriverCompoundName ?? 'Unknown'} • {stat.lapCount}{' '}
-                                    {stat.lapCount === 1 ? 'lap' : 'laps'}
+                                    {entry.teamName} • P{entry.start} → P{entry.finish}
                                 </Text>
                             </View>
-                            <Text style={styles.listValue}>{formatPace(stat.avgTime)}</Text>
+                            <Text style={styles.listValue}>
+                                {entry.gain > 0 ? '+' : ''}
+                                {entry.gain}
+                            </Text>
                         </View>
                     ))
                 ) : (
-                    <Text style={styles.noData}>
-                        {selectedDriverCompoundName
-                            ? `No clean laps for ${selectedDriverCompoundName} yet`
-                            : 'No compound data available'}
-                    </Text>
+                    <Text style={styles.noData}>Starting grid data is unavailable for this race.</Text>
                 )}
+                {isTeamInsightsMode ? (
+                    bestTeamPositionGain ? (
+                        <View style={styles.highlightRow}>
+                            <Text style={styles.highlightLabel}>Best team gain:</Text>
+                            <Text style={styles.highlightValue}>
+                                {bestTeamPositionGain.teamName} (
+                                {bestTeamPositionGain.netGain > 0 ? '+' : ''}
+                                {bestTeamPositionGain.netGain})
+                            </Text>
+                        </View>
+                    ) : null
+                ) : biggestDropper ? (
+                    <View style={styles.highlightRow}>
+                        <Text style={styles.highlightLabel}>Biggest drop:</Text>
+                        <Text style={styles.highlightValue}>
+                            {biggestDropper.driverName} ({biggestDropper.gain > 0 ? '+' : ''}
+                            {biggestDropper.gain})
+                        </Text>
+                    </View>
+                ) : null}
+                {isTeamInsightsMode && teamPositionChanges.length > INSIGHT_LIST_LIMIT ? (
+                    <TouchableOpacity
+                        style={styles.expandButton}
+                        onPress={() => setShowAllPositionTeams(prev => !prev)}
+                    >
+                        <Text style={styles.expandButtonText}>
+                            {showAllPositionTeams ? 'Show Top 5 Teams' : 'Show All Teams'}
+                        </Text>
+                    </TouchableOpacity>
+                ) : null}
+                {!isTeamInsightsMode && positionChangeInsights.length > INSIGHT_LIST_LIMIT ? (
+                    <TouchableOpacity
+                        style={styles.expandButton}
+                        onPress={() =>
+                            openDriverOverview(displayedPositionChangeInsights[0]?.driverNumber)
+                        }
+                    >
+                        <Text style={styles.expandButtonText}>Open Driver Details</Text>
+                    </TouchableOpacity>
+                ) : null}
             </View>
+
+            <View style={styles.listCard}>
+                <View style={styles.listHeader}>
+                    <Text style={styles.listTitle}>Race Pace Consistency</Text>
+                    <Text style={styles.listSubtitle}>
+                        {isTeamInsightsMode
+                            ? 'Standard deviation on combined clean laps per team + fuel-load splits'
+                            : 'Standard deviation on clean race laps'}
+                    </Text>
+                </View>
+                {isTeamInsightsMode ? (
+                    <>
+                        {teamConsistencyInsights.length ? (
+                            displayedTeamConsistencyInsights.map((entry, index) => (
+                                <View key={`team-consistency-${entry.teamName}`} style={styles.listRow}>
+                                    <View style={styles.rankPill}>
+                                        <Text style={styles.rankText}>{index + 1}</Text>
+                                    </View>
+                                    <View style={styles.listDriverBlock}>
+                                        <Text style={styles.listDriverName}>{entry.teamName}</Text>
+                                        <Text style={styles.listMeta}>
+                                            {entry.driverCount}{' '}
+                                            {entry.driverCount === 1 ? 'driver' : 'drivers'} •{' '}
+                                            {entry.lapCount} laps • CV{' '}
+                                            {entry.coefficientOfVariation.toFixed(2)}%
+                                        </Text>
+                                    </View>
+                                    <Text style={styles.listValue}>
+                                        {entry.standardDeviation.toFixed(3)}s
+                                    </Text>
+                                </View>
+                            ))
+                        ) : (
+                            <Text style={styles.noData}>
+                                Not enough clean laps to score team consistency.
+                            </Text>
+                        )}
+
+                        <View style={styles.fuelConsistencyBlock}>
+                            <Text style={styles.fuelConsistencyHeader}>
+                                Team Consistency by Fuel Load
+                            </Text>
+                            {FUEL_LOAD_ORDER.map(fuelLoad => {
+                                const fuelInsights = displayedTeamConsistencyByFuelLoad[fuelLoad];
+                                return (
+                                    <View key={`fuel-consistency-${fuelLoad}`} style={styles.fuelConsistencySection}>
+                                        <Text style={styles.fuelConsistencyTitle}>
+                                            {FUEL_LOAD_LABEL[fuelLoad]}
+                                        </Text>
+                                        <Text style={styles.fuelConsistencyRange}>
+                                            {fuelLoadRangeLabel[fuelLoad]}
+                                        </Text>
+                                        {fuelInsights.length ? (
+                                            fuelInsights.map((entry, index) => (
+                                                <View
+                                                    key={`fuel-consistency-${fuelLoad}-${entry.teamName}`}
+                                                    style={styles.listRow}
+                                                >
+                                                    <View style={styles.rankPill}>
+                                                        <Text style={styles.rankText}>{index + 1}</Text>
+                                                    </View>
+                                                    <View style={styles.listDriverBlock}>
+                                                        <Text style={styles.listDriverName}>{entry.teamName}</Text>
+                                                        <Text style={styles.listMeta}>
+                                                            {entry.driverCount}{' '}
+                                                            {entry.driverCount === 1 ? 'driver' : 'drivers'} •{' '}
+                                                            {entry.lapCount} laps • CV{' '}
+                                                            {entry.coefficientOfVariation.toFixed(2)}%
+                                                        </Text>
+                                                    </View>
+                                                    <Text style={styles.listValue}>
+                                                        {entry.standardDeviation.toFixed(3)}s
+                                                    </Text>
+                                                </View>
+                                            ))
+                                        ) : (
+                                            <Text style={styles.noData}>
+                                                Not enough {FUEL_LOAD_LABEL[fuelLoad].toLowerCase()} laps.
+                                            </Text>
+                                        )}
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    </>
+                ) : consistencyInsights.length ? (
+                    displayedConsistencyInsights.map((entry, index) => (
+                        <View key={`consistency-${entry.driverNumber}`} style={styles.listRow}>
+                            <View style={styles.rankPill}>
+                                <Text style={styles.rankText}>{index + 1}</Text>
+                            </View>
+                            <View style={styles.listDriverBlock}>
+                                <Text style={styles.listDriverName}>{entry.driverName}</Text>
+                                <Text style={styles.listMeta}>
+                                    {entry.teamName} • {entry.lapCount} laps • CV{' '}
+                                    {entry.coefficientOfVariation.toFixed(2)}%
+                                </Text>
+                            </View>
+                            <Text style={styles.listValue}>{entry.standardDeviation.toFixed(3)}s</Text>
+                        </View>
+                    ))
+                ) : (
+                    <Text style={styles.noData}>Not enough clean laps to score consistency.</Text>
+                )}
+                {isTeamInsightsMode && hasMoreTeamConsistencyRows ? (
+                    <TouchableOpacity
+                        style={styles.expandButton}
+                        onPress={() => setShowAllConsistencyTeams(prev => !prev)}
+                    >
+                        <Text style={styles.expandButtonText}>
+                            {showAllConsistencyTeams ? 'Show Top 5 Teams' : 'Show All Teams'}
+                        </Text>
+                    </TouchableOpacity>
+                ) : null}
+                {!isTeamInsightsMode && consistencyInsights.length > INSIGHT_LIST_LIMIT ? (
+                    <TouchableOpacity
+                        style={styles.expandButton}
+                        onPress={() => openDriverOverview(displayedConsistencyInsights[0]?.driverNumber)}
+                    >
+                        <Text style={styles.expandButtonText}>Open Driver Details</Text>
+                    </TouchableOpacity>
+                ) : null}
+            </View>
+
+            <View style={styles.listCard}>
+                <View style={styles.listHeader}>
+                    <Text style={styles.listTitle}>Tyre Degradation Score</Text>
+                    <Text style={styles.listSubtitle}>
+                        {isTeamInsightsMode
+                            ? 'Weighted average stint fade by team'
+                            : 'Delta from opening laps to end of each stint'}
+                    </Text>
+                </View>
+                {isTeamInsightsMode ? (
+                    teamDegradationInsights.length ? (
+                        displayedTeamDegradationInsights.map(entry => (
+                            <View key={`team-degradation-${entry.teamName}`} style={styles.listRow}>
+                                <View
+                                    style={[
+                                        styles.teamDot,
+                                        { backgroundColor: getTeamColorHex(entry.teamColor) },
+                                    ]}
+                                />
+                                <View style={styles.listDriverBlock}>
+                                    <Text style={styles.listDriverName}>{entry.teamName}</Text>
+                                    <Text style={styles.listMeta}>
+                                        {entry.stintCount} {entry.stintCount === 1 ? 'stint' : 'stints'} •{' '}
+                                        {entry.lapCount} laps • slope{' '}
+                                        {formatSignedSeconds(entry.averageSlope)}
+                                    </Text>
+                                </View>
+                                <Text style={styles.listValue}>
+                                    {formatSignedSeconds(entry.averageDeltaFirstToLast)}
+                                </Text>
+                            </View>
+                        ))
+                    ) : (
+                        <Text style={styles.noData}>
+                            No team stints with enough laps for degradation analysis.
+                        </Text>
+                    )
+                ) : degradationLeaders.length ? (
+                    displayedDegradationLeaders.map(entry => (
+                        <View key={`degradation-${entry.driverNumber}-${entry.stintNumber}`} style={styles.listRow}>
+                            <View style={[styles.teamDot, { backgroundColor: getTeamColorHex(entry.teamColor) }]} />
+                            <View style={styles.listDriverBlock}>
+                                <Text style={styles.listDriverName}>
+                                    {entry.driverName} • {getCompoundName(entry.compound)}
+                                </Text>
+                                <Text style={styles.listMeta}>
+                                    Stint {entry.stintNumber} • {entry.lapCount} laps • slope{' '}
+                                    {formatSignedSeconds(entry.slope)}
+                                </Text>
+                            </View>
+                            <Text style={styles.listValue}>
+                                {formatSignedSeconds(entry.deltaFirstToLast)}
+                            </Text>
+                        </View>
+                    ))
+                ) : (
+                    <Text style={styles.noData}>No stints with enough laps for degradation analysis.</Text>
+                )}
+                {isTeamInsightsMode && teamDegradationInsights.length > INSIGHT_LIST_LIMIT ? (
+                    <TouchableOpacity
+                        style={styles.expandButton}
+                        onPress={() => setShowAllDegradationTeams(prev => !prev)}
+                    >
+                        <Text style={styles.expandButtonText}>
+                            {showAllDegradationTeams ? 'Show Top 5 Teams' : 'Show All Teams'}
+                        </Text>
+                    </TouchableOpacity>
+                ) : null}
+                {!isTeamInsightsMode && degradationLeaders.length > INSIGHT_LIST_LIMIT ? (
+                    <TouchableOpacity
+                        style={styles.expandButton}
+                        onPress={() => openDriverOverview(displayedDegradationLeaders[0]?.driverNumber)}
+                    >
+                        <Text style={styles.expandButtonText}>Open Driver Details</Text>
+                    </TouchableOpacity>
+                ) : null}
+            </View>
+
+            <View style={styles.listCard}>
+                <View style={styles.listHeader}>
+                    <Text style={styles.listTitle}>Pit Strategy Analyzer</Text>
+                    <Text style={styles.listSubtitle}>Team stop efficiency and post-stop pace impact</Text>
+                </View>
+                {pitTeamInsights.length ? (
+                    pitTeamInsights.slice(0, 5).map(team => (
+                        <View key={`pit-team-${team.teamName}`} style={styles.listRow}>
+                            <View style={[styles.teamDot, { backgroundColor: getTeamColorHex(team.teamColor) }]} />
+                            <View style={styles.listDriverBlock}>
+                                <Text style={styles.listDriverName}>{team.teamName}</Text>
+                                <Text style={styles.listMeta}>
+                                    {team.stopCount} stops • avg {team.averageStop ? `${team.averageStop.toFixed(2)}s` : '—'}
+                                </Text>
+                            </View>
+                            <Text style={styles.listValue}>
+                                {team.medianStop ? `${team.medianStop.toFixed(2)}s` : '—'}
+                            </Text>
+                        </View>
+                    ))
+                ) : (
+                    <Text style={styles.noData}>No pit-stop data available for this session.</Text>
+                )}
+                <View style={styles.highlightRow}>
+                    <Text style={styles.highlightLabel}>Fastest stop:</Text>
+                    <Text style={styles.highlightValue}>
+                        {raceInsights?.pitStrategy.fastestStop
+                            ? `${raceInsights.pitStrategy.fastestStop.driverName} (${raceInsights.pitStrategy.fastestStop.duration.toFixed(2)}s)`
+                            : '—'}
+                    </Text>
+                </View>
+                <View style={styles.highlightRow}>
+                    <Text style={styles.highlightLabel}>Stops under SC:</Text>
+                    <Text style={styles.highlightValue}>
+                        {raceInsights?.pitStrategy.safetyCarPitStops ?? 0}
+                    </Text>
+                </View>
+                {bestPitImpact ? (
+                    <View style={styles.highlightRow}>
+                        <Text style={styles.highlightLabel}>Best post-stop delta:</Text>
+                        <Text style={styles.highlightValue}>
+                            {bestPitImpact.driverName} ({formatSignedSeconds(bestPitImpact.averageDelta)})
+                        </Text>
+                    </View>
+                ) : null}
+                {worstPitImpact ? (
+                    <View style={styles.highlightRow}>
+                        <Text style={styles.highlightLabel}>Worst post-stop delta:</Text>
+                        <Text style={styles.highlightValue}>
+                            {worstPitImpact.driverName} ({formatSignedSeconds(worstPitImpact.averageDelta)})
+                        </Text>
+                    </View>
+                ) : null}
+            </View>
+
+            {isTeamInsightsMode ? (
+                <View style={styles.listCard}>
+                    <View style={styles.listHeader}>
+                        <Text style={styles.listTitle}>Team Avg Pace by Compound</Text>
+                        <Text style={styles.listSubtitle}>Combined average of both drivers</Text>
+                    </View>
+                    {compoundOptions.length ? (
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            style={styles.filterScroll}
+                            contentContainerStyle={styles.filterContent}
+                        >
+                            {compoundOptions.map(option => {
+                                const isActive = option === selectedTeamCompound;
+                                const label = getCompoundName(option);
+                                return (
+                                    <TouchableOpacity
+                                        key={`team-compound-${option}`}
+                                        style={[styles.filterChip, isActive && styles.filterChipActive]}
+                                        onPress={() => {
+                                            if (option !== selectedTeamCompound) {
+                                                setSelectedTeamCompound(option);
+                                                setShowAllTeams(false);
+                                            }
+                                        }}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.filterChipLabel,
+                                                isActive && styles.filterChipLabelActive,
+                                            ]}
+                                        >
+                                            {label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                    ) : null}
+                    {selectedTeamCompound && displayedTeamLeaders.length ? (
+                        displayedTeamLeaders.map(team => (
+                            <View key={team.teamName} style={styles.listRow}>
+                                <View
+                                    style={[
+                                        styles.teamDot,
+                                        { backgroundColor: getTeamColorHex(team.color) },
+                                    ]}
+                                />
+                                <View style={styles.listDriverBlock}>
+                                    <Text style={styles.listDriverName}>{team.teamName}</Text>
+                                    <Text style={styles.listMeta}>
+                                        Average pace on {getCompoundName(selectedTeamCompound)}
+                                    </Text>
+                                </View>
+                                <Text style={styles.listValue}>{formatPace(team.avgTime)}</Text>
+                            </View>
+                        ))
+                    ) : (
+                        <Text style={styles.noData}>
+                            {selectedTeamCompoundName
+                                ? `No representative team pace on ${selectedTeamCompoundName}`
+                                : 'No team pace data'}
+                        </Text>
+                    )}
+                    {selectedTeamCompound && teamLeaders.length > 5 ? (
+                        <TouchableOpacity
+                            style={styles.expandButton}
+                            onPress={() => setShowAllTeams(prev => !prev)}
+                        >
+                            <Text style={styles.expandButtonText}>
+                                {showAllTeams ? 'Show Less' : 'Show All Teams'}
+                            </Text>
+                        </TouchableOpacity>
+                    ) : null}
+                </View>
+            ) : null}
+
+            {!isTeamInsightsMode ? (
+                <View style={styles.listCard}>
+                    <View style={styles.listHeader}>
+                        <Text style={styles.listTitle}>Top Driver Pace by Compound</Text>
+                        <Text style={styles.listSubtitle}>Excludes pit exit & safety car laps</Text>
+                    </View>
+                    {compoundOptions.length ? (
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            style={styles.filterScroll}
+                            contentContainerStyle={styles.filterContent}
+                        >
+                            {compoundOptions.map(option => {
+                                const isActive = option === selectedDriverCompound;
+                                const label = getCompoundName(option);
+                                return (
+                                    <TouchableOpacity
+                                        key={`driver-compound-${option}`}
+                                        style={[styles.filterChip, isActive && styles.filterChipActive]}
+                                        onPress={() => setSelectedDriverCompound(option)}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.filterChipLabel,
+                                                isActive && styles.filterChipLabelActive,
+                                            ]}
+                                        >
+                                            {label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                    ) : null}
+                    {selectedDriverCompound && driverLeaders.length ? (
+                        driverLeaders.map((stat, index) => (
+                            <View key={`${stat.driverNumber}-${selectedDriverCompound}`} style={styles.listRow}>
+                                <View style={styles.rankPill}>
+                                    <Text style={styles.rankText}>{index + 1}</Text>
+                                </View>
+                                <View style={styles.listDriverBlock}>
+                                    <Text style={styles.listDriverName}>{stat.driverName}</Text>
+                                    <Text style={styles.listMeta}>
+                                        {stat.teamName} • {selectedDriverCompoundName ?? 'Unknown'} • {stat.lapCount}{' '}
+                                        {stat.lapCount === 1 ? 'lap' : 'laps'}
+                                    </Text>
+                                </View>
+                                <Text style={styles.listValue}>{formatPace(stat.avgTime)}</Text>
+                            </View>
+                        ))
+                    ) : (
+                        <Text style={styles.noData}>
+                            {selectedDriverCompoundName
+                                ? `No clean laps for ${selectedDriverCompoundName} yet`
+                                : 'No compound data available'}
+                        </Text>
+                    )}
+                    {selectedDriverCompound && driverLeaders.length ? (
+                        <TouchableOpacity
+                            style={styles.expandButton}
+                            onPress={() => openDriverOverview(driverLeaders[0]?.driverNumber)}
+                        >
+                            <Text style={styles.expandButtonText}>Open Driver Details</Text>
+                        </TouchableOpacity>
+                    ) : null}
+                </View>
+            ) : null}
             <Text style={styles.refreshHint}>Pull down to refresh</Text>
         </ScrollView>
     );
@@ -780,6 +1705,11 @@ const styles = StyleSheet.create({
         marginHorizontal: 16,
         marginBottom: 4,
     },
+    actionRowSingle: {
+        marginHorizontal: 16,
+        marginTop: 8,
+        marginBottom: 4,
+    },
     actionButton: {
         flex: 1,
         borderRadius: 20,
@@ -797,6 +1727,9 @@ const styles = StyleSheet.create({
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: '#D9DFEA',
         shadowOpacity: 0.05,
+    },
+    actionButtonTertiary: {
+        backgroundColor: '#23233A',
     },
     actionButtonDisabled: {
         opacity: 0.5,
@@ -1101,8 +2034,57 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         elevation: 3,
     },
+    insightModeCard: {
+        marginHorizontal: 16,
+        marginTop: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E6E8F0',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    insightModeLabel: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#7A7E92',
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
+    },
+    insightModeOptions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
     listHeader: {
         marginBottom: 12,
+    },
+    fuelConsistencyBlock: {
+        marginTop: 14,
+    },
+    fuelConsistencyHeader: {
+        fontSize: 13,
+        color: '#7A7E92',
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
+        fontWeight: '700',
+    },
+    fuelConsistencySection: {
+        marginTop: 10,
+    },
+    fuelConsistencyTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#1F2435',
+    },
+    fuelConsistencyRange: {
+        marginTop: 2,
+        marginBottom: 2,
+        fontSize: 12,
+        color: '#7A819D',
     },
     listTitle: {
         fontSize: 18,
@@ -1153,6 +2135,28 @@ const styles = StyleSheet.create({
         color: '#8A8FA6',
         fontSize: 13,
         paddingVertical: 12,
+    },
+    highlightRow: {
+        marginTop: 10,
+        paddingTop: 10,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: '#ECEFF5',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 10,
+    },
+    highlightLabel: {
+        fontSize: 13,
+        color: '#7A7E92',
+        fontWeight: '600',
+    },
+    highlightValue: {
+        fontSize: 13,
+        color: '#1C2238',
+        fontWeight: '700',
+        flexShrink: 1,
+        textAlign: 'right',
     },
     rankPill: {
         width: 32,

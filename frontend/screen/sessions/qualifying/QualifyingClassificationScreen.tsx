@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
     ActivityIndicator,
     RefreshControl,
@@ -41,15 +41,37 @@ const QualifyingClassificationScreen = () => {
     } = useServiceRequest<QualifyingSessionDetail>(loadClassification, [loadClassification]);
 
     const rows = data?.classification ?? [];
+    const driverEntries = data?.drivers ?? [];
+    const driverEntryMap = useMemo(
+        () => new Map(driverEntries.map(entry => [entry.driverNumber, entry])),
+        [driverEntries]
+    );
+    const driverOptions = useMemo(
+        () =>
+            rows.map(row => {
+                const entry = driverEntryMap.get(row.driverNumber);
+                return {
+                    driverNumber: row.driverNumber,
+                    name: row.driverName,
+                    team: row.teamName,
+                    teamColor: entry?.driver.teamColor ?? row.teamColor ?? null,
+                };
+            }),
+        [driverEntryMap, rows]
+    );
 
     const handleDriverPress = useCallback(
         (driverNumber: number) => {
-            navigation.navigate('DriverOverview', {
+            navigation.navigate('DriverQualifyingOverview', {
                 driverNumber,
                 sessionKey,
+                sessionName,
+                meetingName,
+                driverData: driverEntryMap.get(driverNumber) ?? null,
+                driverOptions,
             });
         },
-        [navigation, sessionKey]
+        [driverEntryMap, driverOptions, meetingName, navigation, sessionKey, sessionName]
     );
 
     if (loading) {

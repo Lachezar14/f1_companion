@@ -26,11 +26,11 @@ const QualifyingResultRow: React.FC<QualifyingResultRowProps> = ({
     onPress,
     showDivider = false,
 }) => {
-    /*const handlePress = () => {
+    const handlePress = () => {
         if (onPress) {
             onPress(data.driverNumber);
         }
-    };*/
+    };
 
     const formatPosition = (): string => {
         if (data.status) return data.status;
@@ -47,6 +47,8 @@ const QualifyingResultRow: React.FC<QualifyingResultRowProps> = ({
         <TouchableOpacity
             style={[styles.rowContainer, showDivider && styles.rowDivider]}
             activeOpacity={0.85}
+            onPress={handlePress}
+            disabled={!onPress}
         >
             <View style={styles.rowHeader}>
                 <View style={styles.positionBadge}>

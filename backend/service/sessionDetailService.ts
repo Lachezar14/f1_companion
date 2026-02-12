@@ -40,6 +40,7 @@ import {
     getMaxLapCount,
 } from './raceControlService';
 import { getSessionByKey, getSessionsByMeeting } from './meetingsService';
+import { buildQualifyingInsights, buildRaceInsights } from './sessionInsightsService';
 
 export type PodiumFinisher = {
     position: number;
@@ -453,6 +454,12 @@ export function getRaceSessionDetail(sessionKey: number): Promise<RaceSessionDet
                 resources.stints,
                 sessionKey
             );
+            const insights = buildRaceInsights({
+                driverEntries: resources.driverEntries,
+                overtakes: resources.overtakes,
+                pitStops: resources.pitStops,
+                raceControlSummary: resources.raceControlSummary,
+            });
 
             return {
                 ...resources.session,
@@ -464,6 +471,7 @@ export function getRaceSessionDetail(sessionKey: number): Promise<RaceSessionDet
                 startingGrid: resources.startingGrid,
                 overtakes: resources.overtakes,
                 classification,
+                insights,
             };
         }
     );
@@ -479,6 +487,10 @@ export function getQualifyingSessionDetail(sessionKey: number): Promise<Qualifyi
                 resources.drivers,
                 sessionKey
             );
+            const insights = buildQualifyingInsights({
+                driverEntries: resources.driverEntries,
+                results: resources.results,
+            });
 
             return {
                 ...resources.session,
@@ -487,6 +499,7 @@ export function getQualifyingSessionDetail(sessionKey: number): Promise<Qualifyi
                 raceControl: resources.raceControl,
                 raceControlSummary: resources.raceControlSummary,
                 classification,
+                insights,
             };
         }
     );
