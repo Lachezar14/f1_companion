@@ -22,7 +22,6 @@ import {
     formatSessionResult,
     getResultStatusLabel,
 } from '../../../../utils/driver';
-import { getCompoundName } from '../../../../utils/tyre';
 
 type RouteParams = {
     driverNumber: number;
@@ -161,11 +160,11 @@ export default function DriverOverviewScreen() {
         });
     }, [driverData, sortedStints]);
 
-    const [strategyExpanded, setStrategyExpanded] = useState(true);
     const strategySummary = useMemo(() => {
         return sortedStints.map(stint => ({
             stintNumber: stint.stint_number,
-            lapRange: `Laps ${stint.lap_start} – ${stint.lap_end}`,
+            lapStart: stint.lap_start,
+            lapEnd: stint.lap_end,
             compoundCode: stint.compound,
             isNewTyre: !stint.tyre_age_at_start || stint.tyre_age_at_start <= 0,
         }));
@@ -311,21 +310,33 @@ export default function DriverOverviewScreen() {
         { label: 'Gap', value: formatSessionGap(driverData.sessionResult?.gap_to_leader ?? null) }
     ];
     const resultStatus = getResultStatusLabel(driverData.sessionResult);
+    const formatSeconds = (value: number | null | undefined) => {
+        if (typeof value !== 'number' || Number.isNaN(value)) return '—';
+        return `${value.toFixed(3)}s`;
+    };
     const formatSignedSeconds = (value: number | null | undefined) => {
-        if (typeof value !== 'number' || Number.isNaN(value)) return 'Data not yet available';
+        if (typeof value !== 'number' || Number.isNaN(value)) return '—';
         const prefix = value > 0 ? '+' : '';
         return `${prefix}${value.toFixed(3)}s`;
     };
-    const positionGainStory = positionGainInsight
-        ? `Start P${positionGainInsight.start} -> Finish P${positionGainInsight.finish} (${positionGainInsight.gain > 0 ? '+' : ''}${positionGainInsight.gain})`
-        : 'Data not yet available';
-    const paceConsistencyStory = paceConsistencyInsight
-        ? `CV ${paceConsistencyInsight.coefficientOfVariation.toFixed(2)}% • σ ${paceConsistencyInsight.standardDeviation.toFixed(3)}s • ${paceConsistencyInsight.lapCount} laps`
-        : 'Data not yet available';
+    const positionGainValue = positionGainInsight
+        ? `${positionGainInsight.gain > 0 ? '+' : ''}${positionGainInsight.gain}`
+        : '—';
+    const positionGainMeta = positionGainInsight
+        ? `Start P${positionGainInsight.start} -> Finish P${positionGainInsight.finish}`
+        : 'No position change data';
+    const paceConsistencyValue = paceConsistencyInsight
+        ? `${paceConsistencyInsight.coefficientOfVariation.toFixed(2)}%`
+        : '—';
+    const paceConsistencyStdDev = formatSeconds(paceConsistencyInsight?.standardDeviation ?? null);
+    const paceConsistencyLapCount = paceConsistencyInsight
+        ? `${paceConsistencyInsight.lapCount}`
+        : '—';
     const tyreDegradationScore = formatSignedSeconds(tyreDegradationSummary?.averageDelta ?? null);
-    const tyreDegradationMeta = tyreDegradationSummary
-        ? `${tyreDegradationSummary.stintCount} stints • ${tyreDegradationSummary.lapCount} laps • slope ${formatSignedSeconds(tyreDegradationSummary.averageSlope)}`
-        : 'Data not yet available';
+    const tyreDegradationSlope = formatSignedSeconds(tyreDegradationSummary?.averageSlope ?? null);
+    const tyreDegradationSample = tyreDegradationSummary
+        ? `${tyreDegradationSummary.stintCount}/${tyreDegradationSummary.lapCount}`
+        : '—';
     const overtakeNetValue =
         overtakeInsight.net > 0 ? `+${overtakeInsight.net}` : `${overtakeInsight.net}`;
 
@@ -433,29 +444,72 @@ export default function DriverOverviewScreen() {
             <View style={styles.insightCard}>
                 <View style={styles.insightHeader}>
                     <Text style={styles.sectionTitle}>Driver Race Insights</Text>
-                    <Text style={styles.sectionSubtitle}>Overtakes, gain, pace consistency and degradation</Text>
+                    <Text style={styles.sectionSubtitle}>Overtakes and position change</Text>
                 </View>
-                <View style={styles.overtakeSummaryCard}>
-                    <Text style={styles.overtakeSummaryLabel}>Overtakes</Text>
-                    <Text style={styles.overtakeSummaryNet}>{overtakeNetValue}</Text>
-                    <Text style={styles.overtakeSummaryMeta}>Net (made - suffered)</Text>
-                    <Text style={styles.overtakeSummaryCounts}>
-                        Made {overtakeInsight.made} • Suffered {overtakeInsight.suffered}
-                    </Text>
+                <View style={styles.insightMetricGrid}>
+                    <View style={styles.insightMetric}>
+                        <Text style={styles.insightMetricLabel}>Overtake Net</Text>
+                        <Text style={styles.insightMetricValue}>{overtakeNetValue}</Text>
+                        <Text style={styles.insightMetricMeta}>
+                            Made {overtakeInsight.made} • Suffered {overtakeInsight.suffered}
+                        </Text>
+                    </View>
+                    <View style={styles.insightMetric}>
+                        <Text style={styles.insightMetricLabel}>Position Gain</Text>
+                        <Text style={styles.insightMetricValue}>{positionGainValue}</Text>
+                        <Text style={styles.insightMetricMeta}>{positionGainMeta}</Text>
+                    </View>
                 </View>
-                <View style={styles.insightRow}>
-                    <Text style={styles.insightRowLabel}>Position Gain Story</Text>
-                    <Text style={styles.insightRowValue}>{positionGainStory}</Text>
+            </View>
+
+            <View style={styles.metricFocusCard}>
+                <View style={styles.insightHeader}>
+                    <Text style={styles.sectionTitle}>Pace Consistency</Text>
+                    <Text style={styles.sectionSubtitle}>Lower CV means more consistent times</Text>
                 </View>
-                <View style={styles.insightRow}>
-                    <Text style={styles.insightRowLabel}>Race Pace Consistency</Text>
-                    <Text style={styles.insightRowValue}>{paceConsistencyStory}</Text>
+                <View style={styles.metricFocusRow}>
+                    <View style={styles.metricFocusTile}>
+                        <Text style={styles.metricFocusLabel}>CV</Text>
+                        <Text style={styles.metricFocusValue}>{paceConsistencyValue}</Text>
+                    </View>
+                    <View style={styles.metricFocusTile}>
+                        <Text style={styles.metricFocusLabel}>σ (seconds)</Text>
+                        <Text style={styles.metricFocusValue}>{paceConsistencyStdDev}</Text>
+                    </View>
+                    <View style={styles.metricFocusTile}>
+                        <Text style={styles.metricFocusLabel}>Valid Laps</Text>
+                        <Text style={styles.metricFocusValue}>{paceConsistencyLapCount}</Text>
+                    </View>
                 </View>
-                <View style={[styles.insightRow, styles.insightRowLast]}>
-                    <Text style={styles.insightRowLabel}>Tyre Degradation Score</Text>
-                    <Text style={styles.insightRowValue}>{tyreDegradationScore}</Text>
-                    <Text style={styles.insightRowMeta}>{tyreDegradationMeta}</Text>
+                <Text style={styles.insightExplainText}>
+                    Uses valid race laps only (pit-out and safety car laps are excluded). Standard
+                    deviation (σ) and coefficient of variation (CV = σ / average lap) are computed.
+                </Text>
+            </View>
+
+            <View style={styles.metricFocusCard}>
+                <View style={styles.insightHeader}>
+                    <Text style={styles.sectionTitle}>Tyre Degradation</Text>
+                    <Text style={styles.sectionSubtitle}>Bigger delta means tyres degrading more</Text>
                 </View>
+                <View style={styles.metricFocusRow}>
+                    <View style={styles.metricFocusTile}>
+                        <Text style={styles.metricFocusLabel}>Delta</Text>
+                        <Text style={styles.metricFocusValue}>{tyreDegradationScore}</Text>
+                    </View>
+                    <View style={styles.metricFocusTile}>
+                        <Text style={styles.metricFocusLabel}>Slope</Text>
+                        <Text style={styles.metricFocusValue}>{tyreDegradationSlope}</Text>
+                    </View>
+                    <View style={styles.metricFocusTile}>
+                        <Text style={styles.metricFocusLabel}>Stints/Laps</Text>
+                        <Text style={styles.metricFocusValue}>{tyreDegradationSample}</Text>
+                    </View>
+                </View>
+                <Text style={styles.insightExplainText}>
+                    Score is the lap-count-weighted average of each stint's first-vs-last lap delta.
+                    Slope is weighted seconds-per-lap trend.
+                </Text>
             </View>
 
             {strategySummary.length ? (
@@ -463,65 +517,54 @@ export default function DriverOverviewScreen() {
                     <View style={styles.strategyHeader}>
                         <View>
                             <Text style={styles.sectionTitle}>Strategy Overview</Text>
-                            <Text style={styles.sectionSubtitle}>Lap coverage & tyre freshness</Text>
+                            <Text style={styles.sectionSubtitle}>Stint data summary including laps and tire status.</Text>
                         </View>
-                        <TouchableOpacity
-                            style={styles.sectionToggle}
-                            onPress={() => setStrategyExpanded(prev => !prev)}
-                        >
-                            <Text style={styles.sectionToggleText}>
-                                {strategyExpanded ? 'Hide' : 'Show'}
-                            </Text>
-                        </TouchableOpacity>
                     </View>
-                    {strategyExpanded ? (
-                        <View style={styles.strategyListCard}>
-                            {strategySummary.map((summary, index) => {
-                                const compoundLabel = getCompoundName(summary.compoundCode);
-                                return (
-                                    <View
-                                        key={summary.stintNumber}
-                                        style={[
-                                            styles.strategyListRow,
-                                            index === strategySummary.length - 1 && styles.strategyListRowLast,
-                                        ]}
-                                    >
-                                        <View style={styles.strategyListInfo}>
-                                            <TyreCompoundBadge
-                                                compound={summary.compoundCode}
-                                                size={42}
-                                                style={styles.strategyCompoundBadge}
-                                            />
-                                            <View>
-                                                <Text style={styles.strategyStintLabel}>Stint {summary.stintNumber}</Text>
-                                                <Text style={styles.strategyCompoundLabel}>{compoundLabel}</Text>
-                                                <Text style={styles.strategyLapValue}>{summary.lapRange}</Text>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.strategyRowContent}
+                    >
+                        {strategySummary.map((summary, index) => {
+                            return (
+                                <View
+                                    key={summary.stintNumber}
+                                    style={[
+                                        styles.strategyCompactCard,
+                                        index === strategySummary.length - 1 && styles.strategyCompactCardLast,
+                                    ]}
+                                >
+                                    <View style={styles.strategyCompactTopRow}>
+                                        <View style={styles.strategyCompactInfoBlock}>
+                                            <View style={styles.strategyStintPill}>
+                                                <Text style={styles.strategyStintPillText}>
+                                                    Stint {summary.stintNumber}
+                                                </Text>
                                             </View>
-                                        </View>
-                                        <View
-                                            style={[
-                                                styles.strategyTyrePill,
-                                                summary.isNewTyre
-                                                    ? styles.strategyTyrePillNew
-                                                    : styles.strategyTyrePillUsed,
-                                            ]}
-                                        >
+                                            <Text style={styles.strategyCompactLaps}>
+                                                L{summary.lapStart} - L{summary.lapEnd}
+                                            </Text>
                                             <Text
                                                 style={[
-                                                    styles.strategyTyreState,
+                                                    styles.strategyCompactTyreState,
                                                     summary.isNewTyre
-                                                        ? styles.strategyTyreStateNew
-                                                        : styles.strategyTyreStateUsed,
+                                                        ? styles.strategyCompactTyreStateNew
+                                                        : styles.strategyCompactTyreStateUsed,
                                                 ]}
                                             >
-                                                {summary.isNewTyre ? 'New Tyre' : 'Used Tyre'}
+                                                {summary.isNewTyre ? 'New tyre' : 'Used tyre'}
                                             </Text>
                                         </View>
+                                        <TyreCompoundBadge
+                                            compound={summary.compoundCode}
+                                            size={38}
+                                            style={styles.strategyCompoundBadge}
+                                        />
                                     </View>
-                                );
-                            })}
-                        </View>
-                    ) : null}
+                                </View>
+                            );
+                        })}
+                    </ScrollView>
                 </View>
             ) : null}
 
@@ -529,7 +572,7 @@ export default function DriverOverviewScreen() {
                 <View style={styles.sectionHeader}>
                     <View>
                         <Text style={styles.sectionTitle}>Stints & Laps</Text>
-                        <Text style={styles.sectionSubtitle}>Tyre evolution with safety car markers</Text>
+                        <Text style={styles.sectionSubtitle}>Complete overview of driver's race laps</Text>
                     </View>
                     <TouchableOpacity
                         style={styles.sectionToggle}
@@ -733,163 +776,142 @@ const styles = StyleSheet.create({
         ...CARD_BASE,
         marginTop: 20,
         marginHorizontal: 16,
-        paddingHorizontal: 20,
-        paddingVertical: 20,
+        paddingHorizontal: 16,
+        paddingVertical: 16,
     },
     strategyHeader: {
-        marginBottom: 12,
+        marginBottom: 10,
+    },
+    strategyRowContent: {
+        paddingVertical: 4,
+    },
+    strategyCompactCard: {
+        width: 134,
+        marginRight: 8,
+    },
+    strategyCompactCardLast: {
+        marginRight: 0,
+    },
+    strategyCompactTopRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 12,
-    },
-    strategyListCard: {
-        marginTop: 16,
         backgroundColor: '#F8F9FC',
-        borderRadius: 18,
-        padding: 16,
-        borderWidth: 1,
+        borderWidth: StyleSheet.hairlineWidth,
         borderColor: '#DFE3EE',
+        borderRadius: 14,
+        paddingHorizontal: 10,
+        paddingVertical: 10,
+        minHeight: 84,
     },
-    strategyListRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 12,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#DDE1ED',
-    },
-    strategyListRowLast: {
-        borderBottomWidth: 0,
-        paddingBottom: 0,
-    },
-    strategyListInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    strategyCompactInfoBlock: {
         flex: 1,
-        gap: 12,
+        paddingRight: 6,
+    },
+    strategyStintPill: {
+        backgroundColor: '#ECEFF9',
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+    },
+    strategyStintPillText: {
+        fontSize: 11,
+        letterSpacing: 0.5,
+        textTransform: 'uppercase',
+        color: '#5D647E',
+        fontWeight: '600',
     },
     strategyCompoundBadge: {
-        marginRight: 2,
+        marginRight: -1,
     },
-    strategyStintLabel: {
-        fontSize: 12,
-        letterSpacing: 0.8,
-        textTransform: 'uppercase',
-        color: '#8B8FA8',
+    strategyCompactLaps: {
+        marginTop: 8,
+        fontSize: 11,
+        color: '#6D738C',
         fontWeight: '700',
     },
-    strategyCompoundLabel: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#15151E',
-        textTransform: 'capitalize',
-        marginTop: 2,
-    },
-    strategyLapValue: {
-        marginTop: 2,
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#15151E',
-    },
-    strategyTyrePill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        borderRadius: 999,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E1E4EF',
-        backgroundColor: '#FFF',
-    },
-    strategyTyrePillNew: {
-        backgroundColor: 'rgba(31,138,77,0.12)',
-        borderColor: 'rgba(31,138,77,0.4)',
-    },
-    strategyTyrePillUsed: {
-        backgroundColor: 'rgba(106,111,135,0.12)',
-        borderColor: 'rgba(106,111,135,0.4)',
-    },
-    strategyTyreState: {
-        fontSize: 13,
+    strategyCompactTyreState: {
+        marginTop: 4,
+        fontSize: 11,
         fontWeight: '700',
     },
-    strategyTyreStateNew: {
+    strategyCompactTyreStateNew: {
         color: '#1F8A4D',
     },
-    strategyTyreStateUsed: {
+    strategyCompactTyreStateUsed: {
         color: '#6A6F87',
     },
     insightCard: {
         ...CARD_BASE,
         marginTop: 20,
         marginHorizontal: 16,
-        paddingHorizontal: 20,
-        paddingVertical: 20,
+        paddingHorizontal: 16,
+        paddingVertical: 16,
     },
     insightHeader: {
-        marginBottom: 14,
+        marginBottom: 10,
     },
-    overtakeSummaryCard: {
-        borderRadius: 16,
-        backgroundColor: '#F4F6FD',
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#DEE3F1',
-        paddingVertical: 14,
-        paddingHorizontal: 14,
-        marginBottom: 12,
+    insightMetricGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginHorizontal: -4,
     },
-    overtakeSummaryLabel: {
-        fontSize: 12,
+    insightMetric: {
+        width: '50%',
+        paddingHorizontal: 4,
+        marginTop: 8,
+    },
+    insightMetricLabel: {
+        fontSize: 11,
         textTransform: 'uppercase',
-        letterSpacing: 0.7,
-        color: '#6E738B',
+        letterSpacing: 0.8,
+        color: '#717791',
         fontWeight: '700',
     },
-    overtakeSummaryNet: {
+    insightMetricValue: {
         marginTop: 4,
-        fontSize: 26,
+        fontSize: 22,
         fontWeight: '800',
         color: '#15151E',
     },
-    overtakeSummaryMeta: {
+    insightMetricMeta: {
         marginTop: 2,
         fontSize: 12,
-        color: '#7C7C85',
+        color: '#666C85',
     },
-    overtakeSummaryCounts: {
-        marginTop: 4,
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#3F455F',
+    metricFocusCard: {
+        ...CARD_BASE,
+        marginTop: 10,
+        marginHorizontal: 16,
+        paddingVertical: 16,
+        paddingHorizontal: 14,
     },
-    insightRow: {
-        paddingVertical: 12,
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: '#E1E4EF',
+    metricFocusRow: {
+        flexDirection: 'row',
+        marginHorizontal: -4,
     },
-    insightRowLast: {
-        paddingBottom: 0,
+    metricFocusTile: {
+        flex: 1,
+        paddingHorizontal: 4,
     },
-    insightRowLabel: {
-        fontSize: 12,
+    metricFocusLabel: {
+        fontSize: 11,
         textTransform: 'uppercase',
         letterSpacing: 0.7,
-        color: '#7C7C85',
+        color: '#717791',
         fontWeight: '700',
     },
-    insightRowValue: {
+    metricFocusValue: {
         marginTop: 4,
-        fontSize: 15,
+        fontSize: 22,
+        fontWeight: '800',
         color: '#15151E',
-        fontWeight: '600',
     },
-    insightRowMeta: {
-        marginTop: 2,
+    insightExplainText: {
+        marginTop: 6,
         fontSize: 12,
-        color: '#7C7C85',
+        lineHeight: 18,
+        color: '#656B84',
     },
     section: {
         ...CARD_BASE,
@@ -897,25 +919,27 @@ const styles = StyleSheet.create({
         marginHorizontal: 16,
     },
     sectionHeader: {
-        padding: 20,
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 12,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         gap: 12,
     },
     sectionTitle: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '700',
         color: '#15151E',
     },
     sectionSubtitle: {
-        marginTop: 4,
-        fontSize: 14,
+        marginTop: 2,
+        fontSize: 12,
         color: '#7C7C85',
     },
     sectionToggle: {
         paddingHorizontal: 12,
-        paddingVertical: 6,
+        paddingVertical: 7,
         borderRadius: 999,
         backgroundColor: '#EFF0F7',
     },
@@ -925,8 +949,8 @@ const styles = StyleSheet.create({
         color: '#4D5166',
     },
     sectionBody: {
-        paddingHorizontal: 20,
-        paddingBottom: 20,
+        paddingHorizontal: 16,
+        paddingBottom: 16,
     },
     noData: {
         fontSize: 14,

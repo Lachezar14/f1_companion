@@ -34,6 +34,31 @@ type DriverOption = {
     teamColor?: string | null;
 };
 
+const parseLapTimeToSeconds = (value: string | null | undefined): number | null => {
+    if (!value || value === '—') return null;
+    const normalized = value.trim();
+
+    const dotFormat = normalized.match(/^(\d+):(\d{1,2})\.(\d{3})$/);
+    if (dotFormat) {
+        const minutes = Number(dotFormat[1]);
+        const seconds = Number(dotFormat[2]);
+        const millis = Number(dotFormat[3]);
+        if ([minutes, seconds, millis].some(part => Number.isNaN(part))) return null;
+        return minutes * 60 + seconds + millis / 1000;
+    }
+
+    const colonFormat = normalized.match(/^(\d+):(\d{1,2}):(\d{3})$/);
+    if (colonFormat) {
+        const minutes = Number(colonFormat[1]);
+        const seconds = Number(colonFormat[2]);
+        const millis = Number(colonFormat[3]);
+        if ([minutes, seconds, millis].some(part => Number.isNaN(part))) return null;
+        return minutes * 60 + seconds + millis / 1000;
+    }
+
+    return null;
+};
+
 const QualifyingScreen = () => {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const navigation = useNavigation<NavigationProp>();
@@ -80,6 +105,12 @@ const QualifyingScreen = () => {
             }),
         [driverEntryMap, rows]
     );
+    const defaultDriverNumber = useMemo(() => {
+        if (rows.length && rows[0]?.driverNumber) {
+            return rows[0].driverNumber;
+        }
+        return driverEntries[0]?.driverNumber ?? null;
+    }, [rows, driverEntries]);
 
     const heroDate = data?.date_start
         ? new Date(data.date_start).toLocaleDateString('en-US', {
@@ -90,14 +121,40 @@ const QualifyingScreen = () => {
         : null;
 
     const poleLap = rows[0]?.best ?? '—';
-    const poleMargin = rows[1]?.gapToPole ?? '—';
+    const getBestRowLapSeconds = (row: { q1: string | null; q2: string | null; q3: string | null; best: string | null }) => {
+        const phaseTimes = [row.q1, row.q2, row.q3]
+            .map(parseLapTimeToSeconds)
+            .filter((time): time is number => typeof time === 'number' && Number.isFinite(time));
+        if (phaseTimes.length) return Math.min(...phaseTimes);
+        return parseLapTimeToSeconds(row.best);
+    };
+    const lastDriverWithLap = useMemo(
+        () =>
+            [...rows]
+                .reverse()
+                .find(row => getBestRowLapSeconds(row) != null) ?? null,
+        [rows]
+    );
+    const poleMargin = useMemo(() => {
+        if (!rows.length || !lastDriverWithLap) return '—';
+
+        const poleSeconds = getBestRowLapSeconds(rows[0]);
+        const lastSeconds = getBestRowLapSeconds(lastDriverWithLap);
+        if (poleSeconds == null || lastSeconds == null) {
+            return lastDriverWithLap.gapToPole ?? '—';
+        }
+
+        const delta = lastSeconds - poleSeconds;
+        if (!Number.isFinite(delta)) return '—';
+        return `+${Math.max(delta, 0).toFixed(3)}s`;
+    }, [lastDriverWithLap, rows]);
     const q3Cutoff = rows.find(row => row.position === 10)?.q2 ?? null;
     const q2Cutoff = rows.find(row => row.position === 15)?.q1 ?? null;
 
     const heroStats = [
         { label: 'Drivers', value: rows.length || '–' },
         { label: 'Pole Lap', value: poleLap },
-        { label: 'Pole Margin', value: poleMargin },
+        { label: 'Grid Margin', value: poleMargin },
     ];
 
     const insightsMetrics = [
@@ -154,6 +211,12 @@ const QualifyingScreen = () => {
         const prefix = value > 0 ? '+' : '';
         return `${prefix}${value.toFixed(3)}s`;
     };
+    const formatGainDelta = (value?: number | null) => {
+        if (typeof value !== 'number' || Number.isNaN(value)) return '—';
+        if (value > 0) return `-${value.toFixed(3)}s`;
+        if (value < 0) return `+${Math.abs(value).toFixed(3)}s`;
+        return '0.000s';
+    };
     const formatLapValue = (value?: number | null) =>
         typeof value === 'number' && value > 0 ? formatLapTime(value) : '—';
 
@@ -179,6 +242,9 @@ const QualifyingScreen = () => {
         },
         [driverEntryMap, driverOptions, meetingName, navigation, sessionKey, sessionName]
     );
+    const handleOpenDriverOverview = useCallback(() => {
+        handleOpenDriverQualifyingDetails(defaultDriverNumber);
+    }, [defaultDriverNumber, handleOpenDriverQualifyingDetails]);
 
     if (loading) {
         return (
@@ -249,6 +315,23 @@ const QualifyingScreen = () => {
                         {rows.length || 0} {rows.length === 1 ? 'driver' : 'drivers'}
                     </Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                    style={[
+                        styles.actionButton,
+                        styles.actionButtonSecondary,
+                        !defaultDriverNumber && styles.actionButtonDisabled,
+                    ]}
+                    activeOpacity={0.9}
+                    onPress={handleOpenDriverOverview}
+                    disabled={!defaultDriverNumber}
+                >
+                    <Text style={[styles.actionButtonText, styles.actionButtonTextDark]}>
+                        Driver Overview
+                    </Text>
+                    <Text style={[styles.actionButtonSubtitle, styles.actionButtonSubtitleDark]}>
+                        Open full qualifying driver detail
+                    </Text>
+                </TouchableOpacity>
             </View>
 
             <View style={styles.snapshotCard}>
@@ -270,7 +353,6 @@ const QualifyingScreen = () => {
                 <View style={styles.poleCard}>
                     <View style={styles.cardHeader}>
                         <Text style={styles.cardOverline}>Pole Position</Text>
-                        <Text style={styles.cardTitle}>Fastest driver in Q3</Text>
                     </View>
                     <Text style={styles.poleDriver}>{poleResult.driverName}</Text>
                     <Text style={styles.poleTeam}>{poleResult.teamName}</Text>
@@ -326,12 +408,12 @@ const QualifyingScreen = () => {
                             <View style={styles.analyticsInfo}>
                                 <Text style={styles.analyticsName}>{entry.driverName}</Text>
                                 <Text style={styles.analyticsMeta}>
-                                    {entry.teamName} • Q1→Q2 {formatSignedDelta(entry.q1ToQ2)} • Q2→Q3{' '}
-                                    {formatSignedDelta(entry.q2ToQ3)}
+                                    {entry.teamName} • Q1→Q2 {formatGainDelta(entry.q1ToQ2)} • Q2→Q3{' '}
+                                    {formatGainDelta(entry.q2ToQ3)}
                                 </Text>
                             </View>
                             <Text style={styles.analyticsValue}>
-                                {formatSignedDelta(entry.improvementToBest)}
+                                {formatGainDelta(entry.improvementToBest)}
                             </Text>
                         </View>
                     ))
@@ -501,11 +583,14 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
     },
     actionRow: {
+        flexDirection: 'row',
+        gap: 12,
         marginHorizontal: 16,
-        marginBottom: 8,
+        marginBottom: 4,
     },
     actionButton: {
         borderRadius: 20,
+        flex: 1,
         paddingVertical: 16,
         paddingHorizontal: 16,
         backgroundColor: '#15151E',
@@ -514,6 +599,15 @@ const styles = StyleSheet.create({
         shadowRadius: 10,
         shadowOffset: { width: 0, height: 6 },
         elevation: 4,
+    },
+    actionButtonSecondary: {
+        backgroundColor: '#FFFFFF',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#D9DFEA',
+        shadowOpacity: 0.05,
+    },
+    actionButtonDisabled: {
+        opacity: 0.5,
     },
     actionButtonText: {
         fontSize: 16,
@@ -524,6 +618,12 @@ const styles = StyleSheet.create({
         marginTop: 6,
         fontSize: 13,
         color: 'rgba(255,255,255,0.8)',
+    },
+    actionButtonTextDark: {
+        color: '#15151E',
+    },
+    actionButtonSubtitleDark: {
+        color: '#6E738B',
     },
     snapshotCard: {
         marginHorizontal: 16,

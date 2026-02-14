@@ -971,6 +971,7 @@ const styles = StyleSheet.create({
     },
     lapRow: {
         marginTop: 12,
+        paddingTop: 10,
         paddingBottom: 12,
         borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: '#E6E8F0',
@@ -978,8 +979,10 @@ const styles = StyleSheet.create({
     fastestLapRow: {
         backgroundColor: '#F1F8EE',
         borderRadius: 12,
+        marginHorizontal: -10,
         paddingHorizontal: 10,
-        paddingTop: 10,
+        borderWidth: 1,
+        borderColor: '#CFE7C6',
     },
     lapRowLast: {
         borderBottomWidth: 0,
