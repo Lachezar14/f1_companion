@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { colors, radius, semanticColors, spacing, typography } from '../../../theme/tokens';
 import {
     ActivityIndicator,
     FlatList,
@@ -119,7 +120,7 @@ const OvertakeCard = ({
             <DriverAvatar profile={overtakingDriver} />
             <DriverInfo label="Overtook" profile={overtakingDriver} />
             <View style={styles.chevronWrapper}>
-                <MaterialCommunityIcons name="chevron-double-right" size={32} color="#00C853" />
+                <MaterialCommunityIcons name="chevron-double-right" size={32} color={semanticColors.success} />
             </View>
             <DriverInfo label="Overtaken" profile={overtakenDriver} />
             <DriverAvatar profile={overtakenDriver} />
@@ -243,7 +244,7 @@ const RaceOvertakesScreen = () => {
 
             {loadingDrivers && (
                 <View style={styles.loadingRow}>
-                    <ActivityIndicator color="#E10600" />
+                    <ActivityIndicator color={semanticColors.danger} />
                     <Text style={styles.loadingText}>Enriching driver profiles...</Text>
                 </View>
             )}
@@ -275,57 +276,57 @@ export default RaceOvertakesScreen;
 
 const styles = StyleSheet.create({
     container: {
-        padding: 16,
-        paddingBottom: 32,
-        backgroundColor: '#F5F5F7',
+        padding: spacing.md,
+        paddingBottom: spacing.xxl,
+        backgroundColor: semanticColors.background,
     },
     center: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 32,
-        backgroundColor: '#F5F5F7',
+        padding: spacing.xxl,
+        backgroundColor: semanticColors.background,
     },
     emptyTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: '#1C1C27',
-        marginBottom: 8,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.semibold,
+        color: semanticColors.surfaceInverse,
+        marginBottom: spacing.xs,
     },
     emptySubtitle: {
         color: '#757575',
         textAlign: 'center',
     },
     heroCard: {
-        backgroundColor: '#1C1C27',
-        borderRadius: 24,
-        padding: 20,
-        marginBottom: 16,
+        backgroundColor: semanticColors.surfaceInverse,
+        borderRadius: radius.xxl,
+        padding: spacing.lg,
+        marginBottom: spacing.md,
     },
     heroTitle: {
-        color: '#FFFFFF',
-        fontSize: 24,
-        fontWeight: '700',
+        color: semanticColors.surface,
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.bold,
     },
     heroSubtitle: {
         color: 'rgba(255,255,255,0.8)',
-        marginTop: 4,
+        marginTop: spacing.xxs,
     },
     heroStats: {
         flexDirection: 'row',
-        marginTop: 16,
+        marginTop: spacing.md,
     },
     heroStat: {
-        marginRight: 24,
+        marginRight: spacing.xl,
     },
     heroStatValue: {
-        color: '#FFFFFF',
-        fontSize: 20,
-        fontWeight: '700',
+        color: semanticColors.surface,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
     },
     heroStatLabel: {
         color: 'rgba(255,255,255,0.75)',
-        fontSize: 12,
+        fontSize: typography.size.sm,
         marginTop: 2,
         textTransform: 'uppercase',
         letterSpacing: 0.8,
@@ -333,21 +334,21 @@ const styles = StyleSheet.create({
     loadingRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 8,
+        paddingVertical: spacing.xs,
     },
     loadingText: {
-        marginLeft: 8,
+        marginLeft: spacing.xs,
         color: '#757575',
     },
     listContent: {
-        paddingBottom: 16,
+        paddingBottom: spacing.md,
     },
     card: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
-        shadowColor: '#000',
+        backgroundColor: semanticColors.surface,
+        borderRadius: radius.lg,
+        padding: spacing.md,
+        marginBottom: spacing.sm,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.08,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 4 },
@@ -357,16 +358,16 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 12,
+        marginBottom: spacing.sm,
     },
     cardTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#1C1C27',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.semibold,
+        color: semanticColors.surfaceInverse,
     },
     cardSubtitle: {
         color: '#757575',
-        fontSize: 13,
+        fontSize: typography.size.sm,
     },
     cardBody: {
         flexDirection: 'row',
@@ -376,8 +377,8 @@ const styles = StyleSheet.create({
     avatar: {
         width: 56,
         height: 56,
-        borderRadius: 28,
-        backgroundColor: '#E0E0E0',
+        borderRadius: radius.xxl,
+        backgroundColor: semanticColors.border,
     },
     avatarFallback: {
         alignItems: 'center',
@@ -385,30 +386,30 @@ const styles = StyleSheet.create({
         backgroundColor: '#ECECEC',
     },
     avatarFallbackText: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1C1C27',
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.surfaceInverse,
     },
     driverInfo: {
         flex: 1,
-        marginHorizontal: 8,
+        marginHorizontal: spacing.xs,
     },
     driverLabel: {
-        fontSize: 12,
-        color: '#00C853',
+        fontSize: typography.size.sm,
+        color: semanticColors.success,
         textTransform: 'uppercase',
         letterSpacing: 0.6,
     },
     driverName: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#1C1C27',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.semibold,
+        color: semanticColors.surfaceInverse,
     },
     driverTeam: {
-        fontSize: 13,
+        fontSize: typography.size.sm,
         color: '#757575',
     },
     chevronWrapper: {
-        paddingHorizontal: 4,
+        paddingHorizontal: spacing.xxs,
     },
 });

@@ -1,26 +1,30 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { Lap, Stint } from '../../../backend/types';
 import { formatLapTime } from '../../../shared/time';
 import { getAverageLapTime, getBestLapTime } from '../../../utils/lap';
 import { getCompoundName } from '../../../utils/tyre';
-import TyreCompoundBadge from '../common/TyreCompoundBadge';
+import StintHeader from './StintHeader';
+import { colors, overlays, radius, semanticColors, spacing, typography } from '../../theme/tokens';
 
-interface RaceStintCardProps {
+interface StintCardProps {
     stint: Stint;
     laps: Lap[];
     showDivider?: boolean;
     safetyCarLapSet?: Set<number>;
+    pitInLapSet?: Set<number>;
 }
 
 const EMPTY_SET: Set<number> = new Set();
 
-export default function RaceStintCard({
+export default function StintCard({
     stint,
     laps,
     showDivider = false,
     safetyCarLapSet,
-}: RaceStintCardProps) {
+    pitInLapSet,
+}: StintCardProps) {
     const sortedLaps = useMemo(() => [...laps].sort((a, b) => a.lap_number - b.lap_number), [laps]);
     const selectableLapNumbers = useMemo(
         () => sortedLaps.filter(lap => lap.lap_duration && lap.lap_duration > 0).map(lap => lap.lap_number),
@@ -48,16 +52,35 @@ export default function RaceStintCard({
     const selectedLapCount = selectedLapNumbers.length;
     const averageLap = getAverageLapTime(selectedLapObjects);
     const bestLap = getBestLapTime(selectedLapObjects);
+    const fastestLapInStint = useMemo(
+        () =>
+            sortedLaps.reduce<Lap | null>((best, lap) => {
+                if (!lap.lap_duration || lap.lap_duration <= 0) return best;
+                if (!best || (lap.lap_duration as number) < (best.lap_duration as number)) {
+                    return lap;
+                }
+                return best;
+            }, null),
+        [sortedLaps]
+    );
     const compoundName = getCompoundName(stint.compound);
     const scSet = safetyCarLapSet ?? EMPTY_SET;
     const isNewTyre = !stint.tyre_age_at_start || stint.tyre_age_at_start <= 0;
-    const pitInLapSet = useMemo(() => {
+    const derivedPitInLapSet = useMemo(() => {
         const lapsBeforePitOut = sortedLaps
             .filter(lap => lap.is_pit_out_lap)
             .map(lap => lap.lap_number - 1)
             .filter(lapNumber => lapNumber > 0);
         return new Set(lapsBeforePitOut);
     }, [sortedLaps]);
+    const effectivePitInLapSet = useMemo(() => {
+        if (!pitInLapSet) {
+            return derivedPitInLapSet;
+        }
+        const merged = new Set<number>(derivedPitInLapSet);
+        pitInLapSet.forEach(lapNumber => merged.add(lapNumber));
+        return merged;
+    }, [derivedPitInLapSet, pitInLapSet]);
 
     const handleToggleLap = (lapNumber: number, canSelect: boolean) => {
         if (!canSelect) return;
@@ -73,7 +96,7 @@ export default function RaceStintCard({
 
     const renderLapNotes = (lap: Lap): Array<{ label: string; style: 'sc' | 'pit' | 'pitIn' }> => {
         const notes: Array<{ label: string; style: 'sc' | 'pit' | 'pitIn' }> = [];
-        if (pitInLapSet.has(lap.lap_number)) {
+        if (effectivePitInLapSet.has(lap.lap_number)) {
             notes.push({ label: 'Pit In', style: 'pitIn' });
         }
         if (lap.is_pit_out_lap) {
@@ -89,30 +112,15 @@ export default function RaceStintCard({
 
     return (
         <View style={[styles.container, showDivider && styles.containerDivider]}>
-            <View style={styles.header}>
-                <Text style={styles.overline}>Stint {stint.stint_number}</Text>
-                <View style={styles.compoundRow}>
-                    <View style={styles.titleRow}>
-                        <TyreCompoundBadge compound={stint.compound} size={28} />
-                        <Text style={styles.title}>{compoundName}</Text>
-                    </View>
-                    <View
-                        style={[
-                            styles.tyreStatePill,
-                            isNewTyre ? styles.tyreStatePillNew : styles.tyreStatePillUsed,
-                        ]}
-                    >
-                        <Text
-                            style={[
-                                styles.tyreStateText,
-                                isNewTyre ? styles.tyreStateTextNew : styles.tyreStateTextUsed,
-                            ]}
-                        >
-                            {isNewTyre ? 'New tyre' : 'Used tyre'}
-                        </Text>
-                    </View>
-                </View>
-            </View>
+            <StintHeader
+                stintNumber={stint.stint_number}
+                compound={stint.compound}
+                title={compoundName}
+                subtitle={`Laps ${stint.lap_start} – ${stint.lap_end}`}
+                meta={`${selectedLapCount}/${loggedLaps} clean laps selected`}
+                isNewTyre={isNewTyre}
+                tyreStateLabel={isNewTyre ? 'New tyre' : 'Used tyre'}
+            />
 
             <View style={styles.statRow}>
                 <View style={styles.statPill}>
@@ -134,6 +142,9 @@ export default function RaceStintCard({
                         const canSelect = isLapSelectable(lap);
                         const isSelected = selectedLapNumbers.includes(lap.lap_number);
                         const notes = renderLapNotes(lap);
+                        const isFastestLap =
+                            fastestLapInStint?.lap_number === lap.lap_number &&
+                            fastestLapInStint?.date_start === lap.date_start;
 
                         return (
                             <TouchableOpacity
@@ -142,6 +153,8 @@ export default function RaceStintCard({
                                 onPress={() => handleToggleLap(lap.lap_number, canSelect)}
                                 style={[
                                     styles.lapCard,
+                                    scSet.has(lap.lap_number) && styles.scLapCard,
+                                    isFastestLap && styles.fastestLapCard,
                                     !canSelect && styles.disabledLapCard,
                                     canSelect && !isSelected && styles.unselectedLapCard,
                                     index === sortedLaps.length - 1 && styles.lapCardLast,
@@ -161,8 +174,18 @@ export default function RaceStintCard({
                                             ) : null}
                                         </View>
                                         <Text style={styles.lapNumber}>Lap {lap.lap_number}</Text>
-                                        {notes.length ? (
+                                        {notes.length || isFastestLap ? (
                                             <View style={styles.noteBadgeRow}>
+                                                {isFastestLap ? (
+                                                    <View style={styles.fastestBadge}>
+                                                        <Ionicons
+                                                            name="timer-outline"
+                                                            size={10}
+                                                            color="#5A3CA8"
+                                                        />
+                                                        <Text style={styles.fastestBadgeText}>FASTEST</Text>
+                                                    </View>
+                                                ) : null}
                                                 {notes.map((note, noteIndex) => (
                                                     <View
                                                         key={`${note.label}-${noteIndex}`}
@@ -211,114 +234,63 @@ export default function RaceStintCard({
 
 const styles = StyleSheet.create({
     container: {
-        paddingVertical: 12,
+        paddingVertical: spacing.sm,
     },
     containerDivider: {
         borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: '#E4E7F0',
     },
-    header: {
-        marginBottom: 2,
-    },
-    compoundRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: 10,
-    },
-    overline: {
-        fontSize: 11,
-        letterSpacing: 0.8,
-        textTransform: 'uppercase',
-        color: '#737A95',
-        fontWeight: '700',
-    },
-    titleRow: {
-        marginTop: 6,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        flex: 1,
-    },
-    title: {
-        fontSize: 17,
-        fontWeight: '700',
-        color: '#15151E',
-        textTransform: 'capitalize',
-    },
-    metaText: {
-        marginTop: 4,
-        fontSize: 12,
-        color: '#8288A3',
-    },
-    tyreStatePill: {
-        borderRadius: 999,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderWidth: 1,
-    },
-    tyreStatePillNew: {
-        backgroundColor: 'rgba(31,138,77,0.12)',
-        borderColor: 'rgba(31,138,77,0.4)',
-    },
-    tyreStatePillUsed: {
-        backgroundColor: 'rgba(106,111,135,0.12)',
-        borderColor: 'rgba(106,111,135,0.35)',
-    },
-    tyreStateText: {
-        fontSize: 11,
-        fontWeight: '700',
-        letterSpacing: 0.3,
-    },
-    tyreStateTextNew: {
-        color: '#1F8A4D',
-    },
-    tyreStateTextUsed: {
-        color: '#6A6F87',
-    },
     statRow: {
-        marginTop: 10,
+        marginTop: spacing.sm,
         flexDirection: 'row',
-        gap: 8,
+        gap: spacing.xs,
     },
     statPill: {
         flex: 1,
         backgroundColor: '#F5F6FA',
-        borderRadius: 12,
+        borderRadius: radius.md,
         paddingVertical: 9,
-        paddingHorizontal: 10,
+        paddingHorizontal: spacing.sm,
     },
     statLabel: {
         fontSize: 10,
         textTransform: 'uppercase',
         letterSpacing: 0.8,
         color: '#8388A1',
-        fontWeight: '700',
+        fontWeight: typography.weight.bold,
     },
     statValue: {
-        marginTop: 4,
-        fontSize: 16,
-        fontWeight: '700',
+        marginTop: spacing.xxs,
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
         color: '#1B1E2D',
     },
     selectionHint: {
-        marginTop: 8,
-        fontSize: 11,
+        marginTop: spacing.xs,
+        fontSize: typography.size.xs,
         color: '#8C91A8',
     },
     lapList: {
-        marginTop: 10,
+        marginTop: spacing.sm,
         borderWidth: 1,
         borderColor: '#E3E5EF',
-        borderRadius: 12,
-        backgroundColor: '#FBFCFF',
+        borderRadius: radius.md,
+        backgroundColor: semanticColors.surface,
         overflow: 'hidden',
     },
     lapCard: {
-        paddingHorizontal: 12,
+        paddingHorizontal: spacing.sm,
         paddingVertical: 11,
         borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: '#E5E8F2',
+    },
+    scLapCard: {
+        backgroundColor: 'rgba(255, 218, 103, 0.2)',
+    },
+    fastestLapCard: {
+        backgroundColor: 'rgba(172, 140, 255, 0.16)',
+        borderLeftWidth: 2,
+        borderLeftColor: colors.accents.lavender,
     },
     lapCardLast: {
         borderBottomWidth: 0,
@@ -337,7 +309,7 @@ const styles = StyleSheet.create({
     lapTopLeft: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: spacing.xs,
     },
     checkbox: {
         width: 20,
@@ -347,56 +319,73 @@ const styles = StyleSheet.create({
         borderColor: '#C8CCDA',
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#FFFFFF',
+        backgroundColor: semanticColors.surface,
     },
     checkboxChecked: {
-        backgroundColor: '#15151E',
-        borderColor: '#15151E',
+        backgroundColor: semanticColors.textPrimary,
+        borderColor: semanticColors.textPrimary,
     },
     checkboxDisabled: {
         borderColor: '#D5D8E6',
     },
     checkboxTick: {
-        color: '#FFF',
-        fontSize: 12,
-        fontWeight: '700',
+        color: semanticColors.surface,
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
     },
     lapNumber: {
-        fontSize: 14,
-        fontWeight: '700',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
         color: '#252A3E',
     },
     lapTime: {
-        fontSize: 15,
-        fontWeight: '700',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
         color: '#1F2333',
     },
     noteBadge: {
-        paddingHorizontal: 8,
+        paddingHorizontal: spacing.xs,
         paddingVertical: 3,
-        borderRadius: 10,
+        borderRadius: radius.sm,
     },
     noteBadgeRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 5,
     },
+    fastestBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: spacing.xs,
+        paddingVertical: 3,
+        borderRadius: radius.sm,
+        backgroundColor: '#F8F5FF',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E2DAFF',
+    },
+    fastestBadgeText: {
+        fontSize: 10,
+        fontWeight: typography.weight.heavy,
+        letterSpacing: 0.3,
+        color: '#5A3CA8',
+    },
     noteBadgeText: {
         fontSize: 10,
-        fontWeight: '700',
+        fontWeight: typography.weight.bold,
         letterSpacing: 0.3,
     },
     scBadge: {
-        backgroundColor: 'rgba(255, 218, 103, 0.35)',
+        backgroundColor: '#fad98b',
     },
     scBadgeText: {
-        color: '#8D6E00',
+        color: '#3B2A00',
     },
     pitBadge: {
-        backgroundColor: 'rgba(225, 6, 0, 0.12)',
+        backgroundColor: overlays.brand12,
     },
     pitBadgeText: {
-        color: '#B40012',
+        color: semanticColors.dangerStrong,
     },
     pitInBadge: {
         backgroundColor: 'rgba(255, 125, 0, 0.15)',
@@ -405,11 +394,11 @@ const styles = StyleSheet.create({
         color: '#A65200',
     },
     emptyState: {
-        padding: 14,
+        padding: spacing.md,
         alignItems: 'center',
     },
     emptyText: {
-        fontSize: 13,
+        fontSize: typography.size.sm,
         color: '#8C90A6',
         fontStyle: 'italic',
     },

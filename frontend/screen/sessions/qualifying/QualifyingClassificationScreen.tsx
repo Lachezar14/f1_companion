@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
+import { semanticColors, spacing, typography } from '../../../theme/tokens';
 import {
     ActivityIndicator,
     RefreshControl,
@@ -77,7 +78,7 @@ const QualifyingClassificationScreen = () => {
     if (loading) {
         return (
             <View style={styles.center}>
-                <ActivityIndicator size="large" color="#E10600" />
+                <ActivityIndicator size="large" color={semanticColors.danger} />
                 <Text style={styles.message}>Loading classification...</Text>
             </View>
         );
@@ -97,7 +98,7 @@ const QualifyingClassificationScreen = () => {
         <ScrollView
             style={styles.container}
             refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#E10600" />
+                <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={semanticColors.danger} />
             }
         >
             <View style={styles.header}>
@@ -118,57 +119,57 @@ export default QualifyingClassificationScreen;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F6F6F8',
+        backgroundColor: semanticColors.backgroundMuted,
     },
     center: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 24,
+        padding: spacing.xl,
     },
     header: {
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 8,
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.xs,
     },
     overline: {
-        fontSize: 12,
+        fontSize: typography.size.sm,
         color: '#7C7F93',
-        fontWeight: '700',
-        letterSpacing: 1,
+        fontWeight: typography.weight.bold,
+        letterSpacing: typography.letterSpacing.wider,
         textTransform: 'uppercase',
     },
     title: {
-        marginTop: 4,
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#15151E',
+        marginTop: spacing.xxs,
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     subtitle: {
-        marginTop: 4,
-        fontSize: 14,
+        marginTop: spacing.xxs,
+        fontSize: typography.size.base,
         color: '#7C7F93',
     },
     errorTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#E10600',
-        marginBottom: 6,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.danger,
+        marginBottom: spacing.xs,
     },
     message: {
-        fontSize: 14,
+        fontSize: typography.size.base,
         color: '#5F6272',
         textAlign: 'center',
     },
     hint: {
-        marginTop: 6,
-        fontSize: 12,
+        marginTop: spacing.xs,
+        fontSize: typography.size.sm,
         color: '#8A9AB6',
     },
     footerHint: {
         textAlign: 'center',
         paddingVertical: 18,
         color: '#9A9FB5',
-        fontSize: 12,
+        fontSize: typography.size.sm,
     },
 });

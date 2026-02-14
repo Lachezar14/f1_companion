@@ -1,4 +1,5 @@
 import React from 'react';
+import { colors, radius, semanticColors, spacing, typography } from '../../theme/tokens';
 import {
     StyleSheet,
     Text,
@@ -7,6 +8,7 @@ import {
 } from 'react-native';
 import type { RaceDriverClassification } from '../../../backend/types';
 import { deriveDriverCode } from '../../../utils/driver';
+import DriverNumberBadge from '../common/DriverNumberBadge';
 
 type RaceResultRowProps = {
     data: RaceDriverClassification;
@@ -62,14 +64,11 @@ const RaceResultRow: React.FC<RaceResultRowProps> = ({ data, onPress, showDivide
             </View>
 
             <View style={styles.driverColumn}>
-                <View
-                    style={[
-                        styles.driverBubble,
-                        { backgroundColor: data.teamColor ? `#${data.teamColor}` : '#15151E' },
-                    ]}
-                >
-                    <Text style={styles.driverBubbleText}>{data.driverNumber}</Text>
-                </View>
+                <DriverNumberBadge
+                    driverNumber={data.driverNumber}
+                    teamColor={data.teamColor}
+                    style={styles.numberBadge}
+                />
                 <View style={styles.driverInfo}>
                     <Text style={styles.driverCode}>{getDriverCode()}</Text>
                     <Text style={styles.teamName} numberOfLines={1}>
@@ -113,37 +112,37 @@ const RaceResultsSection: React.FC<RaceResultsSectionProps> = ({
 
 const styles = StyleSheet.create({
     section: {
-        margin: 16,
-        backgroundColor: '#FFF',
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 4,
-        borderRadius: 20,
+        margin: spacing.md,
+        backgroundColor: semanticColors.surface,
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.xxs,
+        borderRadius: radius.xl,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E3E3E3',
-        shadowColor: '#000',
+        borderColor: semanticColors.border,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.05,
         shadowRadius: 6,
         shadowOffset: { width: 0, height: 3 },
         elevation: 2,
     },
     sectionTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#15151E',
-        marginBottom: 12,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
+        marginBottom: spacing.sm,
     },
     noData: {
-        fontSize: 14,
-        color: '#999',
+        fontSize: typography.size.base,
+        color: semanticColors.textMuted,
         textAlign: 'center',
-        paddingVertical: 20,
+        paddingVertical: spacing.lg,
         fontStyle: 'italic',
     },
     rowContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 14,
+        paddingVertical: spacing.md,
     },
     rowDivider: {
         borderBottomWidth: 1,
@@ -153,44 +152,34 @@ const styles = StyleSheet.create({
         width: 56,
     },
     positionText: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     gridText: {
         marginTop: 2,
-        fontSize: 11,
+        fontSize: typography.size.xs,
         color: '#7B7B7B',
     },
     driverColumn: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        marginRight: 12,
+        marginRight: spacing.sm,
     },
-    driverBubble: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 10,
-    },
-    driverBubbleText: {
-        color: '#FFF',
-        fontWeight: '700',
-        fontSize: 13,
+    numberBadge: {
+        marginRight: spacing.sm,
     },
     driverInfo: {
         flex: 1,
     },
     driverCode: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     teamName: {
-        fontSize: 13,
+        fontSize: typography.size.sm,
         color: '#7A7A7A',
     },
     valueColumn: {
@@ -198,15 +187,15 @@ const styles = StyleSheet.create({
         alignItems: 'flex-end',
     },
     valueLabel: {
-        fontSize: 11,
+        fontSize: typography.size.xs,
         color: '#8B8B8B',
-        letterSpacing: 0.5,
+        letterSpacing: typography.letterSpacing.wide,
         textTransform: 'uppercase',
     },
     valueText: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#E10600',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.danger,
         marginTop: 2,
     },
 });

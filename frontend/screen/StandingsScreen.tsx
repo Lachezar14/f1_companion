@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { colors, overlays, radius, semanticColors, spacing, typography } from '../theme/tokens';
 import {
     ActivityIndicator,
     Animated,
@@ -104,7 +105,7 @@ const StandingsScreen = () => {
                         <MaterialCommunityIcons
                             name={segment.icon as any}
                             size={18}
-                            color={isActive ? '#FFFFFF' : '#8C8D9A'}
+                            color={isActive ? semanticColors.surface : '#8C8D9A'}
                             style={styles.segmentIcon}
                         />
                         <Text
@@ -125,7 +126,7 @@ const StandingsScreen = () => {
         const driver: Driver | null = item.driver ?? null;
         const teamColor = driver?.team_colour
             ? getTeamColorHex(driver.team_colour)
-            : '#15151E';
+            : semanticColors.textPrimary;
 
         return (
             <View style={styles.rowCard}>
@@ -157,7 +158,7 @@ const StandingsScreen = () => {
 
     const renderTeamRow = ({ item }: { item: ChampionshipTeam }) => {
         const rawColor = teamColorMap.get(item.team_name) ?? null;
-        const teamColor = rawColor ? getTeamColorHex(rawColor) : '#15151E';
+        const teamColor = rawColor ? getTeamColorHex(rawColor) : semanticColors.textPrimary;
 
         return (
             <View style={styles.rowCard}>
@@ -238,7 +239,7 @@ const StandingsScreen = () => {
 
     const renderLoadingState = () => (
         <View style={styles.centerState}>
-            <ActivityIndicator size="large" color="#E10600" />
+            <ActivityIndicator size="large" color={semanticColors.danger} />
             <Text style={styles.loadingText}>Loading standings…</Text>
         </View>
     );
@@ -276,7 +277,7 @@ const StandingsScreen = () => {
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={refresh}
-                            tintColor="#E10600"
+                            tintColor={semanticColors.danger}
                         />
                     }
                 />
@@ -298,7 +299,7 @@ const StandingsScreen = () => {
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={refresh}
-                        tintColor="#E10600"
+                        tintColor={semanticColors.danger}
                     />
                 }
             />
@@ -335,18 +336,18 @@ export default StandingsScreen;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F5F5F7',
+        backgroundColor: semanticColors.background,
     },
     segmentWrapper: {
-        paddingHorizontal: 16,
-        paddingTop: 8,
-        paddingBottom: 12,
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.xs,
+        paddingBottom: spacing.sm,
     },
     screenTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#15151E',
-        marginBottom: 12,
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
+        marginBottom: spacing.sm,
     },
     segmentContainer: {
         flexDirection: 'row',
@@ -354,109 +355,109 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         backgroundColor: '#ECECF1',
         padding: SEGMENT_CONTAINER_PADDING,
-        borderRadius: 18,
+        borderRadius: radius.lg,
     },
     segmentIndicator: {
         position: 'absolute',
         left: SEGMENT_CONTAINER_PADDING,
         top: SEGMENT_CONTAINER_PADDING,
         bottom: SEGMENT_CONTAINER_PADDING,
-        borderRadius: 14,
-        backgroundColor: '#15151E',
+        borderRadius: radius.md,
+        backgroundColor: semanticColors.textPrimary,
     },
     segmentButton: {
         flex: 1,
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        borderRadius: 14,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.sm,
+        borderRadius: radius.md,
     },
     segmentLabel: {
-        fontSize: 14,
-        fontWeight: '600',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.semibold,
         color: '#8C8D9A',
     },
     segmentLabelActive: {
-        color: '#FFFFFF',
+        color: semanticColors.surface,
     },
     segmentIcon: {
-        marginRight: 6,
+        marginRight: spacing.xs,
     },
     listWrapper: {
         flex: 1,
     },
     listContent: {
-        padding: 16,
+        padding: spacing.md,
     },
     listHeader: {
-        marginBottom: 12,
+        marginBottom: spacing.sm,
     },
     listTitle: {
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.semibold,
         color: '#1E1E25',
-        marginTop: 12,
+        marginTop: spacing.sm,
     },
     heroCard: {
-        backgroundColor: '#15151E',
-        borderRadius: 22,
-        padding: 20,
-        shadowColor: '#000',
+        backgroundColor: semanticColors.textPrimary,
+        borderRadius: radius.xl,
+        padding: spacing.lg,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.18,
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 6 },
         elevation: 4,
     },
     heroTitle: {
-        fontSize: 13,
+        fontSize: typography.size.sm,
         color: 'rgba(255,255,255,0.7)',
-        letterSpacing: 0.5,
+        letterSpacing: typography.letterSpacing.wide,
         textTransform: 'uppercase',
     },
     heroSubtitle: {
-        fontSize: 24,
-        color: '#FFFFFF',
-        fontWeight: '700',
-        marginTop: 4,
+        fontSize: typography.size.xxl,
+        color: semanticColors.surface,
+        fontWeight: typography.weight.bold,
+        marginTop: spacing.xxs,
     },
     heroLeaderBlock: {
         marginTop: 18,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 18,
-        padding: 16,
+        backgroundColor: overlays.white08,
+        borderRadius: radius.lg,
+        padding: spacing.md,
     },
     heroLeaderLabel: {
-        fontSize: 12,
+        fontSize: typography.size.sm,
         color: 'rgba(255,255,255,0.8)',
         textTransform: 'uppercase',
         letterSpacing: 0.8,
     },
     heroLeaderName: {
-        fontSize: 20,
-        color: '#FFFFFF',
-        fontWeight: '700',
-        marginTop: 6,
+        fontSize: typography.size.xl,
+        color: semanticColors.surface,
+        fontWeight: typography.weight.bold,
+        marginTop: spacing.xs,
     },
     heroLeaderPoints: {
-        fontSize: 14,
+        fontSize: typography.size.base,
         color: 'rgba(255,255,255,0.85)',
-        marginTop: 6,
+        marginTop: spacing.xs,
     },
     heroPlaceholder: {
         marginTop: 18,
         color: 'rgba(255,255,255,0.75)',
-        fontSize: 13,
+        fontSize: typography.size.sm,
     },
     rowCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFFFFF',
-        padding: 14,
-        borderRadius: 18,
-        marginBottom: 12,
-        shadowColor: '#000',
+        backgroundColor: semanticColors.surface,
+        padding: spacing.md,
+        borderRadius: radius.lg,
+        marginBottom: spacing.sm,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.04,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 2 },
@@ -466,47 +467,47 @@ const styles = StyleSheet.create({
     positionBadge: {
         width: 48,
         height: 48,
-        borderRadius: 16,
+        borderRadius: radius.lg,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
+        marginRight: spacing.sm,
         backgroundColor: '#ECECF1',
     },
     positionText: {
-        color: '#15151E',
-        fontSize: 14,
-        fontWeight: '700',
+        color: semanticColors.textPrimary,
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
     },
     avatar: {
         width: 48,
         height: 48,
-        borderRadius: 16,
-        marginRight: 12,
+        borderRadius: radius.lg,
+        marginRight: spacing.sm,
     },
     avatarPlaceholder: {
         width: 48,
         height: 48,
-        borderRadius: 16,
-        backgroundColor: '#EEE',
+        borderRadius: radius.lg,
+        backgroundColor: semanticColors.border,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
+        marginRight: spacing.sm,
     },
     avatarInitial: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     rowContent: {
         flex: 1,
     },
     rowTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#111120',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.surfaceInverse,
     },
     rowSubtitle: {
-        fontSize: 13,
+        fontSize: typography.size.sm,
         color: '#6B6C76',
         marginTop: 2,
     },
@@ -514,29 +515,29 @@ const styles = StyleSheet.create({
         alignItems: 'flex-end',
     },
     pointsValue: {
-        fontSize: 22,
-        fontWeight: '700',
-        color: '#111120',
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.surfaceInverse,
     },
     pointsLabel: {
-        fontSize: 12,
+        fontSize: typography.size.sm,
         color: '#6B6C76',
     },
     emptyState: {
         alignItems: 'center',
-        paddingVertical: 80,
+        paddingVertical: spacing.sm,
     },
     emptyTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#111120',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.semibold,
+        color: semanticColors.surfaceInverse,
     },
     emptySubtitle: {
-        fontSize: 13,
+        fontSize: typography.size.sm,
         color: '#6B6C76',
-        marginTop: 6,
+        marginTop: spacing.xs,
         textAlign: 'center',
-        paddingHorizontal: 40,
+        paddingHorizontal: spacing.sm,
     },
     centerState: {
         flex: 1,
@@ -544,30 +545,30 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     loadingText: {
-        marginTop: 12,
-        color: '#111120',
+        marginTop: spacing.sm,
+        color: semanticColors.surfaceInverse,
     },
     errorTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#111120',
-        marginBottom: 8,
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.surfaceInverse,
+        marginBottom: spacing.xs,
     },
     errorMessage: {
-        fontSize: 14,
+        fontSize: typography.size.base,
         color: '#6B6C76',
         textAlign: 'center',
-        paddingHorizontal: 32,
-        marginBottom: 16,
+        paddingHorizontal: spacing.xxl,
+        marginBottom: spacing.md,
     },
     retryButton: {
-        backgroundColor: '#E10600',
-        paddingHorizontal: 24,
-        paddingVertical: 10,
-        borderRadius: 999,
+        backgroundColor: semanticColors.danger,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.sm,
+        borderRadius: radius.pill,
     },
     retryText: {
-        color: '#FFFFFF',
-        fontWeight: '600',
+        color: semanticColors.surface,
+        fontWeight: typography.weight.semibold,
     },
 });

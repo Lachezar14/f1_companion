@@ -1,8 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import type { ComponentProps } from 'react';
 import type { Session } from '../backend/types';
 
+type IoniconName = ComponentProps<typeof Ionicons>['name'];
+
 export type SessionTheme = {
-    icon: keyof typeof Ionicons.glyphMap;
+    icon: IoniconName;
     accent: string;
     tint: string;
 };
@@ -34,4 +37,3 @@ export const formatSessionDateTime = (session: Session): string => {
         minute: '2-digit',
     })}${session.gmt_offset ? ` · ${session.gmt_offset}` : ''}`;
 };
-

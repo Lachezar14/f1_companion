@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { colors, overlays, radius, semanticColors, spacing, typography } from '../../../theme/tokens';
 import {
     View,
     Text,
@@ -12,9 +13,10 @@ import {
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { getPracticeDriverDetail } from '../../../../backend/service/openf1Service';
 import PracticeStatsSection from '../../../component/practice/PracticeStatsSection';
-import PracticeStintCard from '../../../component/practice/PracticeStintCard';
+import StintCard from '../../../component/common/StintCard';
 import type { DriverOption } from '../../../component/practice/FreePracticeResultCard';
-import type { Lap, SessionDriverData, SessionResult, Stint } from '../../../../backend/types';
+import type { SessionDriverData, SessionResult } from '../../../../backend/types';
+import { groupLapsByStints } from '../../../../utils/lap';
 import {
     getTeamColorHex,
     getDriverInitials,
@@ -131,28 +133,27 @@ export default function DriverPracticeDetailsScreen() {
 
     const driverData = state.driverData;
     const [stintsExpanded, setStintsExpanded] = useState(true);
+    const pitInLapSet = useMemo(() => {
+        if (!driverData) return new Set<number>();
+        return new Set(
+            driverData.laps
+                .filter(lap => lap.is_pit_out_lap)
+                .map(lap => lap.lap_number - 1)
+                .filter(lapNumber => lapNumber > 0)
+        );
+    }, [driverData]);
 
     const stintsWithLaps = useMemo(() => {
         if (!driverData) {
             return [];
         }
-
-        return driverData.stints.map((stint: Stint) => {
-            const lapsForStint = driverData.laps.filter(
-                (lap: Lap) => lap.lap_number >= stint.lap_start && lap.lap_number <= stint.lap_end
-            );
-
-            return {
-                stint,
-                laps: lapsForStint,
-            };
-        });
+        return groupLapsByStints(driverData.laps, driverData.stints);
     }, [driverData]);
 
     if (state.loading) {
         return (
             <View style={styles.center}>
-                <ActivityIndicator size="large" color="#E10600" />
+                <ActivityIndicator size="large" color={semanticColors.danger} />
                 <Text style={styles.loadingText}>Loading driver data...</Text>
             </View>
         );
@@ -212,7 +213,7 @@ export default function DriverPracticeDetailsScreen() {
                 <RefreshControl
                     refreshing={state.refreshing}
                     onRefresh={handleRefresh}
-                    tintColor="#E10600"
+                    tintColor={semanticColors.danger}
                 />
             }
         >
@@ -320,11 +321,12 @@ export default function DriverPracticeDetailsScreen() {
                 {stintsExpanded ? (
                     stintsWithLaps.length > 0 ? (
                         stintsWithLaps.map(({ stint, laps }, index) => (
-                            <PracticeStintCard
+                            <StintCard
                                 key={stint.stint_number}
                                 stint={stint}
                                 laps={laps}
                                 showDivider={index < stintsWithLaps.length - 1}
+                                pitInLapSet={pitInLapSet}
                             />
                         ))
                     ) : (
@@ -339,77 +341,77 @@ export default function DriverPracticeDetailsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F5F5F7',
+        backgroundColor: semanticColors.background,
     },
     contentContainer: {
-        paddingBottom: 32,
+        paddingBottom: spacing.xxl,
     },
     driverSwitchScroll: {
-        marginHorizontal: 16,
-        marginBottom: 12,
+        marginHorizontal: spacing.md,
+        marginBottom: spacing.sm,
     },
     driverSwitchContent: {
-        paddingVertical: 4,
+        paddingVertical: spacing.xxs,
     },
     driverChip: {
-        borderRadius: 18,
+        borderRadius: radius.lg,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: '#D9DEEC',
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        marginRight: 8,
-        backgroundColor: '#FFFFFF',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        marginRight: spacing.xs,
+        backgroundColor: semanticColors.surface,
     },
     driverChipActive: {
-        backgroundColor: '#15151E',
-        borderColor: '#15151E',
+        backgroundColor: semanticColors.textPrimary,
+        borderColor: semanticColors.textPrimary,
     },
     driverChipName: {
-        fontSize: 13,
-        fontWeight: '600',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.semibold,
         color: '#5F6683',
     },
     driverChipNameActive: {
-        color: '#FFFFFF',
+        color: semanticColors.surface,
     },
     driverChipNumber: {
-        fontSize: 12,
-        fontWeight: '600',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.semibold,
         color: '#9AA0BA',
         marginTop: 2,
     },
     driverChipNumberActive: {
-        color: '#FFFFFF',
+        color: semanticColors.surface,
     },
     center: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 24,
-        backgroundColor: '#F5F5F7',
+        padding: spacing.xl,
+        backgroundColor: semanticColors.background,
     },
     loadingText: {
-        marginTop: 12,
-        fontSize: 16,
-        color: '#333',
+        marginTop: spacing.sm,
+        fontSize: typography.size.lg,
+        color: semanticColors.textSecondary,
     },
     errorTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#E10600',
-        marginBottom: 8,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.danger,
+        marginBottom: spacing.xs,
     },
     errorMessage: {
-        fontSize: 16,
-        color: '#333',
+        fontSize: typography.size.lg,
+        color: semanticColors.textSecondary,
         textAlign: 'center',
     },
     heroCard: {
-        marginHorizontal: 16,
-        marginTop: 16,
-        padding: 20,
-        borderRadius: 28,
-        shadowColor: '#000',
+        marginHorizontal: spacing.md,
+        marginTop: spacing.md,
+        padding: spacing.lg,
+        borderRadius: radius.xxl,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.18,
         shadowRadius: 18,
         shadowOffset: { width: 0, height: 10 },
@@ -424,44 +426,44 @@ const styles = StyleSheet.create({
     },
     heroSubtitle: {
         color: 'rgba(255,255,255,0.75)',
-        fontSize: 13,
+        fontSize: typography.size.sm,
         letterSpacing: 0.6,
         textTransform: 'uppercase',
     },
     heroName: {
-        color: '#FFF',
-        fontSize: 26,
-        fontWeight: '800',
-        marginTop: 8,
+        color: semanticColors.surface,
+        fontSize: typography.size.xxxl,
+        fontWeight: typography.weight.heavy,
+        marginTop: spacing.xs,
     },
     heroTeam: {
         color: 'rgba(255,255,255,0.85)',
-        fontSize: 15,
-        marginTop: 4,
+        fontSize: typography.size.base,
+        marginTop: spacing.xxs,
     },
     heroChipRow: {
         flexDirection: 'row',
-        marginTop: 16,
+        marginTop: spacing.md,
     },
     heroChip: {
-        paddingHorizontal: 14,
-        paddingVertical: 6,
-        borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.16)',
-        marginRight: 10,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.pill,
+        backgroundColor: overlays.white16,
+        marginRight: spacing.sm,
     },
     heroChipMuted: {
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: overlays.white08,
     },
     heroChipText: {
-        color: '#FFF',
-        fontWeight: '700',
-        fontSize: 13,
-        letterSpacing: 0.5,
+        color: semanticColors.surface,
+        fontWeight: typography.weight.bold,
+        fontSize: typography.size.sm,
+        letterSpacing: typography.letterSpacing.wide,
     },
     heroChipTextMuted: {
         color: 'rgba(255,255,255,0.85)',
-        fontWeight: '600',
+        fontWeight: typography.weight.semibold,
     },
     heroAvatar: {
         width: 88,
@@ -473,85 +475,85 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.4)',
-        marginLeft: 16,
+        marginLeft: spacing.md,
     },
     heroImage: {
         width: '100%',
         height: '100%',
     },
     avatarInitials: {
-        fontSize: 26,
-        fontWeight: '700',
-        color: '#FFF',
+        fontSize: typography.size.xxxl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.surface,
     },
     heroStatRow: {
         flexDirection: 'row',
-        marginTop: 24,
+        marginTop: spacing.xl,
         backgroundColor: 'rgba(0,0,0,0.18)',
-        borderRadius: 20,
-        paddingVertical: 12,
-        paddingHorizontal: 12,
+        borderRadius: radius.xl,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.sm,
     },
     heroStat: {
         flex: 1,
         alignItems: 'center',
     },
     heroStatValue: {
-        color: '#FFF',
-        fontSize: 20,
-        fontWeight: '700',
+        color: semanticColors.surface,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
     },
     heroStatLabel: {
         color: 'rgba(255,255,255,0.7)',
-        fontSize: 12,
+        fontSize: typography.size.sm,
         letterSpacing: 0.7,
-        marginTop: 4,
+        marginTop: spacing.xxs,
         textTransform: 'uppercase',
     },
     section: {
-        marginTop: 20,
-        marginHorizontal: 16,
-        backgroundColor: '#FFF',
-        borderRadius: 20,
-        padding: 20,
-        shadowColor: '#000',
+        marginTop: spacing.lg,
+        marginHorizontal: spacing.md,
+        backgroundColor: semanticColors.surface,
+        borderRadius: radius.xl,
+        padding: spacing.lg,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.06,
         shadowOffset: { width: 0, height: 6 },
         shadowRadius: 12,
         elevation: 4,
     },
     sectionHeader: {
-        marginBottom: 16,
+        marginBottom: spacing.md,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
     sectionTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     sectionSubtitle: {
-        fontSize: 14,
-        color: '#7C7C85',
-        marginTop: 4,
+        fontSize: typography.size.base,
+        color: semanticColors.textMuted,
+        marginTop: spacing.xxs,
     },
     sectionToggle: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 999,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.pill,
         backgroundColor: '#EFF0F7',
     },
     sectionToggleText: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#4D5166',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textSecondary,
     },
     noData: {
-        fontSize: 14,
-        color: '#999',
+        fontSize: typography.size.base,
+        color: semanticColors.textMuted,
         fontStyle: 'italic',
         textAlign: 'center',
-        paddingVertical: 16,
+        paddingVertical: spacing.md,
     },
 });

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Session } from '../../../backend/types';
 import { resolveSessionTheme, formatSessionDateTime } from '../../../utils/session';
+import { radius, semanticColors, spacing, typography } from '../../theme/tokens';
 
 interface SessionCardProps {
     session: Session;
@@ -31,7 +32,7 @@ export default function SessionCard({ session, onPress, showDivider = false }: S
                     <Text style={styles.date}>{formatSessionDateTime(session)}</Text>
                 </View>
 
-                <Ionicons name="chevron-forward" size={20} color="#B8B8B8" />
+                <Ionicons name="chevron-forward" size={20} color={semanticColors.textMuted} />
             </TouchableOpacity>
             {showDivider ? <View style={styles.divider} /> : null}
         </View>
@@ -45,32 +46,32 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 14,
+        paddingVertical: spacing.md,
     },
     iconBadge: {
         width: 52,
         height: 52,
-        borderRadius: 14,
+        borderRadius: radius.md,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 16,
+        marginRight: spacing.md,
     },
     info: {
         flex: 1,
     },
     name: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#15151E',
-        marginBottom: 4,
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.semibold,
+        color: semanticColors.textPrimary,
+        marginBottom: spacing.xxs,
     },
     date: {
-        fontSize: 13,
-        color: '#777',
+        fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
     },
     divider: {
         height: StyleSheet.hairlineWidth,
-        backgroundColor: '#E3E3E3',
-        marginLeft: 68,
+        backgroundColor: semanticColors.border,
+        marginLeft: 18,
     },
 });

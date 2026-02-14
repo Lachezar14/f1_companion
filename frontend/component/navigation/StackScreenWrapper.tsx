@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import StackToolbar from './StackToolbar';
+import { semanticColors } from '../../theme/tokens';
 
 interface StackScreenWrapperProps {
     title?: string;
@@ -21,7 +22,7 @@ export default StackScreenWrapper;
 const styles = StyleSheet.create({
     wrapper: {
         flex: 1,
-        backgroundColor: '#F5F5F7',
+        backgroundColor: semanticColors.background,
     },
     content: {
         flex: 1,

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { colors, overlays, radius, semanticColors, spacing, typography } from '../../theme/tokens';
 import {
     ActivityIndicator,
     Image,
@@ -213,7 +214,7 @@ const DriverSeasonScreen = () => {
                     <Ionicons
                         name={expanded ? 'chevron-up' : 'chevron-down'}
                         size={20}
-                        color="#6F6F6F"
+                        color={semanticColors.textMuted}
                     />
                 </TouchableOpacity>
                 {expanded ? (
@@ -232,7 +233,7 @@ const DriverSeasonScreen = () => {
     if (state.loading) {
         return (
             <View style={styles.center}>
-                <ActivityIndicator size="large" color="#E10600" />
+                <ActivityIndicator size="large" color={semanticColors.danger} />
                 <Text style={styles.loadingText}>Loading driver stats...</Text>
             </View>
         );
@@ -248,7 +249,7 @@ const DriverSeasonScreen = () => {
     }
 
     const { driver, season, totals, sessions } = state.stats;
-    const teamColorHex = driver.teamColor ? `#${driver.teamColor}` : '#15151E';
+    const teamColorHex = driver.teamColor ? `#${driver.teamColor}` : semanticColors.textPrimary;
 
     const heroStats = [
         { label: 'Wins', value: totals.wins },
@@ -286,7 +287,7 @@ const DriverSeasonScreen = () => {
                 <RefreshControl
                     refreshing={state.refreshing}
                     onRefresh={handleRefresh}
-                    tintColor="#E10600"
+                    tintColor={semanticColors.danger}
                 />
             }
         >
@@ -345,35 +346,35 @@ export default DriverSeasonScreen;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F5F5F7',
+        backgroundColor: semanticColors.background,
     },
     center: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 24,
-        backgroundColor: '#F2F2F2',
+        padding: spacing.xl,
+        backgroundColor: semanticColors.backgroundMuted,
     },
     loadingText: {
-        marginTop: 12,
-        color: '#666',
+        marginTop: spacing.sm,
+        color: semanticColors.textMuted,
     },
     errorTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#E10600',
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.danger,
     },
     errorMessage: {
-        marginTop: 8,
-        color: '#666',
+        marginTop: spacing.xs,
+        color: semanticColors.textMuted,
         textAlign: 'center',
     },
     heroCard: {
-        backgroundColor: '#15151E',
-        margin: 16,
-        borderRadius: 28,
-        padding: 20,
-        shadowColor: '#000',
+        backgroundColor: semanticColors.textPrimary,
+        margin: spacing.md,
+        borderRadius: radius.xxl,
+        padding: spacing.lg,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.18,
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 6 },
@@ -388,44 +389,44 @@ const styles = StyleSheet.create({
     },
     heroSubtitle: {
         color: 'rgba(255,255,255,0.7)',
-        fontSize: 13,
+        fontSize: typography.size.sm,
         letterSpacing: 0.6,
         textTransform: 'uppercase',
     },
     heroName: {
-        fontSize: 24,
-        fontWeight: '800',
-        color: '#FFF',
-        marginTop: 8,
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.heavy,
+        color: semanticColors.surface,
+        marginTop: spacing.xs,
     },
     heroTeam: {
         color: 'rgba(255,255,255,0.8)',
-        marginTop: 4,
-        fontSize: 15,
+        marginTop: spacing.xxs,
+        fontSize: typography.size.base,
     },
     heroChipRow: {
         flexDirection: 'row',
-        marginTop: 14,
+        marginTop: spacing.md,
     },
     heroChip: {
-        paddingHorizontal: 14,
-        paddingVertical: 6,
-        borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.16)',
-        marginRight: 10,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.pill,
+        backgroundColor: overlays.white16,
+        marginRight: spacing.sm,
     },
     heroChipMuted: {
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: overlays.white08,
     },
     heroChipText: {
-        color: '#FFF',
-        fontWeight: '700',
-        fontSize: 13,
-        letterSpacing: 0.5,
+        color: semanticColors.surface,
+        fontWeight: typography.weight.bold,
+        fontSize: typography.size.sm,
+        letterSpacing: typography.letterSpacing.wide,
     },
     heroChipTextMuted: {
         color: 'rgba(255,255,255,0.85)',
-        fontWeight: '600',
+        fontWeight: typography.weight.semibold,
     },
     heroAvatar: {
         width: 84,
@@ -437,82 +438,82 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.4)',
-        marginLeft: 16,
+        marginLeft: spacing.md,
     },
     heroImage: {
         width: '100%',
         height: '100%',
     },
     heroInitials: {
-        color: '#FFF',
-        fontSize: 26,
-        fontWeight: '800',
+        color: semanticColors.surface,
+        fontSize: typography.size.xxxl,
+        fontWeight: typography.weight.heavy,
     },
     heroStatRow: {
         flexDirection: 'row',
-        marginTop: 20,
-        backgroundColor: 'rgba(0,0,0,0.15)',
-        borderRadius: 20,
-        paddingVertical: 12,
-        paddingHorizontal: 12,
+        marginTop: spacing.lg,
+        backgroundColor: overlays.black15,
+        borderRadius: radius.xl,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.sm,
     },
     heroStat: {
         flex: 1,
         alignItems: 'center',
     },
     heroStatValue: {
-        color: '#FFF',
-        fontSize: 20,
-        fontWeight: '700',
+        color: semanticColors.surface,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
     },
     heroStatLabel: {
         color: 'rgba(255,255,255,0.65)',
-        fontSize: 11,
-        letterSpacing: 1,
+        fontSize: typography.size.xs,
+        letterSpacing: typography.letterSpacing.wider,
         textTransform: 'uppercase',
-        marginTop: 4,
+        marginTop: spacing.xxs,
     },
     metricsSection: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        paddingHorizontal: 12,
-        marginBottom: 8,
+        paddingHorizontal: spacing.sm,
+        marginBottom: spacing.xs,
     },
     metricCard: {
         width: '48%',
-        backgroundColor: '#FFF',
-        borderRadius: 18,
-        padding: 16,
+        backgroundColor: semanticColors.surface,
+        borderRadius: radius.lg,
+        padding: spacing.md,
         margin: '1%',
         borderWidth: 1,
-        borderColor: '#E6E6E6',
-        shadowColor: '#000',
+        borderColor: semanticColors.border,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.04,
         shadowRadius: 5,
         shadowOffset: { width: 0, height: 2 },
         elevation: 1,
     },
     metricLabel: {
-        fontSize: 12,
-        color: '#8A8A8A',
+        fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
         textTransform: 'uppercase',
-        letterSpacing: 0.5,
+        letterSpacing: typography.letterSpacing.wide,
     },
     metricValue: {
-        marginTop: 8,
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#15151E',
+        marginTop: spacing.xs,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     section: {
-        marginHorizontal: 16,
-        marginBottom: 24,
-        backgroundColor: '#FFF',
-        borderRadius: 20,
-        padding: 16,
+        marginHorizontal: spacing.md,
+        marginBottom: spacing.xl,
+        backgroundColor: semanticColors.surface,
+        borderRadius: radius.xl,
+        padding: spacing.md,
         borderWidth: 1,
-        borderColor: '#E5E5E5',
-        shadowColor: '#000',
+        borderColor: semanticColors.border,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.03,
         shadowRadius: 5,
         shadowOffset: { width: 0, height: 2 },
@@ -522,23 +523,23 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 12,
+        marginBottom: spacing.sm,
     },
     sectionTitle: {
-        fontSize: 17,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
         marginBottom: 0,
     },
     emptySectionText: {
-        color: '#777',
+        color: semanticColors.textMuted,
         fontStyle: 'italic',
     },
     sessionCard: {
         backgroundColor: '#F9F9FB',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
+        borderRadius: radius.lg,
+        padding: spacing.md,
+        marginBottom: spacing.sm,
         borderWidth: 1,
         borderColor: '#ECECEC',
     },
@@ -549,97 +550,97 @@ const styles = StyleSheet.create({
     },
     sessionHeaderText: {
         flex: 1,
-        paddingRight: 12,
+        paddingRight: spacing.sm,
     },
     sessionName: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#15151E',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.semibold,
+        color: semanticColors.textPrimary,
     },
     sessionMeta: {
-        marginTop: 4,
-        color: '#666',
+        marginTop: spacing.xxs,
+        color: semanticColors.textMuted,
     },
     sessionDate: {
         marginTop: 2,
-        color: '#999',
-        fontSize: 12,
+        color: semanticColors.textMuted,
+        fontSize: typography.size.sm,
     },
     sessionBadge: {
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 12,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xxs,
+        borderRadius: radius.md,
     },
     raceBadge: {
-        backgroundColor: 'rgba(225, 6, 0, 0.12)',
+        backgroundColor: overlays.brand12,
     },
     qualiBadge: {
-        backgroundColor: 'rgba(0, 89, 193, 0.12)',
+        backgroundColor: overlays.cobalt12,
     },
     sessionBadgeText: {
-        fontSize: 12,
-        fontWeight: '600',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.semibold,
     },
     raceBadgeText: {
-        color: '#E10600',
+        color: semanticColors.danger,
     },
     qualiBadgeText: {
-        color: '#0059C1',
+        color: colors.accents.cobalt,
     },
     resultRow: {
         flexDirection: 'row',
-        marginTop: 14,
+        marginTop: spacing.md,
     },
     resultChip: {
         flex: 1,
-        backgroundColor: '#FFF',
-        borderRadius: 14,
-        paddingVertical: 8,
-        paddingHorizontal: 12,
+        backgroundColor: semanticColors.surface,
+        borderRadius: radius.md,
+        paddingVertical: spacing.xs,
+        paddingHorizontal: spacing.sm,
         borderWidth: 1,
-        borderColor: '#E2E2E2',
+        borderColor: semanticColors.border,
     },
     resultChipSpacing: {
-        marginRight: 8,
+        marginRight: spacing.xs,
     },
     resultLabel: {
-        fontSize: 11,
+        fontSize: typography.size.xs,
         color: '#8D8D8D',
         textTransform: 'uppercase',
-        letterSpacing: 0.5,
+        letterSpacing: typography.letterSpacing.wide,
     },
     resultValue: {
-        marginTop: 4,
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#15151E',
+        marginTop: spacing.xxs,
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     sessionStatsRow: {
         flexDirection: 'row',
-        marginTop: 16,
+        marginTop: spacing.md,
     },
     sessionStat: {
         flex: 1,
-        backgroundColor: '#FFF',
-        borderRadius: 12,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
+        backgroundColor: semanticColors.surface,
+        borderRadius: radius.md,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.sm,
         borderWidth: 1,
-        borderColor: '#E6E6E6',
+        borderColor: semanticColors.border,
     },
     sessionStatSpacing: {
-        marginRight: 10,
+        marginRight: spacing.sm,
     },
     sessionStatLabel: {
-        fontSize: 11,
+        fontSize: typography.size.xs,
         color: '#8C8C8C',
-        letterSpacing: 0.5,
+        letterSpacing: typography.letterSpacing.wide,
         textTransform: 'uppercase',
     },
     sessionStatValue: {
-        marginTop: 6,
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#15151E',
+        marginTop: spacing.xs,
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
 });

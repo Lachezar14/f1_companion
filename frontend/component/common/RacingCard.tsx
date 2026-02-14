@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, radius, shadows } from '../../theme/tokens';
+import { colors, radius, shadows, spacing } from '../../theme/tokens';
 
 type RacingCardProps = {
     children: React.ReactNode;
@@ -40,7 +40,7 @@ const styles = StyleSheet.create({
         width: 4,
     },
     content: {
-        paddingLeft: 16,
+        paddingLeft: spacing.md,
     },
 });
 

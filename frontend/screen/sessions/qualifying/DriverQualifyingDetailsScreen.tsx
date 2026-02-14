@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { colors, overlays, radius, semanticColors, spacing, typography } from '../../../theme/tokens';
 import {
     ActivityIndicator,
     Image,
@@ -9,6 +10,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { getQualifyingSessionDetail } from '../../../../backend/service/openf1Service';
 import type { Lap, QualifyingSessionDetail, SessionDriverData } from '../../../../backend/types';
@@ -347,7 +349,7 @@ const DriverQualifyingDetailsScreen = () => {
     if (state.loading) {
         return (
             <View style={styles.center}>
-                <ActivityIndicator size="large" color="#E10600" />
+                <ActivityIndicator size="large" color={semanticColors.danger} />
                 <Text style={styles.loadingText}>Loading qualifying driver data...</Text>
             </View>
         );
@@ -433,7 +435,7 @@ const DriverQualifyingDetailsScreen = () => {
                 <RefreshControl
                     refreshing={state.refreshing}
                     onRefresh={handleRefresh}
-                    tintColor="#E10600"
+                    tintColor={semanticColors.danger}
                 />
             }
         >
@@ -627,7 +629,14 @@ const DriverQualifyingDetailsScreen = () => {
                                                 </View>
                                                 <View style={styles.lapTimeBlock}>
                                                     {isFastestInPhase ? (
-                                                        <Text style={styles.fastestChip}>FASTEST</Text>
+                                                        <View style={styles.fastestChipBadge}>
+                                                            <Ionicons
+                                                                name="timer-outline"
+                                                                size={10}
+                                                                color="#5A3CA8"
+                                                            />
+                                                            <Text style={styles.fastestChip}>FASTEST</Text>
+                                                        </View>
                                                     ) : null}
                                                     <Text style={styles.lapTime}>{formatLapTime(lap.lap_duration)}</Text>
                                                 </View>
@@ -669,63 +678,63 @@ export default DriverQualifyingDetailsScreen;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F5F5F7',
+        backgroundColor: semanticColors.background,
     },
     contentContainer: {
-        paddingBottom: 32,
+        paddingBottom: spacing.xxl,
     },
     center: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 24,
-        backgroundColor: '#F5F5F7',
+        padding: spacing.xl,
+        backgroundColor: semanticColors.background,
     },
     loadingText: {
-        marginTop: 12,
-        color: '#666',
+        marginTop: spacing.sm,
+        color: semanticColors.textMuted,
     },
     errorTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#E10600',
-        marginBottom: 8,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.danger,
+        marginBottom: spacing.xs,
     },
     errorMessage: {
-        fontSize: 16,
-        color: '#333',
+        fontSize: typography.size.lg,
+        color: semanticColors.textSecondary,
         textAlign: 'center',
     },
     driverSwitchScroll: {
-        marginHorizontal: 16,
-        marginBottom: 12,
+        marginHorizontal: spacing.md,
+        marginBottom: spacing.sm,
     },
     driverSwitchContent: {
-        paddingVertical: 4,
+        paddingVertical: spacing.xxs,
     },
     driverChip: {
-        borderRadius: 18,
+        borderRadius: radius.lg,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: '#D9DEEC',
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        marginRight: 8,
-        backgroundColor: '#FFFFFF',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        marginRight: spacing.xs,
+        backgroundColor: semanticColors.surface,
     },
     driverChipActive: {
-        backgroundColor: '#15151E',
-        borderColor: '#15151E',
+        backgroundColor: semanticColors.textPrimary,
+        borderColor: semanticColors.textPrimary,
     },
     driverChipName: {
-        fontSize: 13,
-        fontWeight: '600',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.semibold,
         color: '#5F6683',
     },
     driverChipNameActive: {
-        color: '#FFFFFF',
+        color: semanticColors.surface,
     },
     driverChipNumber: {
-        fontSize: 11,
+        fontSize: typography.size.xs,
         color: '#8A90AA',
         marginTop: 2,
     },
@@ -733,11 +742,11 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.85)',
     },
     heroCard: {
-        marginHorizontal: 16,
-        marginTop: 16,
-        padding: 20,
-        borderRadius: 28,
-        shadowColor: '#000',
+        marginHorizontal: spacing.md,
+        marginTop: spacing.md,
+        padding: spacing.lg,
+        borderRadius: radius.xxl,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.2,
         shadowRadius: 18,
         shadowOffset: { width: 0, height: 10 },
@@ -752,44 +761,44 @@ const styles = StyleSheet.create({
     },
     heroSubtitle: {
         color: 'rgba(255,255,255,0.72)',
-        fontSize: 13,
+        fontSize: typography.size.sm,
         letterSpacing: 0.6,
         textTransform: 'uppercase',
     },
     heroName: {
-        color: '#FFF',
+        color: semanticColors.surface,
         fontSize: 25,
-        fontWeight: '800',
-        marginTop: 8,
+        fontWeight: typography.weight.heavy,
+        marginTop: spacing.xs,
     },
     heroTeam: {
         color: 'rgba(255,255,255,0.88)',
-        fontSize: 15,
-        marginTop: 4,
+        fontSize: typography.size.base,
+        marginTop: spacing.xxs,
     },
     heroChipRow: {
         flexDirection: 'row',
-        marginTop: 16,
+        marginTop: spacing.md,
     },
     heroChip: {
-        paddingHorizontal: 14,
-        paddingVertical: 6,
-        borderRadius: 999,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.pill,
         backgroundColor: 'rgba(255,255,255,0.18)',
-        marginRight: 10,
+        marginRight: spacing.sm,
     },
     heroChipMuted: {
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: overlays.white08,
     },
     heroChipText: {
-        color: '#FFF',
-        fontWeight: '700',
-        fontSize: 13,
+        color: semanticColors.surface,
+        fontWeight: typography.weight.bold,
+        fontSize: typography.size.sm,
         letterSpacing: 0.4,
     },
     heroChipTextMuted: {
         color: 'rgba(255,255,255,0.85)',
-        fontWeight: '600',
+        fontWeight: typography.weight.semibold,
     },
     heroAvatar: {
         width: 88,
@@ -801,7 +810,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.4)',
-        marginLeft: 16,
+        marginLeft: spacing.md,
     },
     heroImage: {
         width: '100%',
@@ -809,84 +818,84 @@ const styles = StyleSheet.create({
     },
     avatarInitials: {
         fontSize: 28,
-        fontWeight: '800',
-        color: '#FFF',
+        fontWeight: typography.weight.heavy,
+        color: semanticColors.surface,
     },
     heroStatRow: {
         flexDirection: 'row',
-        marginTop: 24,
+        marginTop: spacing.xl,
         backgroundColor: 'rgba(0,0,0,0.2)',
-        borderRadius: 22,
-        paddingVertical: 12,
-        paddingHorizontal: 12,
+        borderRadius: radius.xl,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.sm,
     },
     heroStat: {
         flex: 1,
         alignItems: 'center',
     },
     heroStatValue: {
-        color: '#FFF',
-        fontSize: 17,
-        fontWeight: '700',
+        color: semanticColors.surface,
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
     },
     heroStatLabel: {
         color: 'rgba(255,255,255,0.7)',
-        fontSize: 12,
-        marginTop: 4,
+        fontSize: typography.size.sm,
+        marginTop: spacing.xxs,
         letterSpacing: 0.6,
         textTransform: 'uppercase',
     },
     card: {
-        marginHorizontal: 16,
-        marginTop: 16,
-        backgroundColor: '#FFF',
-        borderRadius: 20,
+        marginHorizontal: spacing.md,
+        marginTop: spacing.md,
+        backgroundColor: semanticColors.surface,
+        borderRadius: radius.xl,
         padding: 18,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E6E8F0',
-        shadowColor: '#000',
+        borderColor: semanticColors.border,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.05,
         shadowOffset: { width: 0, height: 6 },
         shadowRadius: 10,
         elevation: 4,
     },
     cardTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     cardSubtitle: {
-        marginTop: 4,
-        color: '#7A7E92',
-        fontSize: 13,
+        marginTop: spacing.xxs,
+        color: semanticColors.textMuted,
+        fontSize: typography.size.sm,
     },
     metricRow: {
-        marginTop: 14,
+        marginTop: spacing.md,
         flexDirection: 'row',
-        gap: 10,
+        gap: spacing.sm,
     },
     metricCard: {
         flex: 1,
-        backgroundColor: '#F7F8FB',
-        borderRadius: 14,
-        padding: 12,
+        backgroundColor: semanticColors.surfaceMuted,
+        borderRadius: radius.md,
+        padding: spacing.sm,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E3E6F0',
+        borderColor: semanticColors.border,
     },
     metricLabel: {
-        fontSize: 11,
-        letterSpacing: 0.5,
+        fontSize: typography.size.xs,
+        letterSpacing: typography.letterSpacing.wide,
         textTransform: 'uppercase',
-        color: '#7A7E92',
+        color: semanticColors.textMuted,
     },
     metricValue: {
-        marginTop: 6,
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#15151E',
+        marginTop: spacing.xs,
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     positiveValue: {
-        color: '#1F8A4D',
+        color: semanticColors.success,
     },
     negativeValue: {
         color: '#B93B32',
@@ -895,55 +904,55 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 12,
+        gap: spacing.sm,
     },
     phaseToggle: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 999,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.pill,
         backgroundColor: '#EFF0F7',
     },
     phaseToggleText: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#4D5166',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textSecondary,
     },
     deltaRow: {
-        marginTop: 12,
-        paddingBottom: 10,
+        marginTop: spacing.sm,
+        paddingBottom: spacing.sm,
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#E6E8F0',
+        borderBottomColor: semanticColors.border,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 10,
+        gap: spacing.sm,
     },
     deltaRowLast: {
-        marginTop: 12,
+        marginTop: spacing.sm,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 10,
+        gap: spacing.sm,
     },
     deltaLabel: {
-        fontSize: 14,
+        fontSize: typography.size.base,
         color: '#4B5168',
-        fontWeight: '600',
+        fontWeight: typography.weight.semibold,
     },
     deltaValue: {
-        fontSize: 14,
-        color: '#1F8A4D',
-        fontWeight: '700',
+        fontSize: typography.size.base,
+        color: semanticColors.success,
+        fontWeight: typography.weight.bold,
         textAlign: 'right',
     },
     deltaValueNegative: {
         color: '#B93B32',
     },
     sectorRow: {
-        marginTop: 12,
-        paddingBottom: 10,
+        marginTop: spacing.sm,
+        paddingBottom: spacing.sm,
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#E6E8F0',
+        borderBottomColor: semanticColors.border,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -953,36 +962,36 @@ const styles = StyleSheet.create({
         paddingBottom: 0,
     },
     sectorLabel: {
-        fontSize: 12,
+        fontSize: typography.size.sm,
         letterSpacing: 0.7,
         textTransform: 'uppercase',
-        color: '#7A7E92',
+        color: semanticColors.textMuted,
     },
     sectorTime: {
-        marginTop: 4,
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#15151E',
+        marginTop: spacing.xxs,
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     sectorRank: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#2A3A78',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.info,
     },
     lapRow: {
-        marginTop: 12,
-        paddingTop: 10,
-        paddingBottom: 12,
+        marginTop: spacing.sm,
+        paddingTop: spacing.sm,
+        paddingBottom: spacing.sm,
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#E6E8F0',
+        borderBottomColor: semanticColors.border,
     },
     fastestLapRow: {
-        backgroundColor: '#F1F8EE',
-        borderRadius: 12,
+        backgroundColor: '#f2edff',
+        borderRadius: radius.md,
         marginHorizontal: -10,
-        paddingHorizontal: 10,
+        paddingHorizontal: spacing.sm,
         borderWidth: 1,
-        borderColor: '#CFE7C6',
+        borderColor: '#E2DAFF',
     },
     lapRowLast: {
         borderBottomWidth: 0,
@@ -996,71 +1005,82 @@ const styles = StyleSheet.create({
     lapInfoLeft: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
+        gap: spacing.sm,
         flexWrap: 'wrap',
         flex: 1,
     },
     lapNumber: {
-        fontSize: 14,
-        fontWeight: '700',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
         color: '#1D2338',
     },
     tyreState: {
-        fontSize: 12,
-        fontWeight: '700',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
     },
     tyreStateNew: {
-        color: '#1F8A4D',
+        color: semanticColors.success,
     },
     tyreStateUsed: {
-        color: '#7A7E92',
+        color: semanticColors.textMuted,
     },
     lapTimeBlock: {
         alignItems: 'flex-end',
-        marginLeft: 8,
+        marginLeft: spacing.xs,
+    },
+    fastestChipBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: spacing.xs,
+        paddingVertical: spacing.xxs,
+        borderRadius: radius.sm,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E2DAFF',
+        backgroundColor: '#F8F5FF',
+        marginBottom: 2,
     },
     fastestChip: {
         fontSize: 10,
-        fontWeight: '800',
-        color: '#1F8A4D',
+        fontWeight: typography.weight.heavy,
+        color: '#5A3CA8',
         letterSpacing: 0.6,
-        marginBottom: 2,
     },
     lapTime: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     sectorTileRow: {
-        marginTop: 6,
+        marginTop: spacing.xs,
         flexDirection: 'row',
-        gap: 8,
+        gap: spacing.xs,
     },
     sectorTile: {
         flex: 1,
-        borderRadius: 10,
+        borderRadius: radius.sm,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E3E6F0',
-        backgroundColor: '#F7F8FB',
-        paddingVertical: 8,
-        paddingHorizontal: 8,
+        borderColor: semanticColors.border,
+        backgroundColor: semanticColors.surfaceMuted,
+        paddingVertical: spacing.xs,
+        paddingHorizontal: spacing.xs,
     },
     sectorTileLabel: {
-        fontSize: 11,
-        color: '#7A7E92',
-        letterSpacing: 0.5,
+        fontSize: typography.size.xs,
+        color: semanticColors.textMuted,
+        letterSpacing: typography.letterSpacing.wide,
         textTransform: 'uppercase',
-        fontWeight: '700',
+        fontWeight: typography.weight.bold,
     },
     sectorTileValue: {
-        marginTop: 4,
-        fontSize: 13,
-        fontWeight: '700',
+        marginTop: spacing.xxs,
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
         color: '#6F748C',
     },
     noData: {
-        marginTop: 10,
-        fontSize: 13,
+        marginTop: spacing.sm,
+        fontSize: typography.size.sm,
         color: '#8A8FA6',
         textAlign: 'center',
     },
@@ -1068,6 +1088,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         color: '#9A9FB5',
         paddingVertical: 22,
-        fontSize: 12,
+        fontSize: typography.size.sm,
     },
 });

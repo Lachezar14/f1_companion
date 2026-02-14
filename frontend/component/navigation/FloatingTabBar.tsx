@@ -1,4 +1,5 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { radius, semanticColors, spacing } from '../../theme/tokens';
 import {
     Animated,
     View,
@@ -12,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommonActions } from '@react-navigation/native';
 import type { ViewStyle } from 'react-native';
 
-const ACTIVE_TINT = '#FFFFFF';
+const ACTIVE_TINT = semanticColors.surface;
 const INACTIVE_TINT = '#5F6472';
 const TAB_BAR_PADDING = 2;
 const TAB_BUTTON_HEIGHT = 36;
@@ -152,18 +153,18 @@ export default FloatingTabBar;
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: '#FFFFFF',
-        paddingHorizontal: 12,
-        paddingTop: 10,
+        backgroundColor: semanticColors.surface,
+        paddingHorizontal: spacing.sm,
+        paddingTop: spacing.sm,
         borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: '#E4E7EF',
+        borderTopColor: semanticColors.border,
     },
     tabBar: {
         flexDirection: 'row',
         position: 'relative',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        paddingBottom: 10,
+        backgroundColor: semanticColors.surface,
+        borderRadius: radius.lg,
+        paddingBottom: spacing.sm,
         padding: TAB_BAR_PADDING,
     },
     activePill: {
@@ -171,8 +172,8 @@ const styles = StyleSheet.create({
         left: TAB_BAR_PADDING + TAB_BUTTON_GAP,
         top: TAB_BAR_PADDING + TAB_BUTTON_GAP,
         height: TAB_BUTTON_HEIGHT,
-        borderRadius: 12,
-        backgroundColor: '#111111',
+        borderRadius: radius.md,
+        backgroundColor: semanticColors.surfaceInverse,
         shadowColor: '#121622',
         shadowOpacity: 0.05,
         shadowRadius: 4,
@@ -185,7 +186,7 @@ const styles = StyleSheet.create({
     },
     tabButton: {
         height: TAB_BUTTON_HEIGHT,
-        borderRadius: 12,
+        borderRadius: radius.md,
         alignItems: 'center',
         justifyContent: 'center',
     },

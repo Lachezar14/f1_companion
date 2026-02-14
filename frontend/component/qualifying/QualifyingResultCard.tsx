@@ -1,4 +1,5 @@
 import React from 'react';
+import { colors, radius, semanticColors, spacing, typography } from '../../theme/tokens';
 import {
     StyleSheet,
     Text,
@@ -7,6 +8,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { QualifyingDriverClassification } from '../../../backend/types';
+import DriverNumberBadge from '../common/DriverNumberBadge';
 
 type QualifyingResultRowProps = {
     data: QualifyingDriverClassification;
@@ -56,7 +58,7 @@ const QualifyingResultRow: React.FC<QualifyingResultRowProps> = ({
                 </View>
                 {data.gapToPole && (
                     <View style={styles.gapChip}>
-                        <Ionicons name="trending-up-outline" size={12} color="#E10600" />
+                        <Ionicons name="trending-up-outline" size={12} color={semanticColors.danger} />
                         <Text style={styles.gapChipText}>{data.gapToPole}</Text>
                     </View>
                 )}
@@ -68,20 +70,17 @@ const QualifyingResultRow: React.FC<QualifyingResultRowProps> = ({
             </View>
 
             <View style={styles.driverRow}>
-                <View
-                    style={[
-                        styles.numberPill,
-                        { backgroundColor: data.teamColor ? `#${data.teamColor}` : '#15151E' },
-                    ]}
-                >
-                    <Text style={styles.numberPillText}>{data.driverNumber}</Text>
-                </View>
+                <DriverNumberBadge
+                    driverNumber={data.driverNumber}
+                    teamColor={data.teamColor}
+                    style={styles.numberBadge}
+                />
                 <View style={styles.driverInfo}>
                     <Text style={styles.driverName}>{data.shortName}</Text>
                     <Text style={styles.teamName}>{data.teamName}</Text>
                 </View>
                 <View style={styles.bestBlock}>
-                    <Ionicons name="time-outline" size={18} color="#E10600" />
+                    <Ionicons name="time-outline" size={18} color={semanticColors.danger} />
                     <View style={styles.bestTextGroup}>
                         <Text style={styles.bestLabel}>Best</Text>
                         <Text style={styles.bestValue}>{data.best || '-'}</Text>
@@ -130,36 +129,36 @@ const QualifyingResultsSection: React.FC<QualifyingResultsSectionProps> = ({
 
 const styles = StyleSheet.create({
     section: {
-        margin: 16,
-        backgroundColor: '#FFF',
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 4,
-        borderRadius: 20,
+        margin: spacing.md,
+        backgroundColor: semanticColors.surface,
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.xxs,
+        borderRadius: radius.xl,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E3E3E3',
-        shadowColor: '#000',
+        borderColor: semanticColors.border,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.05,
         shadowRadius: 6,
         shadowOffset: { width: 0, height: 3 },
         elevation: 2,
     },
     sectionHeader: {
-        marginBottom: 12,
+        marginBottom: spacing.sm,
     },
     sectionTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     noData: {
         textAlign: 'center',
-        color: '#999',
-        paddingVertical: 20,
+        color: semanticColors.textMuted,
+        paddingVertical: spacing.lg,
         fontStyle: 'italic',
     },
     rowContainer: {
-        paddingVertical: 16,
+        paddingVertical: spacing.md,
     },
     rowDivider: {
         borderBottomWidth: 1,
@@ -168,45 +167,45 @@ const styles = StyleSheet.create({
     rowHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: spacing.sm,
     },
     positionBadge: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 999,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.pill,
         backgroundColor: '#F3F4F9',
     },
     positionText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     gapChip: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 999,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xxs,
+        borderRadius: radius.pill,
         backgroundColor: 'rgba(225,6,0,0.08)',
-        marginLeft: 8,
-        gap: 4,
+        marginLeft: spacing.xs,
+        gap: spacing.xxs,
     },
     gapChipText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#B40012',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.semibold,
+        color: semanticColors.dangerStrong,
     },
     statusChip: {
-        marginLeft: 8,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 999,
+        marginLeft: spacing.xs,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xxs,
+        borderRadius: radius.pill,
         backgroundColor: '#ECEFF6',
     },
     statusChipText: {
-        fontSize: 11,
-        letterSpacing: 0.5,
-        fontWeight: '700',
+        fontSize: typography.size.xs,
+        letterSpacing: typography.letterSpacing.wide,
+        fontWeight: typography.weight.bold,
         color: '#596074',
         textTransform: 'uppercase',
     },
@@ -215,73 +214,63 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
-    numberPill: {
-        width: 42,
-        height: 42,
-        borderRadius: 14,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    numberPillText: {
-        color: '#FFF',
-        fontWeight: '700',
-        fontSize: 16,
+    numberBadge: {
+        marginRight: spacing.sm,
     },
     driverInfo: {
         flex: 1,
     },
     driverName: {
-        fontSize: 17,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     teamName: {
-        fontSize: 12,
+        fontSize: typography.size.sm,
         color: '#7A7F92',
         marginTop: 2,
     },
     bestBlock: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: spacing.xs,
     },
     bestLabel: {
-        fontSize: 11,
+        fontSize: typography.size.xs,
         color: '#8B8B8B',
-        letterSpacing: 0.5,
+        letterSpacing: typography.letterSpacing.wide,
         textTransform: 'uppercase',
     },
     bestValue: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#E10600',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.danger,
     },
     segmentsRow: {
         flexDirection: 'row',
-        marginTop: 14,
-        gap: 10,
+        marginTop: spacing.md,
+        gap: spacing.sm,
     },
     segmentCard: {
         flex: 1,
         backgroundColor: '#F3F4F9',
-        borderRadius: 12,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
+        borderRadius: radius.md,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.sm,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: '#E4E7F0',
     },
     segmentLabel: {
-        fontSize: 11,
+        fontSize: typography.size.xs,
         color: '#8B8B8B',
         letterSpacing: 0.6,
         textTransform: 'uppercase',
     },
     segmentValue: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#15151E',
-        marginTop: 4,
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
+        marginTop: spacing.xxs,
     },
     bestTextGroup: {
         alignItems: 'flex-end',

@@ -6,6 +6,7 @@ import { formatLapTime } from '../../../shared/time';
 import TyreCompoundBadge from '../common/TyreCompoundBadge';
 import { calculateAvgLapTimePerCompound } from '../../../utils/lap';
 import { getCompoundName } from '../../../utils/tyre';
+import { colors, radius, semanticColors, spacing, typography } from '../../theme/tokens';
 
 interface RaceStatsSectionProps {
     raceResult: any;
@@ -15,6 +16,7 @@ interface RaceStatsSectionProps {
     pitStops: PitStop[];
     safetyCarLapSet?: Set<number>;
 }
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 const COMPOUND_DISPLAY_ORDER: Record<string, number> = {
     soft: 0,
@@ -59,12 +61,12 @@ export default function RaceStatsSection({
         key: string;
         label: string;
         value: string | number;
-        icon: keyof typeof Ionicons.glyphMap;
+        icon: IoniconName;
         tint: string;
         accent: string;
     }[] = [
-        /*{ key: 'result', label: 'Result', value: formattedRaceResult, icon: 'trophy', tint: 'rgba(109,225,156,0.18)', accent: '#6DE19C' },*/
-        { key: 'pitStops', label: 'Pit Stops', value: pitStopCount, icon: 'build', tint: 'rgba(255,138,92,0.15)', accent: '#FF8A5C' },
+        /*{ key: 'result', label: 'Result', value: formattedRaceResult, icon: 'trophy', tint: 'rgba(109,225,156,0.18)', accent: colors.accents.mint },*/
+        { key: 'pitStops', label: 'Pit Stops', value: pitStopCount, icon: 'build', tint: 'rgba(255,138,92,0.15)', accent: colors.accents.peach },
         {
             key: 'avgPitStop',
             label: 'Avg Pit Stop',
@@ -73,7 +75,7 @@ export default function RaceStatsSection({
             tint: 'rgba(131,146,255,0.18)',
             accent: '#8392FF',
         },
-        { key: 'laps', label: 'Laps', value: lapCount, icon: 'flag', tint: 'rgba(62,197,255,0.2)', accent: '#3EC5FF' },
+        { key: 'laps', label: 'Laps', value: lapCount, icon: 'flag', tint: 'rgba(62,197,255,0.2)', accent: colors.accents.aqua },
     ];
 
     return (
@@ -126,7 +128,7 @@ export default function RaceStatsSection({
                                 </View>
                             </View>
                             <View style={styles.pacePill}>
-                                <Ionicons name="time-outline" size={14} color="#15151E" />
+                                <Ionicons name="time-outline" size={14} color={semanticColors.textPrimary} />
                                 <Text style={styles.compoundStatTime}>
                                     {formatLapTime(stat.avgTime)}
                                 </Text>
@@ -141,8 +143,8 @@ export default function RaceStatsSection({
 }
 
 const CARD_BASE = {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    backgroundColor: semanticColors.surface,
+    borderRadius: radius.xxl,
     borderWidth: 1,
     borderColor: '#E1E4EF',
     shadowColor: '#0F1325',
@@ -155,90 +157,90 @@ const CARD_BASE = {
 const styles = StyleSheet.create({
     card: {
         ...CARD_BASE,
-        marginHorizontal: 16,
-        marginTop: 20,
-        padding: 20,
+        marginHorizontal: spacing.md,
+        marginTop: spacing.lg,
+        padding: spacing.lg,
     },
     header: {
-        marginBottom: 20,
+        marginBottom: spacing.lg,
     },
     overline: {
-        fontSize: 12,
-        letterSpacing: 1,
-        fontWeight: '700',
+        fontSize: typography.size.sm,
+        letterSpacing: typography.letterSpacing.wider,
+        fontWeight: typography.weight.bold,
         textTransform: 'uppercase',
-        color: '#7C7C85',
+        color: semanticColors.textMuted,
     },
     title: {
-        marginTop: 6,
-        fontSize: 22,
-        fontWeight: '700',
-        color: '#15151E',
+        marginTop: spacing.xs,
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     subtitle: {
-        marginTop: 4,
-        fontSize: 14,
-        color: '#7C7C85',
+        marginTop: spacing.xxs,
+        fontSize: typography.size.base,
+        color: semanticColors.textMuted,
     },
     statGrid: {
         flexDirection: 'row',
-        gap: 12,
+        gap: spacing.sm,
     },
     statCard: {
         flex: 1,
-        borderRadius: 18,
-        padding: 16,
-        backgroundColor: '#F8F9FC',
+        borderRadius: radius.lg,
+        padding: spacing.md,
+        backgroundColor: semanticColors.surfaceMuted,
         borderWidth: 1,
         borderColor: '#DFE3EE',
     },
     statIcon: {
         width: 42,
         height: 42,
-        borderRadius: 14,
+        borderRadius: radius.md,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: spacing.sm,
     },
     statLabel: {
-        fontSize: 12,
+        fontSize: typography.size.sm,
         textTransform: 'uppercase',
         letterSpacing: 0.8,
-        color: '#7C7C85',
-        fontWeight: '700',
+        color: semanticColors.textMuted,
+        fontWeight: typography.weight.bold,
     },
     statValue: {
-        marginTop: 6,
-        fontSize: 22,
-        fontWeight: '700',
-        color: '#15151E',
+        marginTop: spacing.xs,
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     compoundCard: {
-        marginTop: 24,
-        backgroundColor: '#F8F9FC',
-        borderRadius: 20,
-        padding: 16,
+        marginTop: spacing.xl,
+        backgroundColor: semanticColors.surfaceMuted,
+        borderRadius: radius.xl,
+        padding: spacing.md,
         borderWidth: 1,
         borderColor: '#DFE3EE',
     },
     compoundHeader: {
-        marginBottom: 14,
+        marginBottom: spacing.md,
     },
     compoundTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     compoundSubtitle: {
         marginTop: 2,
-        fontSize: 13,
+        fontSize: typography.size.sm,
         color: '#81859A',
     },
     compoundRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingVertical: 12,
+        paddingVertical: spacing.sm,
         borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: '#DDE1ED',
     },
@@ -249,36 +251,36 @@ const styles = StyleSheet.create({
     compoundInfo: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: spacing.sm,
     },
     compoundBadge: {
         marginRight: 2,
     },
     compoundName: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
         textTransform: 'capitalize',
     },
     compoundLapCount: {
-        fontSize: 13,
+        fontSize: typography.size.sm,
         color: '#8589A0',
         marginTop: 2,
     },
     pacePill: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        borderRadius: 999,
-        backgroundColor: '#FFFFFF',
-        paddingHorizontal: 14,
-        paddingVertical: 6,
+        gap: spacing.xs,
+        borderRadius: radius.pill,
+        backgroundColor: semanticColors.surface,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
         borderWidth: 1,
         borderColor: '#E1E4EF',
     },
     compoundStatTime: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
 });

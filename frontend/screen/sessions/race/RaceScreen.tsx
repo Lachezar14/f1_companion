@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { colors, overlays, radius, semanticColors, spacing, typography } from '../../../theme/tokens';
 import {
     ActivityIndicator,
     RefreshControl,
@@ -670,6 +671,41 @@ const RaceScreen = () => {
         lap: number | null;
     };
 
+    type FastestRaceLap = {
+        lapTime: number;
+        lapNumber: number;
+        driverName: string;
+        driverNumber: number;
+        teamName: string;
+        teamColor?: string | null;
+    };
+
+    const fastestRaceLap = useMemo<FastestRaceLap | null>(() => {
+        let record: FastestRaceLap | null = null;
+        driverEntries.forEach(entry => {
+            entry.laps.forEach(lap => {
+                if (!isValidPositiveNumber(lap.lap_duration) || lap.lap_number <= 0) {
+                    return;
+                }
+                if (
+                    !record ||
+                    lap.lap_duration < record.lapTime ||
+                    (lap.lap_duration === record.lapTime && lap.lap_number < record.lapNumber)
+                ) {
+                    record = {
+                        lapTime: lap.lap_duration,
+                        lapNumber: lap.lap_number,
+                        driverName: entry.driver.name,
+                        driverNumber: entry.driverNumber,
+                        teamName: entry.driver.team,
+                        teamColor: entry.driver.teamColor,
+                    };
+                }
+            });
+        });
+        return record;
+    }, [driverEntries]);
+
     const fastestPitStop = useMemo<FastestPitStop | null>(() => {
         let record: FastestPitStop | null = null;
         driverEntries.forEach(entry => {
@@ -797,7 +833,7 @@ const RaceScreen = () => {
     if (loading) {
         return (
             <View style={styles.center}>
-                <ActivityIndicator size="large" color="#E10600" />
+                <ActivityIndicator size="large" color={semanticColors.danger} />
                 <Text style={styles.loadingText}>Loading race data...</Text>
             </View>
         );
@@ -872,7 +908,7 @@ const RaceScreen = () => {
         <ScrollView
             style={styles.container}
             refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#E10600" />
+                <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={semanticColors.danger} />
             }
         >
             <View style={styles.heroCard}>
@@ -993,6 +1029,42 @@ const RaceScreen = () => {
                                 {fastestPitStop.lap ? ` • Lap ${fastestPitStop.lap}` : ''}
                             </Text>
                         ) : null}
+                    </View>
+                </View>
+                <View style={styles.fastestLapCard}>
+                    <View>
+                        <Text style={styles.fastestLapLabel}>Fastest Lap</Text>
+                        <Text style={styles.fastestLapValue}>
+                            {fastestRaceLap ? formatLapTime(fastestRaceLap.lapTime) : '—'}
+                        </Text>
+                    </View>
+                    <View style={styles.fastestLapMetaBlock}>
+                        {fastestRaceLap ? (
+                            <>
+                                <View style={styles.fastestLapDriverRow}>
+                                    <View
+                                        style={[
+                                            styles.teamDot,
+                                            styles.fastestLapTeamDot,
+                                            {
+                                                backgroundColor: getTeamColorHex(
+                                                    fastestRaceLap.teamColor
+                                                ),
+                                            },
+                                        ]}
+                                    />
+                                    <Text style={styles.fastestLapMeta}>
+                                        {fastestRaceLap.driverName}
+                                    </Text>
+                                </View>
+                                <Text style={styles.fastestLapMetaSecondary}>
+                                    {fastestRaceLap.teamName} • #{fastestRaceLap.driverNumber} • Lap{' '}
+                                    {fastestRaceLap.lapNumber}
+                                </Text>
+                            </>
+                        ) : (
+                            <Text style={styles.fastestLapMeta}>No lap data yet</Text>
+                        )}
                     </View>
                 </View>
                 <View style={styles.safetyCarCard}>
@@ -1663,47 +1735,47 @@ export default RaceScreen;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F5F5F7',
+        backgroundColor: semanticColors.background,
     },
     center: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#F2F2F2',
-        padding: 24,
+        backgroundColor: semanticColors.backgroundMuted,
+        padding: spacing.xl,
     },
     loadingText: {
-        marginTop: 12,
-        color: '#666',
+        marginTop: spacing.sm,
+        color: semanticColors.textMuted,
     },
     errorTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#E10600',
-        marginBottom: 8,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.danger,
+        marginBottom: spacing.xs,
     },
     errorMessage: {
-        fontSize: 16,
-        color: '#666',
+        fontSize: typography.size.lg,
+        color: semanticColors.textMuted,
         textAlign: 'center',
-        marginBottom: 16,
+        marginBottom: spacing.md,
     },
     retryButton: {
-        backgroundColor: '#E10600',
-        paddingHorizontal: 32,
-        paddingVertical: 12,
-        borderRadius: 8,
+        backgroundColor: semanticColors.danger,
+        paddingHorizontal: spacing.xxl,
+        paddingVertical: spacing.sm,
+        borderRadius: radius.sm,
     },
     retryButtonText: {
-        color: '#FFF',
-        fontWeight: 'bold',
+        color: semanticColors.surface,
+        fontWeight: typography.weight.bold,
     },
     heroCard: {
-        backgroundColor: '#1C1C27',
-        margin: 16,
-        borderRadius: 24,
-        padding: 20,
-        shadowColor: '#000',
+        backgroundColor: semanticColors.surfaceInverse,
+        margin: spacing.md,
+        borderRadius: radius.xxl,
+        padding: spacing.lg,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.18,
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 6 },
@@ -1711,31 +1783,31 @@ const styles = StyleSheet.create({
     },
     actionRow: {
         flexDirection: 'row',
-        gap: 12,
-        marginHorizontal: 16,
-        marginBottom: 4,
+        gap: spacing.sm,
+        marginHorizontal: spacing.md,
+        marginBottom: spacing.xxs,
     },
     actionRowSingle: {
-        marginHorizontal: 16,
-        marginTop: 8,
-        marginBottom: 4,
+        marginHorizontal: spacing.md,
+        marginTop: spacing.xs,
+        marginBottom: spacing.xxs,
     },
     actionButton: {
         flex: 1,
-        borderRadius: 20,
-        paddingVertical: 16,
-        paddingHorizontal: 16,
-        backgroundColor: '#15151E',
-        shadowColor: '#000',
+        borderRadius: radius.xl,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.md,
+        backgroundColor: semanticColors.textPrimary,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.15,
         shadowRadius: 10,
         shadowOffset: { width: 0, height: 6 },
         elevation: 4,
     },
     actionButtonSecondary: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: semanticColors.surface,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#D9DFEA',
+        borderColor: semanticColors.borderStrong,
         shadowOpacity: 0.05,
     },
     actionButtonTertiary: {
@@ -1745,179 +1817,223 @@ const styles = StyleSheet.create({
         opacity: 0.5,
     },
     actionButtonText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#FFFFFF',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.surface,
     },
     actionButtonSubtitle: {
-        marginTop: 6,
-        fontSize: 13,
+        marginTop: spacing.xs,
+        fontSize: typography.size.sm,
         color: 'rgba(255,255,255,0.8)',
     },
     actionButtonTextDark: {
-        color: '#15151E',
+        color: semanticColors.textPrimary,
     },
     actionButtonSubtitleDark: {
         color: '#6E738B',
     },
     heroContent: {
-        marginBottom: 16,
+        marginBottom: spacing.md,
     },
     heroSubtitle: {
         color: 'rgba(255,255,255,0.75)',
-        fontSize: 14,
-        letterSpacing: 0.5,
+        fontSize: typography.size.base,
+        letterSpacing: typography.letterSpacing.wide,
     },
     heroTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#FFF',
-        marginTop: 4,
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.surface,
+        marginTop: spacing.xxs,
     },
     heroDate: {
         color: 'rgba(255,255,255,0.75)',
-        marginTop: 6,
+        marginTop: spacing.xs,
     },
     chipRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 8,
-        marginTop: 12,
+        gap: spacing.xs,
+        marginTop: spacing.sm,
     },
     chip: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.15)',
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.md,
+        backgroundColor: overlays.white15,
     },
     chipText: {
-        color: '#FFF',
-        fontSize: 12,
-        fontWeight: '600',
+        color: semanticColors.surface,
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.semibold,
         letterSpacing: 0.4,
     },
     heroStats: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 18,
-        paddingVertical: 12,
+        backgroundColor: overlays.white08,
+        borderRadius: radius.lg,
+        paddingVertical: spacing.sm,
     },
     heroStat: {
         flex: 1,
         alignItems: 'center',
     },
     heroStatValue: {
-        color: '#FFF',
-        fontSize: 20,
-        fontWeight: '700',
+        color: semanticColors.surface,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
     },
     heroStatLabel: {
         color: 'rgba(255,255,255,0.65)',
-        fontSize: 12,
-        letterSpacing: 1,
+        fontSize: typography.size.sm,
+        letterSpacing: typography.letterSpacing.wider,
         textTransform: 'uppercase',
-        marginTop: 4,
+        marginTop: spacing.xxs,
     },
     insightsCard: {
-        marginHorizontal: 16,
-        marginTop: 16,
-        padding: 20,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 20,
+        marginHorizontal: spacing.md,
+        marginTop: spacing.md,
+        padding: spacing.lg,
+        backgroundColor: semanticColors.surface,
+        borderRadius: radius.xl,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E6E8F0',
-        shadowColor: '#000',
+        borderColor: semanticColors.border,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.05,
         shadowRadius: 10,
         shadowOffset: { width: 0, height: 6 },
         elevation: 4,
     },
     cardHeader: {
-        marginBottom: 16,
+        marginBottom: spacing.md,
     },
     cardOverline: {
-        fontSize: 12,
-        letterSpacing: 1,
-        fontWeight: '700',
-        color: '#7A7E92',
+        fontSize: typography.size.sm,
+        letterSpacing: typography.letterSpacing.wider,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.danger,
         textTransform: 'uppercase',
     },
     cardTitle: {
-        marginTop: 4,
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#15151E',
+        marginTop: spacing.xxs,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     cardSubtitle: {
         marginTop: 2,
-        fontSize: 13,
-        color: '#7A7E92',
+        fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
     },
     metricRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        gap: 12,
+        gap: spacing.sm,
     },
     metricItem: {
         flex: 1,
-        backgroundColor: '#F7F8FB',
-        borderRadius: 16,
-        padding: 16,
+        backgroundColor: semanticColors.surfaceMuted,
+        borderRadius: radius.lg,
+        padding: spacing.md,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E3E6F0',
+        borderColor: semanticColors.border,
     },
     metricValue: {
-        fontSize: 22,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     metricLabel: {
-        marginTop: 6,
-        fontSize: 12,
-        color: '#7A7E92',
-        letterSpacing: 0.5,
+        marginTop: spacing.xs,
+        fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
+        letterSpacing: typography.letterSpacing.wide,
         textTransform: 'uppercase',
     },
     fastestPitCard: {
         marginTop: 18,
-        padding: 16,
-        borderRadius: 16,
+        padding: spacing.md,
+        borderRadius: radius.lg,
         backgroundColor: '#F1F5FF',
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
     fastestPitLabel: {
-        fontSize: 12,
+        fontSize: typography.size.sm,
         letterSpacing: 0.6,
         color: '#5A6AA3',
         textTransform: 'uppercase',
-        fontWeight: '700',
+        fontWeight: typography.weight.bold,
     },
     fastestPitValue: {
-        marginTop: 4,
-        fontSize: 24,
-        fontWeight: '700',
+        marginTop: spacing.xxs,
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.bold,
         color: '#1B2C68',
     },
     fastestPitMetaBlock: {
         alignItems: 'flex-end',
     },
     fastestPitMeta: {
-        fontSize: 14,
-        fontWeight: '700',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
         color: '#1B2C68',
     },
     fastestPitMetaSecondary: {
-        fontSize: 12,
+        fontSize: typography.size.sm,
         color: '#5A6AA3',
         marginTop: 2,
     },
+    fastestLapCard: {
+        marginTop: spacing.md,
+        padding: spacing.md,
+        borderRadius: radius.lg,
+        backgroundColor: '#F5EEFF',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    fastestLapLabel: {
+        fontSize: typography.size.sm,
+        letterSpacing: 0.6,
+        color: '#71539E',
+        textTransform: 'uppercase',
+        fontWeight: typography.weight.bold,
+    },
+    fastestLapValue: {
+        marginTop: spacing.xxs,
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.bold,
+        color: '#3B2460',
+    },
+    fastestLapMetaBlock: {
+        alignItems: 'flex-end',
+        maxWidth: '60%',
+    },
+    fastestLapDriverRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    fastestLapTeamDot: {
+        marginRight: spacing.xs,
+    },
+    fastestLapMeta: {
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: '#3B2460',
+    },
+    fastestLapMetaSecondary: {
+        fontSize: typography.size.sm,
+        color: '#71539E',
+        marginTop: 2,
+        textAlign: 'right',
+    },
     safetyCarCard: {
-        marginTop: 16,
-        padding: 16,
-        borderRadius: 16,
+        marginTop: spacing.md,
+        padding: spacing.md,
+        borderRadius: radius.lg,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: 'rgba(255,166,0,0.5)',
         backgroundColor: 'rgba(255,166,0,0.15)',
@@ -1926,17 +2042,17 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: spacing.xs,
     },
     safetyCarTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     safetyCarBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 999,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xxs,
+        borderRadius: radius.pill,
         borderWidth: 1,
     },
     safetyCarBadgeActive: {
@@ -1948,8 +2064,8 @@ const styles = StyleSheet.create({
         backgroundColor: '#F0F1F6',
     },
     safetyCarBadgeText: {
-        fontSize: 11,
-        fontWeight: '700',
+        fontSize: typography.size.xs,
+        fontWeight: typography.weight.bold,
         letterSpacing: 0.4,
         textTransform: 'uppercase',
     },
@@ -1960,108 +2076,108 @@ const styles = StyleSheet.create({
         color: '#7C7F93',
     },
     safetyCarMeta: {
-        fontSize: 13,
+        fontSize: typography.size.sm,
         color: '#6C738F',
-        marginBottom: 8,
+        marginBottom: spacing.xs,
     },
     safetyCarRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: 8,
+        paddingVertical: spacing.xs,
         borderTopWidth: StyleSheet.hairlineWidth,
         borderTopColor: '#E7E9F4',
     },
     safetyCarRowLabel: {
-        fontSize: 13,
-        fontWeight: '700',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
         color: '#2B2F3F',
     },
     safetyCarRowRange: {
-        fontSize: 12,
+        fontSize: typography.size.sm,
         color: '#7A7F97',
         marginTop: 2,
     },
     safetyCarRowCount: {
-        fontSize: 13,
-        fontWeight: '700',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
         color: '#2B2F3F',
     },
     noSafetyCarText: {
-        fontSize: 13,
+        fontSize: typography.size.sm,
         color: '#7A7F97',
         fontStyle: 'italic',
     },
     climberCard: {
-        marginTop: 16,
-        padding: 16,
-        borderRadius: 16,
-        backgroundColor: '#FDF1F0',
+        marginTop: spacing.md,
+        padding: spacing.md,
+        borderRadius: radius.lg,
+        backgroundColor: semanticColors.dangerSoft,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: '#F5B7B1',
     },
     climberBadge: {
         alignSelf: 'flex-start',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 999,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xxs,
+        borderRadius: radius.pill,
         backgroundColor: '#FFE2DF',
-        marginBottom: 8,
+        marginBottom: spacing.xs,
     },
     climberBadgeText: {
-        fontSize: 11,
+        fontSize: typography.size.xs,
         color: '#D04B3E',
-        fontWeight: '700',
-        letterSpacing: 0.5,
+        fontWeight: typography.weight.bold,
+        letterSpacing: typography.letterSpacing.wide,
     },
     climberDriver: {
-        fontSize: 18,
-        fontWeight: '700',
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
         color: '#A32A1F',
     },
     climberMeta: {
-        marginTop: 4,
-        fontSize: 13,
+        marginTop: spacing.xxs,
+        fontSize: typography.size.sm,
         color: '#A65E59',
     },
     climberTeam: {
         marginTop: 2,
-        fontSize: 12,
+        fontSize: typography.size.sm,
         color: '#C27E77',
     },
     listCard: {
-        marginHorizontal: 16,
-        marginTop: 16,
-        paddingHorizontal: 16,
-        paddingVertical: 20,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 20,
+        marginHorizontal: spacing.md,
+        marginTop: spacing.md,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.lg,
+        backgroundColor: semanticColors.surface,
+        borderRadius: radius.xl,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E6E8F0',
-        shadowColor: '#000',
+        borderColor: semanticColors.border,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.04,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 4 },
         elevation: 3,
     },
     insightModeCard: {
-        marginHorizontal: 16,
-        marginTop: 16,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 16,
+        marginHorizontal: spacing.md,
+        marginTop: spacing.md,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        backgroundColor: semanticColors.surface,
+        borderRadius: radius.lg,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E6E8F0',
+        borderColor: semanticColors.border,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: 12,
+        gap: spacing.sm,
     },
     insightModeLabel: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: '#7A7E92',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textMuted,
         textTransform: 'uppercase',
         letterSpacing: 0.8,
     },
@@ -2070,159 +2186,159 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     listHeader: {
-        marginBottom: 12,
+        marginBottom: spacing.sm,
     },
     fuelConsistencyBlock: {
-        marginTop: 14,
+        marginTop: spacing.md,
     },
     fuelConsistencyHeader: {
-        fontSize: 13,
-        color: '#7A7E92',
+        fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
         textTransform: 'uppercase',
         letterSpacing: 0.8,
-        fontWeight: '700',
+        fontWeight: typography.weight.bold,
     },
     fuelConsistencySection: {
-        marginTop: 10,
+        marginTop: spacing.sm,
     },
     fuelConsistencyTitle: {
-        fontSize: 15,
-        fontWeight: '700',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
         color: '#1F2435',
     },
     fuelConsistencyRange: {
         marginTop: 2,
         marginBottom: 2,
-        fontSize: 12,
+        fontSize: typography.size.sm,
         color: '#7A819D',
     },
     listTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     listSubtitle: {
-        marginTop: 4,
-        fontSize: 13,
-        color: '#7A7E92',
+        marginTop: spacing.xxs,
+        fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
     },
     filterScroll: {
-        marginBottom: 8,
+        marginBottom: spacing.xs,
     },
     filterContent: {
-        paddingVertical: 4,
+        paddingVertical: spacing.xxs,
     },
     filterChip: {
-        borderRadius: 16,
+        borderRadius: radius.lg,
         borderWidth: 1,
         borderColor: '#D5DAE7',
-        paddingHorizontal: 14,
-        paddingVertical: 6,
-        marginRight: 8,
-        backgroundColor: '#FFF',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        marginRight: spacing.xs,
+        backgroundColor: semanticColors.surface,
     },
     filterChipActive: {
-        backgroundColor: '#15151E',
-        borderColor: '#15151E',
+        backgroundColor: semanticColors.textPrimary,
+        borderColor: semanticColors.textPrimary,
     },
     filterChipLabel: {
-        fontSize: 13,
+        fontSize: typography.size.sm,
         color: '#6E738B',
-        fontWeight: '600',
+        fontWeight: typography.weight.semibold,
     },
     filterChipLabelActive: {
-        color: '#FFF',
+        color: semanticColors.surface,
     },
     listRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
+        paddingVertical: spacing.sm,
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#ECEFF5',
+        borderBottomColor: semanticColors.borderMuted,
     },
     noData: {
         textAlign: 'center',
         color: '#8A8FA6',
-        fontSize: 13,
-        paddingVertical: 12,
+        fontSize: typography.size.sm,
+        paddingVertical: spacing.sm,
     },
     highlightRow: {
-        marginTop: 10,
-        paddingTop: 10,
+        marginTop: spacing.sm,
+        paddingTop: spacing.sm,
         borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: '#ECEFF5',
+        borderTopColor: semanticColors.borderMuted,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 10,
+        gap: spacing.sm,
     },
     highlightLabel: {
-        fontSize: 13,
-        color: '#7A7E92',
-        fontWeight: '600',
+        fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
+        fontWeight: typography.weight.semibold,
     },
     highlightValue: {
-        fontSize: 13,
+        fontSize: typography.size.sm,
         color: '#1C2238',
-        fontWeight: '700',
+        fontWeight: typography.weight.bold,
         flexShrink: 1,
         textAlign: 'right',
     },
     rankPill: {
         width: 32,
         height: 32,
-        borderRadius: 16,
+        borderRadius: radius.lg,
         backgroundColor: '#EEF2FF',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
+        marginRight: spacing.sm,
     },
     rankText: {
-        fontWeight: '700',
+        fontWeight: typography.weight.bold,
         color: '#5C6BFF',
     },
     listDriverBlock: {
         flex: 1,
     },
     listDriverName: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     listMeta: {
-        fontSize: 12,
-        color: '#7A7E92',
+        fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
         marginTop: 2,
     },
     listValue: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#15151E',
-        marginLeft: 12,
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
+        marginLeft: spacing.sm,
     },
     expandButton: {
-        marginTop: 12,
-        paddingVertical: 10,
-        borderRadius: 14,
+        marginTop: spacing.sm,
+        paddingVertical: spacing.sm,
+        borderRadius: radius.md,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: '#D5DAE7',
         alignItems: 'center',
         backgroundColor: '#F8FAFF',
     },
     expandButtonText: {
-        fontSize: 13,
-        fontWeight: '600',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.semibold,
         color: '#2C2C34',
     },
     teamDot: {
         width: 14,
         height: 14,
         borderRadius: 7,
-        marginRight: 12,
+        marginRight: spacing.sm,
     },
     refreshHint: {
-        paddingVertical: 24,
+        paddingVertical: spacing.xl,
         textAlign: 'center',
-        color: '#AAA',
+        color: semanticColors.textMuted,
     },
 });

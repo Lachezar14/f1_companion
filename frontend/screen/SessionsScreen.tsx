@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { colors, overlays, radius, semanticColors, spacing, typography } from '../theme/tokens';
 import {
     View,
     Text,
@@ -90,7 +91,7 @@ const SessionsScreen = () => {
             <SafeAreaView style={styles.container} edges={['top']}>
                 {renderScreenHeader()}
                 <View style={styles.center}>
-                    <ActivityIndicator size="large" color="#E10600" />
+                    <ActivityIndicator size="large" color={semanticColors.danger} />
                     <Text style={styles.loadingText}>Loading calendar…</Text>
                 </View>
             </SafeAreaView>
@@ -133,53 +134,53 @@ export default SessionsScreen;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F5F5F7',
+        backgroundColor: semanticColors.background,
     },
     screenHeader: {
-        paddingHorizontal: 16,
-        paddingTop: 8,
-        paddingBottom: 4,
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.xs,
+        paddingBottom: spacing.xxs,
     },
     screenTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     listContent: {
-        padding: 16,
+        padding: spacing.md,
     },
     center: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#F5F5F7',
+        backgroundColor: semanticColors.background,
     },
     loadingText: {
-        marginTop: 12,
-        fontSize: 16,
-        color: '#333',
+        marginTop: spacing.sm,
+        fontSize: typography.size.lg,
+        color: semanticColors.textSecondary,
     },
     errorText: {
-        fontSize: 16,
-        color: '#FF3B30',
+        fontSize: typography.size.lg,
+        color: semanticColors.danger,
     },
     retryButton: {
-        marginTop: 16,
-        paddingHorizontal: 24,
-        paddingVertical: 10,
-        backgroundColor: '#E10600',
-        borderRadius: 8,
+        marginTop: spacing.md,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.sm,
+        backgroundColor: semanticColors.danger,
+        borderRadius: radius.sm,
     },
     retryText: {
-        color: '#FFF',
-        fontWeight: 'bold',
+        color: semanticColors.surface,
+        fontWeight: typography.weight.bold,
     },
     heroCard: {
-        backgroundColor: '#15151E',
-        borderRadius: 24,
-        padding: 20,
-        marginBottom: 16,
-        shadowColor: '#000',
+        backgroundColor: semanticColors.textPrimary,
+        borderRadius: radius.xxl,
+        padding: spacing.lg,
+        marginBottom: spacing.md,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.2,
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 6 },
@@ -187,67 +188,67 @@ const styles = StyleSheet.create({
     },
     yearRow: {
         flexDirection: 'row',
-        marginBottom: 12,
+        marginBottom: spacing.sm,
         flexWrap: 'wrap',
         marginHorizontal: -4,
     },
     yearChip: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.12)',
-        marginHorizontal: 4,
-        marginBottom: 8,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.pill,
+        backgroundColor: overlays.white12,
+        marginHorizontal: spacing.xxs,
+        marginBottom: spacing.xs,
     },
     yearChipActive: {
-        backgroundColor: '#FFF',
+        backgroundColor: semanticColors.surface,
     },
     yearChipText: {
         color: 'rgba(255,255,255,0.7)',
-        fontWeight: '600',
-        letterSpacing: 0.5,
+        fontWeight: typography.weight.semibold,
+        letterSpacing: typography.letterSpacing.wide,
     },
     yearChipTextActive: {
-        color: '#15151E',
+        color: semanticColors.textPrimary,
     },
     heroTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#FFF',
-        marginTop: 8,
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.surface,
+        marginTop: spacing.xs,
     },
     heroSubtitle: {
-        fontSize: 14,
+        fontSize: typography.size.base,
         color: 'rgba(255,255,255,0.7)',
-        letterSpacing: 0.5,
+        letterSpacing: typography.letterSpacing.wide,
     },
     heroStats: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 20,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 18,
-        paddingVertical: 12,
+        marginTop: spacing.lg,
+        backgroundColor: overlays.white08,
+        borderRadius: radius.lg,
+        paddingVertical: spacing.sm,
     },
     heroStat: {
         flex: 1,
         alignItems: 'center',
     },
     heroStatValue: {
-        fontSize: 22,
-        fontWeight: '700',
-        color: '#FFF',
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.surface,
     },
     heroStatLabel: {
-        fontSize: 12,
+        fontSize: typography.size.sm,
         textTransform: 'uppercase',
         color: 'rgba(255,255,255,0.65)',
-        letterSpacing: 1,
-        marginTop: 4,
+        letterSpacing: typography.letterSpacing.wider,
+        marginTop: spacing.xxs,
     },
     heroDivider: {
         width: 1,
         height: 36,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: overlays.white20,
     },
 });

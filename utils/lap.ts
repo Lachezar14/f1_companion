@@ -122,3 +122,34 @@ export const calculateAvgLapTimePerCompound = (
         lapCount: data.count,
     }));
 };
+
+export type StintLapGroup = {
+    stint: Stint;
+    laps: Lap[];
+};
+
+export const groupLapsByStints = (laps: Lap[], stints: Stint[]): StintLapGroup[] => {
+    const orderedStints = [...stints].sort(
+        (a, b) => a.lap_start - b.lap_start || a.stint_number - b.stint_number
+    );
+    const orderedLaps = [...laps].sort((a, b) => a.lap_number - b.lap_number);
+    let lastAssignedLap = Number.NEGATIVE_INFINITY;
+
+    return orderedStints.map(stint => {
+        const rangeStart = Math.max(stint.lap_start, lastAssignedLap + 1);
+        const rangeEnd = stint.lap_end;
+
+        const lapsForStint = orderedLaps.filter(
+            lap => lap.lap_number >= rangeStart && lap.lap_number <= rangeEnd
+        );
+
+        if (rangeEnd > lastAssignedLap) {
+            lastAssignedLap = rangeEnd;
+        }
+
+        return {
+            stint,
+            laps: lapsForStint,
+        };
+    });
+};

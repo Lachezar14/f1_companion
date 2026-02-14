@@ -1,4 +1,5 @@
 import React from 'react';
+import { colors, overlays, semanticColors, typography } from '../../theme/tokens';
 import {
     View,
     Text,
@@ -75,13 +76,13 @@ const styles = StyleSheet.create({
         borderWidth: 3,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.2,
         shadowOffset: { width: 0, height: 4 },
         shadowRadius: 8,
     },
     inner: {
-        backgroundColor: '#0D0F13',
+        backgroundColor: semanticColors.surfaceInverse,
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.07)',
         justifyContent: 'center',
@@ -90,11 +91,11 @@ const styles = StyleSheet.create({
     hub: {
         backgroundColor: '#2B2F3A',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.15)',
+        borderColor: overlays.white15,
     },
     letter: {
         position: 'absolute',
-        fontWeight: '800',
-        letterSpacing: 1,
+        fontWeight: typography.weight.heavy,
+        letterSpacing: typography.letterSpacing.wider,
     },
 });

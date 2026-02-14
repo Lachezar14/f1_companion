@@ -96,7 +96,9 @@ const getIsTabBarVisible = (
     route: { state?: any; params?: any; name: string } | undefined,
     initialRouteName: string
 ) => {
-    const routeName = getFocusedRouteNameFromRoute(route) ?? initialRouteName;
+    const routeName = route
+        ? getFocusedRouteNameFromRoute(route) ?? initialRouteName
+        : initialRouteName;
     return routeName === initialRouteName;
 };
 

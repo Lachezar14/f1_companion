@@ -3,12 +3,13 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SessionDriverData } from '../../../backend/types';
+import { colors, radius, semanticColors, spacing, typography } from '../../theme/tokens';
 import {
     deriveDriverCode,
     formatDriverPosition,
     getDriverPositionColor,
-    getTeamColorHex,
 } from '../../../utils/driver';
+import DriverNumberBadge from '../common/DriverNumberBadge';
 
 export interface DriverSessionData {
     position: number | null;
@@ -103,14 +104,11 @@ const DriverRow = ({
             </View>
 
             <View style={styles.driverColumn}>
-                <View
-                    style={[
-                        styles.driverBubble,
-                        { backgroundColor: getTeamColorHex(driver.teamColor) },
-                    ]}
-                >
-                    <Text style={styles.driverBubbleText}>{driver.driverNumber}</Text>
-                </View>
+                <DriverNumberBadge
+                    driverNumber={driver.driverNumber}
+                    teamColor={driver.teamColor}
+                    style={styles.numberBadge}
+                />
                 <View style={styles.driverInfo}>
                     <Text style={styles.driverCode}>{getDriverCode()}</Text>
                     <Text style={styles.teamName} numberOfLines={1}>
@@ -172,70 +170,70 @@ export default function FreePracticeResultsSection({
 
 const styles = StyleSheet.create({
     section: {
-        backgroundColor: '#FFF',
-        padding: 16,
-        marginHorizontal: 16,
-        marginTop: 16,
-        borderRadius: 20,
+        backgroundColor: semanticColors.surface,
+        padding: spacing.md,
+        marginHorizontal: spacing.md,
+        marginTop: spacing.md,
+        borderRadius: radius.xl,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E3E3E3',
-        shadowColor: '#000',
+        borderColor: semanticColors.border,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.05,
         shadowRadius: 6,
         shadowOffset: { width: 0, height: 3 },
         elevation: 2,
     },
     sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#15151E',
-        marginBottom: 12,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
+        marginBottom: spacing.sm,
     },
     tableHeader: {
         flexDirection: 'row',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
+        paddingVertical: spacing.xs,
+        paddingHorizontal: spacing.sm,
         backgroundColor: '#F8F8F8',
-        borderRadius: 10,
-        marginBottom: 8,
+        borderRadius: radius.sm,
+        marginBottom: spacing.xs,
     },
     tableHeaderPos: {
         width: 50,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#666',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textMuted,
     },
     tableHeaderDriver: {
         flex: 1,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#666',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textMuted,
     },
     tableHeaderLaps: {
         width: 50,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#666',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textMuted,
         textAlign: 'center',
     },
     tableHeaderTime: {
         width: 80,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#666',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textMuted,
         textAlign: 'right',
     },
     noData: {
-        fontSize: 14,
-        color: '#999',
+        fontSize: typography.size.base,
+        color: semanticColors.textMuted,
         fontStyle: 'italic',
         textAlign: 'center',
-        paddingVertical: 12,
+        paddingVertical: spacing.sm,
     },
     rowContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
+        paddingVertical: spacing.sm,
     },
     rowDivider: {
         borderBottomWidth: 1,
@@ -247,54 +245,44 @@ const styles = StyleSheet.create({
     lapColumn: {
     },
     positionText: {
-        fontSize: 15,
-        fontWeight: '700',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
     },
     driverColumn: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        marginRight: 12,
+        marginRight: spacing.sm,
     },
-    driverBubble: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 10,
-    },
-    driverBubbleText: {
-        color: '#FFF',
-        fontWeight: '700',
-        fontSize: 13,
+    numberBadge: {
+        marginRight: spacing.sm,
     },
     driverInfo: {
         flex: 1,
     },
     driverCode: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     teamName: {
-        fontSize: 13,
-        color: '#777',
+        fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
     },
     valueColumn: {
         alignItems: 'flex-end',
         width: 100,
     },
     valueLabel: {
-        fontSize: 11,
+        fontSize: typography.size.xs,
         color: '#8B8B8B',
-        letterSpacing: 0.5,
+        letterSpacing: typography.letterSpacing.wide,
         textTransform: 'uppercase',
     },
     valueText: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#E10600',
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.danger,
         marginTop: 2,
     },
 });

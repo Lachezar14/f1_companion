@@ -3,6 +3,13 @@ export const colors = {
         primary: '#E10600',
         primaryDark: '#B00500',
     },
+    accents: {
+        aqua: '#3EC5FF',
+        peach: '#FF8A5C',
+        mint: '#6DE19C',
+        lavender: '#AC8CFF',
+        cobalt: '#0059C1',
+    },
     podium: {
         gold: '#FFD700',
         silver: '#C0C0C0',
@@ -117,4 +124,40 @@ export const shadows = {
 
 export const timingTextStyle = {
     fontVariant: ['tabular-nums'] as const,
+};
+
+export const semanticColors = {
+    background: colors.neutral.offWhite,
+    backgroundMuted: '#F2F2F2',
+    surface: colors.neutral.white,
+    surfaceMuted: '#F7F8FB',
+    surfaceInverse: colors.neutral.carbon,
+    textPrimary: colors.neutral.carbon,
+    textSecondary: '#4D5166',
+    textMuted: '#7A7E92',
+    textInverse: colors.neutral.white,
+    border: '#E3E6F0',
+    borderStrong: '#D9DFEA',
+    borderMuted: '#ECEFF5',
+    danger: colors.brand.primary,
+    dangerStrong: colors.brand.primaryDark,
+    dangerSoft: '#FDF1F0',
+    success: '#1F8A4D',
+    warning: '#8A6600',
+    warningSoft: '#FFF8E1',
+    info: '#2A3A78',
+};
+
+export const overlays = {
+    white08: 'rgba(255,255,255,0.08)',
+    white10: 'rgba(255,255,255,0.1)',
+    white12: 'rgba(255,255,255,0.12)',
+    white15: 'rgba(255,255,255,0.15)',
+    white16: 'rgba(255,255,255,0.16)',
+    white20: 'rgba(255,255,255,0.2)',
+    black08: 'rgba(0,0,0,0.08)',
+    black10: 'rgba(0,0,0,0.1)',
+    black15: 'rgba(0,0,0,0.15)',
+    brand12: 'rgba(225, 6, 0, 0.12)',
+    cobalt12: 'rgba(0, 89, 193, 0.12)',
 };

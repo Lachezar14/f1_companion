@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { colors, overlays, radius, semanticColors, spacing, typography } from '../../../theme/tokens';
 import {
     View,
     Text,
@@ -11,10 +12,11 @@ import {
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { getRaceDriverDetail } from '../../../../backend/service/openf1Service';
-import type { Lap, Overtake, RaceInsights, SessionDriverData, Stint } from '../../../../backend/types';
+import type { Overtake, RaceInsights, SessionDriverData } from '../../../../backend/types';
 import RaceStatsSection from "../../../component/race/RaceStatsSection";
-import RaceStintCard from '../../../component/race/RaceStintCard';
+import StintCard from '../../../component/common/StintCard';
 import TyreCompoundBadge from '../../../component/common/TyreCompoundBadge';
+import { groupLapsByStints } from '../../../../utils/lap';
 import {
     getTeamColorHex,
     getDriverInitials,
@@ -142,6 +144,15 @@ export default function DriverOverviewScreen() {
 
     const driverData = state.driverData;
     const [stintsExpanded, setStintsExpanded] = useState(true);
+    const pitInLapSet = useMemo(() => {
+        if (!driverData) return new Set<number>();
+        return new Set(
+            driverData.laps
+                .filter(lap => lap.is_pit_out_lap)
+                .map(lap => lap.lap_number - 1)
+                .filter(lapNumber => lapNumber > 0)
+        );
+    }, [driverData]);
 
     const sortedStints = useMemo(() => {
         if (!driverData) return [];
@@ -152,12 +163,7 @@ export default function DriverOverviewScreen() {
         if (!driverData) {
             return [];
         }
-        return sortedStints.map(stint => {
-            const lapsForStint = driverData.laps.filter(
-                (lap: Lap) => lap.lap_number >= stint.lap_start && lap.lap_number <= stint.lap_end
-            );
-            return { stint, laps: lapsForStint };
-        });
+        return groupLapsByStints(driverData.laps, sortedStints);
     }, [driverData, sortedStints]);
 
     const strategySummary = useMemo(() => {
@@ -275,7 +281,7 @@ export default function DriverOverviewScreen() {
     if (state.loading) {
         return (
             <View style={styles.center}>
-                <ActivityIndicator size="large" color="#E10600" />
+                <ActivityIndicator size="large" color={semanticColors.danger} />
                 <Text style={styles.loadingText}>Loading driver data...</Text>
             </View>
         );
@@ -348,7 +354,7 @@ export default function DriverOverviewScreen() {
                 <RefreshControl
                     refreshing={state.refreshing}
                     onRefresh={handleRefresh}
-                    tintColor="#E10600"
+                    tintColor={semanticColors.danger}
                 />
             }
         >
@@ -535,31 +541,38 @@ export default function DriverOverviewScreen() {
                                     ]}
                                 >
                                     <View style={styles.strategyCompactTopRow}>
-                                        <View style={styles.strategyCompactInfoBlock}>
-                                            <View style={styles.strategyStintPill}>
-                                                <Text style={styles.strategyStintPillText}>
-                                                    Stint {summary.stintNumber}
-                                                </Text>
-                                            </View>
-                                            <Text style={styles.strategyCompactLaps}>
-                                                L{summary.lapStart} - L{summary.lapEnd}
-                                            </Text>
-                                            <Text
-                                                style={[
-                                                    styles.strategyCompactTyreState,
-                                                    summary.isNewTyre
-                                                        ? styles.strategyCompactTyreStateNew
-                                                        : styles.strategyCompactTyreStateUsed,
-                                                ]}
-                                            >
-                                                {summary.isNewTyre ? 'New tyre' : 'Used tyre'}
-                                            </Text>
-                                        </View>
                                         <TyreCompoundBadge
                                             compound={summary.compoundCode}
                                             size={38}
                                             style={styles.strategyCompoundBadge}
                                         />
+                                        <View style={styles.strategyCompactInfoBlock}>
+                                            <Text style={styles.strategyStintLabel}>
+                                                STINT {summary.stintNumber}
+                                            </Text>
+                                            <Text style={styles.strategyCompactLaps}>
+                                                L{summary.lapStart} - L{summary.lapEnd}
+                                            </Text>
+                                            <View
+                                                style={[
+                                                    styles.strategyTyreChip,
+                                                    summary.isNewTyre
+                                                        ? styles.strategyTyreChipNew
+                                                        : styles.strategyTyreChipUsed,
+                                                ]}
+                                            >
+                                                <Text
+                                                    style={[
+                                                        styles.strategyTyreChipText,
+                                                        summary.isNewTyre
+                                                            ? styles.strategyTyreChipTextNew
+                                                            : styles.strategyTyreChipTextUsed,
+                                                    ]}
+                                                >
+                                                    {summary.isNewTyre ? 'New tyre' : 'Used tyre'}
+                                                </Text>
+                                            </View>
+                                        </View>
                                     </View>
                                 </View>
                             );
@@ -587,12 +600,13 @@ export default function DriverOverviewScreen() {
                     <View style={styles.sectionBody}>
                         {stintsWithLaps.length ? (
                             stintsWithLaps.map(({ stint, laps }, index) => (
-                                <RaceStintCard
+                                <StintCard
                                     key={stint.stint_number}
                                     stint={stint}
                                     laps={laps}
                                     showDivider={index < stintsWithLaps.length - 1}
                                     safetyCarLapSet={safetyCarLapSet}
+                                    pitInLapSet={pitInLapSet}
                                 />
                             ))
                         ) : (
@@ -606,8 +620,8 @@ export default function DriverOverviewScreen() {
 }
 
 const CARD_BASE = {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    backgroundColor: semanticColors.surface,
+    borderRadius: radius.xxl,
     borderWidth: 1,
     borderColor: '#E1E4EF',
     shadowColor: '#0F1325',
@@ -618,37 +632,37 @@ const CARD_BASE = {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F5F5F7' },
+    container: { flex: 1, backgroundColor: semanticColors.background },
     driverSwitchScroll: {
-        marginHorizontal: 16,
-        marginBottom: 12,
+        marginHorizontal: spacing.md,
+        marginBottom: spacing.sm,
     },
     driverSwitchContent: {
-        paddingVertical: 4,
+        paddingVertical: spacing.xxs,
     },
     driverChip: {
-        borderRadius: 18,
+        borderRadius: radius.lg,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: '#D9DEEC',
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        marginRight: 8,
-        backgroundColor: '#FFFFFF',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        marginRight: spacing.xs,
+        backgroundColor: semanticColors.surface,
     },
     driverChipActive: {
-        backgroundColor: '#15151E',
-        borderColor: '#15151E',
+        backgroundColor: semanticColors.textPrimary,
+        borderColor: semanticColors.textPrimary,
     },
     driverChipName: {
-        fontSize: 13,
-        fontWeight: '600',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.semibold,
         color: '#5F6683',
     },
     driverChipNameActive: {
-        color: '#FFFFFF',
+        color: semanticColors.surface,
     },
     driverChipNumber: {
-        fontSize: 11,
+        fontSize: typography.size.xs,
         color: '#8A90AA',
         marginTop: 2,
     },
@@ -656,24 +670,24 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.85)',
     },
     contentContainer: {
-        paddingBottom: 32,
+        paddingBottom: spacing.xxl,
     },
     center: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 24,
-        backgroundColor: '#F5F5F7',
+        padding: spacing.xl,
+        backgroundColor: semanticColors.background,
     },
-    loadingText: { marginTop: 12, fontSize: 16, color: '#333' },
-    errorTitle: { fontSize: 20, fontWeight: 'bold', color: '#E10600', marginBottom: 8 },
-    errorMessage: { fontSize: 16, color: '#333', textAlign: 'center' },
+    loadingText: { marginTop: spacing.sm, fontSize: typography.size.lg, color: semanticColors.textSecondary },
+    errorTitle: { fontSize: typography.size.xl, fontWeight: typography.weight.bold, color: semanticColors.danger, marginBottom: spacing.xs },
+    errorMessage: { fontSize: typography.size.lg, color: semanticColors.textSecondary, textAlign: 'center' },
     heroCard: {
-        marginHorizontal: 16,
-        marginTop: 16,
-        padding: 20,
-        borderRadius: 28,
-        shadowColor: '#000',
+        marginHorizontal: spacing.md,
+        marginTop: spacing.md,
+        padding: spacing.lg,
+        borderRadius: radius.xxl,
+        shadowColor: colors.neutral.black,
         shadowOpacity: 0.2,
         shadowRadius: 18,
         shadowOffset: { width: 0, height: 10 },
@@ -688,44 +702,44 @@ const styles = StyleSheet.create({
     },
     heroSubtitle: {
         color: 'rgba(255,255,255,0.7)',
-        fontSize: 13,
+        fontSize: typography.size.sm,
         letterSpacing: 0.6,
         textTransform: 'uppercase',
     },
     heroName: {
-        color: '#FFF',
-        fontSize: 26,
-        fontWeight: '800',
-        marginTop: 8,
+        color: semanticColors.surface,
+        fontSize: typography.size.xxxl,
+        fontWeight: typography.weight.heavy,
+        marginTop: spacing.xs,
     },
     heroTeam: {
         color: 'rgba(255,255,255,0.85)',
-        fontSize: 15,
-        marginTop: 4,
+        fontSize: typography.size.base,
+        marginTop: spacing.xxs,
     },
     heroChipRow: {
         flexDirection: 'row',
-        marginTop: 16,
+        marginTop: spacing.md,
     },
     heroChip: {
-        paddingHorizontal: 14,
-        paddingVertical: 6,
-        borderRadius: 999,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.pill,
         backgroundColor: 'rgba(255,255,255,0.18)',
-        marginRight: 10,
+        marginRight: spacing.sm,
     },
     heroChipMuted: {
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: overlays.white08,
     },
     heroChipText: {
-        color: '#FFF',
-        fontWeight: '700',
-        fontSize: 13,
+        color: semanticColors.surface,
+        fontWeight: typography.weight.bold,
+        fontSize: typography.size.sm,
         letterSpacing: 0.4,
     },
     heroChipTextMuted: {
         color: 'rgba(255,255,255,0.85)',
-        fontWeight: '600',
+        fontWeight: typography.weight.semibold,
     },
     heroAvatar: {
         width: 88,
@@ -737,7 +751,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.4)',
-        marginLeft: 16,
+        marginLeft: spacing.md,
     },
     heroImage: {
         width: '100%',
@@ -745,111 +759,120 @@ const styles = StyleSheet.create({
     },
     avatarInitials: {
         fontSize: 28,
-        fontWeight: '800',
-        color: '#FFF',
+        fontWeight: typography.weight.heavy,
+        color: semanticColors.surface,
     },
     heroStatRow: {
         flexDirection: 'row',
-        marginTop: 24,
+        marginTop: spacing.xl,
         backgroundColor: 'rgba(0,0,0,0.2)',
-        borderRadius: 22,
-        paddingVertical: 12,
-        paddingHorizontal: 12,
+        borderRadius: radius.xl,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.sm,
     },
     heroStat: {
         flex: 1,
         alignItems: 'center',
     },
     heroStatValue: {
-        color: '#FFF',
-        fontSize: 18,
-        fontWeight: '700',
+        color: semanticColors.surface,
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
     },
     heroStatLabel: {
         color: 'rgba(255,255,255,0.7)',
-        fontSize: 12,
-        marginTop: 4,
+        fontSize: typography.size.sm,
+        marginTop: spacing.xxs,
         letterSpacing: 0.6,
         textTransform: 'uppercase',
     },
     strategyCard: {
         ...CARD_BASE,
-        marginTop: 20,
-        marginHorizontal: 16,
-        paddingHorizontal: 16,
-        paddingVertical: 16,
+        marginTop: spacing.lg,
+        marginHorizontal: spacing.md,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.md,
     },
     strategyHeader: {
-        marginBottom: 10,
+        marginBottom: spacing.sm,
     },
     strategyRowContent: {
-        paddingVertical: 4,
+        paddingVertical: spacing.xxs,
     },
     strategyCompactCard: {
-        width: 134,
-        marginRight: 8,
+        width: 170,
+        marginRight: spacing.xs,
     },
     strategyCompactCardLast: {
         marginRight: 0,
     },
     strategyCompactTopRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        backgroundColor: '#F8F9FC',
+        alignItems: 'flex-start',
+        backgroundColor: semanticColors.surfaceMuted,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: '#DFE3EE',
-        borderRadius: 14,
-        paddingHorizontal: 10,
-        paddingVertical: 10,
-        minHeight: 84,
+        borderRadius: radius.md,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.sm,
+        minHeight: 96,
     },
     strategyCompactInfoBlock: {
         flex: 1,
-        paddingRight: 6,
+        marginLeft: spacing.sm,
     },
-    strategyStintPill: {
-        backgroundColor: '#ECEFF9',
-        borderRadius: 999,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-    },
-    strategyStintPillText: {
-        fontSize: 11,
-        letterSpacing: 0.5,
+    strategyStintLabel: {
+        fontSize: typography.size.xs,
+        letterSpacing: typography.letterSpacing.wider,
         textTransform: 'uppercase',
-        color: '#5D647E',
-        fontWeight: '600',
+        color: semanticColors.textMuted,
+        fontWeight: typography.weight.bold,
     },
     strategyCompoundBadge: {
-        marginRight: -1,
+        marginTop: spacing.xxs,
     },
     strategyCompactLaps: {
-        marginTop: 8,
-        fontSize: 11,
-        color: '#6D738C',
-        fontWeight: '700',
+        marginTop: 6,
+        fontSize: typography.size.base,
+        color: semanticColors.textPrimary,
+        fontWeight: typography.weight.bold,
     },
-    strategyCompactTyreState: {
-        marginTop: 4,
-        fontSize: 11,
-        fontWeight: '700',
+    strategyTyreChip: {
+        marginTop: spacing.xs,
+        alignSelf: 'flex-start',
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xxs,
+        borderRadius: radius.pill,
+        borderWidth: StyleSheet.hairlineWidth,
     },
-    strategyCompactTyreStateNew: {
-        color: '#1F8A4D',
+    strategyTyreChipNew: {
+        backgroundColor: 'rgba(31,138,77,0.12)',
+        borderColor: 'rgba(31,138,77,0.35)',
     },
-    strategyCompactTyreStateUsed: {
+    strategyTyreChipUsed: {
+        backgroundColor: 'rgba(106,111,135,0.12)',
+        borderColor: 'rgba(106,111,135,0.35)',
+    },
+    strategyTyreChipText: {
+        fontSize: typography.size.xs,
+        fontWeight: typography.weight.bold,
+        letterSpacing: 0.3,
+    },
+    strategyTyreChipTextNew: {
+        color: semanticColors.success,
+    },
+    strategyTyreChipTextUsed: {
         color: '#6A6F87',
     },
     insightCard: {
         ...CARD_BASE,
-        marginTop: 20,
-        marginHorizontal: 16,
-        paddingHorizontal: 16,
-        paddingVertical: 16,
+        marginTop: spacing.lg,
+        marginHorizontal: spacing.md,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.md,
     },
     insightHeader: {
-        marginBottom: 10,
+        marginBottom: spacing.sm,
     },
     insightMetricGrid: {
         flexDirection: 'row',
@@ -858,33 +881,33 @@ const styles = StyleSheet.create({
     },
     insightMetric: {
         width: '50%',
-        paddingHorizontal: 4,
-        marginTop: 8,
+        paddingHorizontal: spacing.xxs,
+        marginTop: spacing.xs,
     },
     insightMetricLabel: {
-        fontSize: 11,
+        fontSize: typography.size.xs,
         textTransform: 'uppercase',
         letterSpacing: 0.8,
         color: '#717791',
-        fontWeight: '700',
+        fontWeight: typography.weight.bold,
     },
     insightMetricValue: {
-        marginTop: 4,
-        fontSize: 22,
-        fontWeight: '800',
-        color: '#15151E',
+        marginTop: spacing.xxs,
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.heavy,
+        color: semanticColors.textPrimary,
     },
     insightMetricMeta: {
         marginTop: 2,
-        fontSize: 12,
+        fontSize: typography.size.sm,
         color: '#666C85',
     },
     metricFocusCard: {
         ...CARD_BASE,
-        marginTop: 10,
-        marginHorizontal: 16,
-        paddingVertical: 16,
-        paddingHorizontal: 14,
+        marginTop: spacing.sm,
+        marginHorizontal: spacing.md,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.md,
     },
     metricFocusRow: {
         flexDirection: 'row',
@@ -892,71 +915,71 @@ const styles = StyleSheet.create({
     },
     metricFocusTile: {
         flex: 1,
-        paddingHorizontal: 4,
+        paddingHorizontal: spacing.xxs,
     },
     metricFocusLabel: {
-        fontSize: 11,
+        fontSize: typography.size.xs,
         textTransform: 'uppercase',
         letterSpacing: 0.7,
         color: '#717791',
-        fontWeight: '700',
+        fontWeight: typography.weight.bold,
     },
     metricFocusValue: {
-        marginTop: 4,
-        fontSize: 22,
-        fontWeight: '800',
-        color: '#15151E',
+        marginTop: spacing.xxs,
+        fontSize: typography.size.xxl,
+        fontWeight: typography.weight.heavy,
+        color: semanticColors.textPrimary,
     },
     insightExplainText: {
-        marginTop: 6,
-        fontSize: 12,
+        marginTop: spacing.xs,
+        fontSize: typography.size.sm,
         lineHeight: 18,
         color: '#656B84',
     },
     section: {
         ...CARD_BASE,
-        marginTop: 20,
-        marginHorizontal: 16,
+        marginTop: spacing.lg,
+        marginHorizontal: spacing.md,
     },
     sectionHeader: {
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 12,
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.sm,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 12,
+        gap: spacing.sm,
     },
     sectionTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#15151E',
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     sectionSubtitle: {
         marginTop: 2,
-        fontSize: 12,
-        color: '#7C7C85',
+        fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
     },
     sectionToggle: {
-        paddingHorizontal: 12,
+        paddingHorizontal: spacing.sm,
         paddingVertical: 7,
-        borderRadius: 999,
+        borderRadius: radius.pill,
         backgroundColor: '#EFF0F7',
     },
     sectionToggleText: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#4D5166',
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textSecondary,
     },
     sectionBody: {
-        paddingHorizontal: 16,
-        paddingBottom: 16,
+        paddingHorizontal: spacing.md,
+        paddingBottom: spacing.md,
     },
     noData: {
-        fontSize: 14,
-        color: '#999',
+        fontSize: typography.size.base,
+        color: semanticColors.textMuted,
         fontStyle: 'italic',
-        paddingVertical: 20,
+        paddingVertical: spacing.lg,
         textAlign: 'center',
     },
 });
