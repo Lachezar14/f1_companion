@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { getRaceDriverDetail } from '../../../../backend/service/openf1Service';
-import type { Lap, SessionDriverData, SessionResult, Stint } from '../../../../backend/types';
+import type { Lap, Overtake, RaceInsights, SessionDriverData, Stint } from '../../../../backend/types';
 import RaceStatsSection from "../../../component/race/RaceStatsSection";
 import RaceStintCard from '../../../component/race/RaceStintCard';
 import TyreCompoundBadge from '../../../component/common/TyreCompoundBadge';
@@ -30,6 +30,8 @@ type RouteParams = {
     driverData?: SessionDriverData | null;
     safetyCarLaps?: number[];
     driverOptions?: DriverOption[];
+    overtakes?: Overtake[];
+    raceInsights?: RaceInsights | null;
 };
 
 type DriverOption = {
@@ -40,6 +42,7 @@ type DriverOption = {
 };
 
 const EMPTY_SAFETY_CAR_LAPS: number[] = [];
+const EMPTY_OVERTAKES: Overtake[] = [];
 
 interface DriverState {
     driverData: SessionDriverData | null;
@@ -56,9 +59,13 @@ export default function DriverOverviewScreen() {
         driverData: driverDataParam,
         safetyCarLaps: safetyCarParam,
         driverOptions: driverOptionsParam,
+        overtakes: overtakesParam,
+        raceInsights: raceInsightsParam,
     } = route.params;
     const safetyCarLaps = safetyCarParam ?? EMPTY_SAFETY_CAR_LAPS;
     const driverOptions = driverOptionsParam ?? [];
+    const overtakes = overtakesParam ?? EMPTY_OVERTAKES;
+    const raceInsights = raceInsightsParam ?? null;
 
     const [selectedDriverNumber, setSelectedDriverNumber] = useState(driverNumber);
 
@@ -164,6 +171,108 @@ export default function DriverOverviewScreen() {
         }));
     }, [sortedStints]);
 
+    const overtakeInsight = useMemo(() => {
+        const fromLeaderboard =
+            raceInsights?.overtakeLeaderboard.drivers.find(
+                entry => entry.driverNumber === selectedDriverNumber
+            ) ?? null;
+        if (fromLeaderboard) {
+            return {
+                made: fromLeaderboard.made,
+                suffered: fromLeaderboard.suffered,
+                net: fromLeaderboard.net,
+            };
+        }
+
+        if (!overtakes.length) {
+            return {
+                made: 0,
+                suffered: 0,
+                net: 0,
+            };
+        }
+
+        let made = 0;
+        let suffered = 0;
+        overtakes.forEach(entry => {
+            if (entry.overtakingDriverNumber === selectedDriverNumber) {
+                made += 1;
+            }
+            if (entry.overtakenDriverNumber === selectedDriverNumber) {
+                suffered += 1;
+            }
+        });
+
+        return {
+            made,
+            suffered,
+            net: made - suffered,
+        };
+    }, [overtakes, raceInsights, selectedDriverNumber]);
+
+    const positionGainInsight = useMemo(() => {
+        return (
+            raceInsights?.positionChanges.drivers.find(
+                entry => entry.driverNumber === selectedDriverNumber
+            ) ?? null
+        );
+    }, [raceInsights, selectedDriverNumber]);
+
+    const paceConsistencyInsight = useMemo(() => {
+        return (
+            raceInsights?.paceConsistency.drivers.find(
+                entry => entry.driverNumber === selectedDriverNumber
+            ) ?? null
+        );
+    }, [raceInsights, selectedDriverNumber]);
+
+    const tyreDegradationSummary = useMemo(() => {
+        const stints = raceInsights?.tyreDegradation.stints.filter(
+            entry => entry.driverNumber === selectedDriverNumber
+        ) ?? [];
+        if (!stints.length) {
+            return null;
+        }
+
+        const weightedDelta = stints.reduce(
+            (acc, entry) => {
+                if (typeof entry.deltaFirstToLast !== 'number' || Number.isNaN(entry.deltaFirstToLast)) {
+                    return acc;
+                }
+                return {
+                    total: acc.total + entry.deltaFirstToLast * entry.lapCount,
+                    laps: acc.laps + entry.lapCount,
+                };
+            },
+            { total: 0, laps: 0 }
+        );
+
+        const weightedSlope = stints.reduce(
+            (acc, entry) => {
+                if (typeof entry.slope !== 'number' || Number.isNaN(entry.slope)) {
+                    return acc;
+                }
+                return {
+                    total: acc.total + entry.slope * entry.lapCount,
+                    laps: acc.laps + entry.lapCount,
+                };
+            },
+            { total: 0, laps: 0 }
+        );
+
+        const averageDelta =
+            weightedDelta.laps > 0 ? weightedDelta.total / weightedDelta.laps : null;
+        const averageSlope =
+            weightedSlope.laps > 0 ? weightedSlope.total / weightedSlope.laps : null;
+
+        return {
+            stintCount: stints.length,
+            lapCount: stints.reduce((sum, entry) => sum + entry.lapCount, 0),
+            averageDelta,
+            averageSlope,
+        };
+    }, [raceInsights, selectedDriverNumber]);
+
     if (state.loading) {
         return (
             <View style={styles.center}>
@@ -199,9 +308,26 @@ export default function DriverOverviewScreen() {
     const heroStats = [
         { label: 'Result', value: formatSessionResult(driverData.sessionResult) },
         { label: 'Grid', value: driverData.startingPosition ?? '—' },
-        { label: 'Gap', value: formatSessionGap(driverData.sessionResult?.gap_to_leader) }
+        { label: 'Gap', value: formatSessionGap(driverData.sessionResult?.gap_to_leader ?? null) }
     ];
     const resultStatus = getResultStatusLabel(driverData.sessionResult);
+    const formatSignedSeconds = (value: number | null | undefined) => {
+        if (typeof value !== 'number' || Number.isNaN(value)) return 'Data not yet available';
+        const prefix = value > 0 ? '+' : '';
+        return `${prefix}${value.toFixed(3)}s`;
+    };
+    const positionGainStory = positionGainInsight
+        ? `Start P${positionGainInsight.start} -> Finish P${positionGainInsight.finish} (${positionGainInsight.gain > 0 ? '+' : ''}${positionGainInsight.gain})`
+        : 'Data not yet available';
+    const paceConsistencyStory = paceConsistencyInsight
+        ? `CV ${paceConsistencyInsight.coefficientOfVariation.toFixed(2)}% • σ ${paceConsistencyInsight.standardDeviation.toFixed(3)}s • ${paceConsistencyInsight.lapCount} laps`
+        : 'Data not yet available';
+    const tyreDegradationScore = formatSignedSeconds(tyreDegradationSummary?.averageDelta ?? null);
+    const tyreDegradationMeta = tyreDegradationSummary
+        ? `${tyreDegradationSummary.stintCount} stints • ${tyreDegradationSummary.lapCount} laps • slope ${formatSignedSeconds(tyreDegradationSummary.averageSlope)}`
+        : 'Data not yet available';
+    const overtakeNetValue =
+        overtakeInsight.net > 0 ? `+${overtakeInsight.net}` : `${overtakeInsight.net}`;
 
     return (
         <ScrollView
@@ -303,6 +429,34 @@ export default function DriverOverviewScreen() {
                 pitStops={driverData.pitStops ?? []}
                 safetyCarLapSet={safetyCarLapSet}
             />
+
+            <View style={styles.insightCard}>
+                <View style={styles.insightHeader}>
+                    <Text style={styles.sectionTitle}>Driver Race Insights</Text>
+                    <Text style={styles.sectionSubtitle}>Overtakes, gain, pace consistency and degradation</Text>
+                </View>
+                <View style={styles.overtakeSummaryCard}>
+                    <Text style={styles.overtakeSummaryLabel}>Overtakes</Text>
+                    <Text style={styles.overtakeSummaryNet}>{overtakeNetValue}</Text>
+                    <Text style={styles.overtakeSummaryMeta}>Net (made - suffered)</Text>
+                    <Text style={styles.overtakeSummaryCounts}>
+                        Made {overtakeInsight.made} • Suffered {overtakeInsight.suffered}
+                    </Text>
+                </View>
+                <View style={styles.insightRow}>
+                    <Text style={styles.insightRowLabel}>Position Gain Story</Text>
+                    <Text style={styles.insightRowValue}>{positionGainStory}</Text>
+                </View>
+                <View style={styles.insightRow}>
+                    <Text style={styles.insightRowLabel}>Race Pace Consistency</Text>
+                    <Text style={styles.insightRowValue}>{paceConsistencyStory}</Text>
+                </View>
+                <View style={[styles.insightRow, styles.insightRowLast]}>
+                    <Text style={styles.insightRowLabel}>Tyre Degradation Score</Text>
+                    <Text style={styles.insightRowValue}>{tyreDegradationScore}</Text>
+                    <Text style={styles.insightRowMeta}>{tyreDegradationMeta}</Text>
+                </View>
+            </View>
 
             {strategySummary.length ? (
                 <View style={styles.strategyCard}>
@@ -667,6 +821,75 @@ const styles = StyleSheet.create({
     },
     strategyTyreStateUsed: {
         color: '#6A6F87',
+    },
+    insightCard: {
+        ...CARD_BASE,
+        marginTop: 20,
+        marginHorizontal: 16,
+        paddingHorizontal: 20,
+        paddingVertical: 20,
+    },
+    insightHeader: {
+        marginBottom: 14,
+    },
+    overtakeSummaryCard: {
+        borderRadius: 16,
+        backgroundColor: '#F4F6FD',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#DEE3F1',
+        paddingVertical: 14,
+        paddingHorizontal: 14,
+        marginBottom: 12,
+    },
+    overtakeSummaryLabel: {
+        fontSize: 12,
+        textTransform: 'uppercase',
+        letterSpacing: 0.7,
+        color: '#6E738B',
+        fontWeight: '700',
+    },
+    overtakeSummaryNet: {
+        marginTop: 4,
+        fontSize: 26,
+        fontWeight: '800',
+        color: '#15151E',
+    },
+    overtakeSummaryMeta: {
+        marginTop: 2,
+        fontSize: 12,
+        color: '#7C7C85',
+    },
+    overtakeSummaryCounts: {
+        marginTop: 4,
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#3F455F',
+    },
+    insightRow: {
+        paddingVertical: 12,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: '#E1E4EF',
+    },
+    insightRowLast: {
+        paddingBottom: 0,
+    },
+    insightRowLabel: {
+        fontSize: 12,
+        textTransform: 'uppercase',
+        letterSpacing: 0.7,
+        color: '#7C7C85',
+        fontWeight: '700',
+    },
+    insightRowValue: {
+        marginTop: 4,
+        fontSize: 15,
+        color: '#15151E',
+        fontWeight: '600',
+    },
+    insightRowMeta: {
+        marginTop: 2,
+        fontSize: 12,
+        color: '#7C7C85',
     },
     section: {
         ...CARD_BASE,

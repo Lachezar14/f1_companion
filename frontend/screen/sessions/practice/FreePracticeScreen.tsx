@@ -42,8 +42,17 @@ type TeamCompoundStat = {
     color?: string | null;
 };
 
+type PaceViewMode = 'drivers' | 'teams';
+
 const MIN_PACE_LAP_THRESHOLD = 3;
 const PRACTICE_PACE_THRESHOLD_FACTOR = 1.07;
+const DATA_NOT_YET_AVAILABLE = 'Data not yet available';
+
+const asDisplayText = (value: string | null | undefined, fallback = DATA_NOT_YET_AVAILABLE) => {
+    if (typeof value !== 'string') return fallback;
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : fallback;
+};
 
 export default function FreePracticeScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
@@ -52,6 +61,7 @@ export default function FreePracticeScreen() {
     const [selectedDriverCompound, setSelectedDriverCompound] = useState<string | null>(null);
     const [selectedTeamCompound, setSelectedTeamCompound] = useState<string | null>(null);
     const [showAllTeams, setShowAllTeams] = useState(false);
+    const [paceViewMode, setPaceViewMode] = useState<PaceViewMode>('drivers');
 
     const loadSessionDrivers = useCallback(
         () => getPracticeSessionDetail(sessionKey),
@@ -139,6 +149,43 @@ export default function FreePracticeScreen() {
         () => driverEntries.reduce((total, entry) => total + entry.stints.length, 0),
         [driverEntries]
     );
+
+    const mostLapsDriver = useMemo(() => {
+        if (!driverEntries.length) return null;
+        return [...driverEntries]
+            .map(entry => ({
+                driverNumber: entry.driverNumber,
+                driverName: entry.driver.name,
+                teamName: entry.driver.team,
+                lapCount: entry.laps.length,
+            }))
+            .sort(
+                (a, b) =>
+                    b.lapCount - a.lapCount ||
+                    String(a.driverName ?? '').localeCompare(String(b.driverName ?? ''))
+            )[0];
+    }, [driverEntries]);
+
+    const mostLapsTeam = useMemo(() => {
+        if (!driverEntries.length) return null;
+        const teamTotals = new Map<string, { teamName: string; lapCount: number; color?: string | null }>();
+        driverEntries.forEach(entry => {
+            const teamName = entry.driver.team;
+            const existing = teamTotals.get(teamName) ?? {
+                teamName,
+                lapCount: 0,
+                color: entry.driver.teamColor,
+            };
+            existing.lapCount += entry.laps.length;
+            existing.color = existing.color ?? entry.driver.teamColor;
+            teamTotals.set(teamName, existing);
+        });
+        return [...teamTotals.values()].sort(
+            (a, b) =>
+                b.lapCount - a.lapCount ||
+                String(a.teamName ?? '').localeCompare(String(b.teamName ?? ''))
+        )[0] ?? null;
+    }, [driverEntries]);
 
     const compoundOptions = useMemo(() => {
         const set = new Set<string>();
@@ -321,6 +368,7 @@ export default function FreePracticeScreen() {
     const selectedDriverCompoundName = selectedDriverCompound
         ? getCompoundName(selectedDriverCompound)
         : null;
+    const isTeamPaceView = paceViewMode === 'teams';
 
     const handleOpenClassification = useCallback(() => {
         navigation.navigate('PracticeClassification', {
@@ -330,17 +378,25 @@ export default function FreePracticeScreen() {
         });
     }, [meetingName, navigation, sessionKey, sessionName]);
 
+    const openDriverOverview = useCallback(
+        (driverNumber?: number | null) => {
+            if (!driverNumber) return;
+            const driverDataEntry =
+                driverEntries.find(entry => entry.driverNumber === driverNumber) ?? null;
+            navigation.navigate('DriverPracticeOverview', {
+                driverNumber,
+                sessionKey,
+                driverData: driverDataEntry,
+                driverOptions: driverOptionsPayload,
+            });
+        },
+        [driverEntries, driverOptionsPayload, navigation, sessionKey]
+    );
+
     const handleOpenDriverData = useCallback(() => {
         if (!defaultDriverNumber) return;
-        const driverDataEntry =
-            driverEntries.find(entry => entry.driverNumber === defaultDriverNumber) ?? null;
-        navigation.navigate('DriverPracticeOverview', {
-            driverNumber: defaultDriverNumber,
-            sessionKey,
-            driverData: driverDataEntry,
-            driverOptions: driverOptionsPayload,
-        });
-    }, [defaultDriverNumber, driverEntries, driverOptionsPayload, navigation, sessionKey]);
+        openDriverOverview(defaultDriverNumber);
+    }, [defaultDriverNumber, openDriverOverview]);
 
     // Loading state
     if (loading) {
@@ -447,140 +503,231 @@ export default function FreePracticeScreen() {
                         </View>
                     ))}
                 </View>
+                <View style={styles.workloadRow}>
+                    <View style={styles.workloadCard}>
+                        <Text style={styles.workloadLabel}>Most Laps Driver</Text>
+                        <Text style={styles.workloadValue}>
+                            {mostLapsDriver
+                                ? asDisplayText(mostLapsDriver.driverName)
+                                : DATA_NOT_YET_AVAILABLE}
+                        </Text>
+                        <Text style={styles.workloadMeta}>
+                            {mostLapsDriver
+                                ? `${asDisplayText(mostLapsDriver.teamName)} • ${mostLapsDriver.lapCount} ${
+                                      mostLapsDriver.lapCount === 1 ? 'lap' : 'laps'
+                                  }`
+                                : DATA_NOT_YET_AVAILABLE}
+                        </Text>
+                    </View>
+                    <View style={styles.workloadCard}>
+                        <Text style={styles.workloadLabel}>Most Laps Team</Text>
+                        <View style={styles.workloadTeamRow}>
+                            {mostLapsTeam ? (
+                                <View
+                                    style={[
+                                        styles.workloadTeamDot,
+                                        { backgroundColor: getTeamColorHex(mostLapsTeam.color) },
+                                    ]}
+                                />
+                            ) : null}
+                            <Text style={styles.workloadValue}>
+                                {mostLapsTeam
+                                    ? asDisplayText(mostLapsTeam.teamName)
+                                    : DATA_NOT_YET_AVAILABLE}
+                            </Text>
+                        </View>
+                        <Text style={styles.workloadMeta}>
+                            {mostLapsTeam
+                                ? `${mostLapsTeam.lapCount} ${
+                                      mostLapsTeam.lapCount === 1 ? 'lap' : 'laps'
+                                  } in total`
+                                : DATA_NOT_YET_AVAILABLE}
+                        </Text>
+                    </View>
+                </View>
             </View>
 
-            <View style={styles.listCard}>
-                <View style={styles.listHeader}>
-                    <Text style={styles.listTitle}>Team Avg Pace by Compound</Text>
-                    <Text style={styles.listSubtitle}>Combined average of both drivers</Text>
-                </View>
-                {compoundOptions.length ? (
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.filterScroll}
-                        contentContainerStyle={styles.filterContent}
-                    >
-                        {compoundOptions.map(option => {
-                            const isActive = option === selectedTeamCompound;
-                            const label = getCompoundName(option);
-                            return (
-                                <TouchableOpacity
-                                    key={`team-compound-${option}`}
-                                    style={[styles.filterChip, isActive && styles.filterChipActive]}
-                                    onPress={() => {
-                                        if (option !== selectedTeamCompound) {
-                                            setSelectedTeamCompound(option);
-                                            setShowAllTeams(false);
-                                        }
-                                    }}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.filterChipLabel,
-                                            isActive && styles.filterChipLabelActive,
-                                        ]}
-                                    >
-                                        {label}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </ScrollView>
-                ) : null}
-                {selectedTeamCompound && displayedTeamLeaders.length ? (
-                    displayedTeamLeaders.map(team => (
-                        <View key={team.teamName} style={styles.listRow}>
-                            <View style={[styles.teamDot, { backgroundColor: getTeamColorHex(team.color) }]} />
-                            <View style={styles.listDriverBlock}>
-                                <Text style={styles.listDriverName}>{team.teamName}</Text>
-                                <Text style={styles.listMeta}>
-                                    Avg pace on {getCompoundName(selectedTeamCompound)}
-                                </Text>
-                            </View>
-                            <Text style={styles.listValue}>{formatPace(team.avgTime)}</Text>
-                        </View>
-                    ))
-                ) : (
-                    <Text style={styles.noData}>
-                        {selectedTeamCompoundName
-                            ? `No representative pace on ${selectedTeamCompoundName}`
-                            : 'No team pace data yet'}
-                    </Text>
-                )}
-                {selectedTeamCompound && teamLeaders.length > 5 ? (
+            <View style={styles.insightModeCard}>
+                <Text style={styles.insightModeLabel}>Pace View</Text>
+                <View style={styles.insightModeOptions}>
                     <TouchableOpacity
-                        style={styles.expandButton}
-                        onPress={() => setShowAllTeams(prev => !prev)}
+                        style={[styles.filterChip, isTeamPaceView && styles.filterChipActive]}
+                        onPress={() => setPaceViewMode('teams')}
                     >
-                        <Text style={styles.expandButtonText}>
-                            {showAllTeams ? 'Show Less' : 'Show All Teams'}
+                        <Text
+                            style={[
+                                styles.filterChipLabel,
+                                isTeamPaceView && styles.filterChipLabelActive,
+                            ]}
+                        >
+                            Teams
                         </Text>
                     </TouchableOpacity>
-                ) : null}
+                    <TouchableOpacity
+                        style={[styles.filterChip, !isTeamPaceView && styles.filterChipActive]}
+                        onPress={() => setPaceViewMode('drivers')}
+                    >
+                        <Text
+                            style={[
+                                styles.filterChipLabel,
+                                !isTeamPaceView && styles.filterChipLabelActive,
+                            ]}
+                        >
+                            Drivers
+                        </Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
-            <View style={styles.listCard}>
-                <View style={styles.listHeader}>
-                    <Text style={styles.listTitle}>Driver Pace by Compound</Text>
-                    <Text style={styles.listSubtitle}>Excludes pit exit laps</Text>
-                </View>
-                {compoundOptions.length ? (
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.filterScroll}
-                        contentContainerStyle={styles.filterContent}
-                    >
-                        {compoundOptions.map(option => {
-                            const isActive = option === selectedDriverCompound;
-                            const label = getCompoundName(option);
-                            return (
-                                <TouchableOpacity
-                                    key={`driver-compound-${option}`}
-                                    style={[styles.filterChip, isActive && styles.filterChipActive]}
-                                    onPress={() => setSelectedDriverCompound(option)}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.filterChipLabel,
-                                            isActive && styles.filterChipLabelActive,
-                                        ]}
-                                    >
-                                        {label}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </ScrollView>
-                ) : null}
-                {selectedDriverCompound && driverLeaders.length ? (
-                    driverLeaders.map((stat, index) => (
-                        <View
-                            key={`${stat.driverNumber}-${selectedDriverCompound}`}
-                            style={styles.listRow}
+            {isTeamPaceView ? (
+                <View style={styles.listCard}>
+                    <View style={styles.listHeader}>
+                        <Text style={styles.listTitle}>Team Avg Pace by Compound</Text>
+                        <Text style={styles.listSubtitle}>Combined average of both drivers</Text>
+                    </View>
+                    {compoundOptions.length ? (
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            style={styles.filterScroll}
+                            contentContainerStyle={styles.filterContent}
                         >
-                            <View style={styles.rankPill}>
-                                <Text style={styles.rankText}>{index + 1}</Text>
+                            {compoundOptions.map(option => {
+                                const isActive = option === selectedTeamCompound;
+                                const label = getCompoundName(option);
+                                return (
+                                    <TouchableOpacity
+                                        key={`team-compound-${option}`}
+                                        style={[styles.filterChip, isActive && styles.filterChipActive]}
+                                        onPress={() => {
+                                            if (option !== selectedTeamCompound) {
+                                                setSelectedTeamCompound(option);
+                                                setShowAllTeams(false);
+                                            }
+                                        }}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.filterChipLabel,
+                                                isActive && styles.filterChipLabelActive,
+                                            ]}
+                                        >
+                                            {label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                    ) : null}
+                    {selectedTeamCompound && displayedTeamLeaders.length ? (
+                        displayedTeamLeaders.map((team, index) => (
+                            <View key={`${team.teamName ?? 'team'}-${index}`} style={styles.listRow}>
+                                <View
+                                    style={[styles.teamDot, { backgroundColor: getTeamColorHex(team.color) }]}
+                                />
+                                <View style={styles.listDriverBlock}>
+                                    <Text style={styles.listDriverName}>
+                                        {asDisplayText(team.teamName)}
+                                    </Text>
+                                    <Text style={styles.listMeta}>
+                                        Avg pace on {getCompoundName(selectedTeamCompound)}
+                                    </Text>
+                                </View>
+                                <Text style={styles.listValue}>{formatPace(team.avgTime)}</Text>
                             </View>
-                            <View style={styles.listDriverBlock}>
-                                <Text style={styles.listDriverName}>{stat.driverName}</Text>
-                                <Text style={styles.listMeta}>
-                                    {stat.teamName} • {selectedDriverCompoundName ?? 'Unknown'} •{' '}
-                                    {stat.lapCount} {stat.lapCount === 1 ? 'lap' : 'laps'}
-                                </Text>
+                        ))
+                    ) : (
+                        <Text style={styles.noData}>
+                            {selectedTeamCompoundName
+                                ? `No representative pace on ${selectedTeamCompoundName}`
+                                : 'No team pace data yet'}
+                        </Text>
+                    )}
+                    {selectedTeamCompound && teamLeaders.length > 5 ? (
+                        <TouchableOpacity
+                            style={styles.expandButton}
+                            onPress={() => setShowAllTeams(prev => !prev)}
+                        >
+                            <Text style={styles.expandButtonText}>
+                                {showAllTeams ? 'Show Less' : 'Show All Teams'}
+                            </Text>
+                        </TouchableOpacity>
+                    ) : null}
+                </View>
+            ) : (
+                <View style={styles.listCard}>
+                    <View style={styles.listHeader}>
+                        <Text style={styles.listTitle}>Driver Pace by Compound</Text>
+                        <Text style={styles.listSubtitle}>Excludes pit exit laps</Text>
+                    </View>
+                    {compoundOptions.length ? (
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            style={styles.filterScroll}
+                            contentContainerStyle={styles.filterContent}
+                        >
+                            {compoundOptions.map(option => {
+                                const isActive = option === selectedDriverCompound;
+                                const label = getCompoundName(option);
+                                return (
+                                    <TouchableOpacity
+                                        key={`driver-compound-${option}`}
+                                        style={[styles.filterChip, isActive && styles.filterChipActive]}
+                                        onPress={() => setSelectedDriverCompound(option)}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.filterChipLabel,
+                                                isActive && styles.filterChipLabelActive,
+                                            ]}
+                                        >
+                                            {label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                    ) : null}
+                    {selectedDriverCompound && driverLeaders.length ? (
+                        driverLeaders.map((stat, index) => (
+                            <View
+                                key={`${stat.driverNumber}-${selectedDriverCompound}`}
+                                style={styles.listRow}
+                            >
+                                <View style={styles.rankPill}>
+                                    <Text style={styles.rankText}>{index + 1}</Text>
+                                </View>
+                                <View style={styles.listDriverBlock}>
+                                    <Text style={styles.listDriverName}>
+                                        {asDisplayText(stat.driverName)}
+                                    </Text>
+                                    <Text style={styles.listMeta}>
+                                        {asDisplayText(stat.teamName)} •{' '}
+                                        {selectedDriverCompoundName ?? DATA_NOT_YET_AVAILABLE} •{' '}
+                                        {stat.lapCount} {stat.lapCount === 1 ? 'lap' : 'laps'}
+                                    </Text>
+                                </View>
+                                <Text style={styles.listValue}>{formatPace(stat.avgTime)}</Text>
                             </View>
-                            <Text style={styles.listValue}>{formatPace(stat.avgTime)}</Text>
-                        </View>
-                    ))
-                ) : (
-                    <Text style={styles.noData}>
-                        {selectedDriverCompoundName
-                            ? `No clean laps for ${selectedDriverCompoundName}`
-                            : 'No driver pace data yet'}
-                    </Text>
-                )}
-            </View>
+                        ))
+                    ) : (
+                        <Text style={styles.noData}>
+                            {selectedDriverCompoundName
+                                ? `No clean laps for ${selectedDriverCompoundName}`
+                                : 'No driver pace data yet'}
+                        </Text>
+                    )}
+                    {selectedDriverCompound && driverLeaders.length ? (
+                        <TouchableOpacity
+                            style={styles.expandButton}
+                            onPress={() => openDriverOverview(driverLeaders[0]?.driverNumber)}
+                        >
+                            <Text style={styles.expandButtonText}>Open Driver Details</Text>
+                        </TouchableOpacity>
+                    ) : null}
+                </View>
+            )}
 
             <Text style={styles.refreshHint}>Pull down to refresh</Text>
         </ScrollView>
@@ -792,6 +939,73 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         letterSpacing: 1,
         marginTop: 4,
+    },
+    workloadRow: {
+        marginTop: 16,
+        flexDirection: 'row',
+        gap: 10,
+    },
+    workloadCard: {
+        flex: 1,
+        borderRadius: 16,
+        backgroundColor: '#F4F6FD',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E2E7F3',
+        padding: 14,
+    },
+    workloadLabel: {
+        fontSize: 11,
+        textTransform: 'uppercase',
+        letterSpacing: 0.6,
+        fontWeight: '700',
+        color: '#6E738B',
+    },
+    workloadValue: {
+        marginTop: 4,
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#15151E',
+    },
+    workloadMeta: {
+        marginTop: 3,
+        fontSize: 12,
+        color: '#7C7C85',
+    },
+    workloadTeamRow: {
+        marginTop: 4,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    workloadTeamDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+    },
+    insightModeCard: {
+        marginHorizontal: 16,
+        marginTop: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E6E8F0',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    insightModeLabel: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#7A7E92',
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
+    },
+    insightModeOptions: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     listCard: {
         marginHorizontal: 16,

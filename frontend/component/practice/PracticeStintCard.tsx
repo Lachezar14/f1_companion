@@ -71,7 +71,7 @@ export default function PracticeStintCard({ stint, laps, showDivider = false }: 
                 </View>
                 <TyreCompoundBadge
                     compound={stint.compound}
-                    size={58}
+                    size={50}
                     style={styles.compoundBadge}
                 />
             </View>

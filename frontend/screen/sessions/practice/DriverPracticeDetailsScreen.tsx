@@ -37,6 +37,14 @@ interface DriverState {
     error: string | null;
 }
 
+const DATA_NOT_YET_AVAILABLE = 'Data not yet available';
+
+const asDisplayText = (value: string | null | undefined, fallback = DATA_NOT_YET_AVAILABLE) => {
+    if (typeof value !== 'string') return fallback;
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : fallback;
+};
+
 export default function DriverPracticeDetailsScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const {
@@ -173,6 +181,12 @@ export default function DriverPracticeDetailsScreen() {
         ? { uri: driverData.driver.headshotUrl }
         : null;
     const sessionResult = driverData.sessionResult;
+    const safeDriverName = asDisplayText(driverData.driver.name);
+    const safeTeamName = asDisplayText(driverData.driver.team);
+    const safeDriverNumber =
+        typeof driverData.driver.number === 'number'
+            ? `#${driverData.driver.number}`
+            : DATA_NOT_YET_AVAILABLE;
     const heroStats = [
         {
             label: 'Result',
@@ -184,7 +198,7 @@ export default function DriverPracticeDetailsScreen() {
         },
         {
             label: 'Gap',
-            value: formatSessionGap(sessionResult?.gap_to_leader),
+            value: formatSessionGap(sessionResult?.gap_to_leader ?? null),
         },
     ];
 
@@ -230,7 +244,7 @@ export default function DriverPracticeDetailsScreen() {
                                         isActive && styles.driverChipNameActive,
                                     ]}
                                 >
-                                    {option.name}
+                                    {asDisplayText(option.name)}
                                 </Text>
                                 <Text
                                     style={[
@@ -249,11 +263,11 @@ export default function DriverPracticeDetailsScreen() {
                 <View style={styles.heroRow}>
                     <View style={styles.heroTextBlock}>
                         <Text style={styles.heroSubtitle}>Free Practice</Text>
-                        <Text style={styles.heroName}>{driverData.driver.name}</Text>
-                        <Text style={styles.heroTeam}>{driverData.driver.team}</Text>
+                        <Text style={styles.heroName}>{safeDriverName}</Text>
+                        <Text style={styles.heroTeam}>{safeTeamName}</Text>
                         <View style={styles.heroChipRow}>
                             <View style={styles.heroChip}>
-                                <Text style={styles.heroChipText}>#{driverData.driver.number}</Text>
+                                <Text style={styles.heroChipText}>{safeDriverNumber}</Text>
                             </View>
                             <View style={[styles.heroChip, styles.heroChipMuted]}>
                                 <Text style={[styles.heroChipText, styles.heroChipTextMuted]}>
@@ -267,7 +281,7 @@ export default function DriverPracticeDetailsScreen() {
                             <Image source={driverImageSource} style={styles.heroImage} />
                         ) : (
                             <Text style={styles.avatarInitials}>
-                                {getDriverInitials(driverData.driver.name)}
+                                {getDriverInitials(safeDriverName)}
                             </Text>
                         )}
                     </View>

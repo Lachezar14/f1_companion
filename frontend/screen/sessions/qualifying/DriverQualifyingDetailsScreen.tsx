@@ -63,11 +63,11 @@ const formatDelta = (value: number | null): { label: string; positive: boolean }
     }
 
     if (value > 0) {
-        return { label: `Improved ${value.toFixed(3)}s`, positive: true };
+        return { label: `- ${value.toFixed(3)}s`, positive: true };
     }
 
     if (value < 0) {
-        return { label: `Regression ${Math.abs(value).toFixed(3)}s`, positive: false };
+        return { label: `+ ${Math.abs(value).toFixed(3)}s`, positive: false };
     }
 
     return { label: 'No change', positive: true };

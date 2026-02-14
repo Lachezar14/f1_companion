@@ -775,9 +775,19 @@ const RaceScreen = () => {
                 safetyCarLaps,
                 driverData: driverDataEntry,
                 driverOptions: driverOptionsPayload,
+                overtakes: data?.overtakes ?? [],
+                raceInsights: raceInsights ?? null,
             });
         },
-        [driverEntries, driverOptionsPayload, navigation, safetyCarLaps, sessionKey]
+        [
+            data?.overtakes,
+            driverEntries,
+            driverOptionsPayload,
+            navigation,
+            raceInsights,
+            safetyCarLaps,
+            sessionKey,
+        ]
     );
 
     const handleOpenDriverData = useCallback(() => {

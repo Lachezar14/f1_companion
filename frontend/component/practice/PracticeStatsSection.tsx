@@ -14,6 +14,14 @@ interface PracticeStatsSectionProps {
 }
 
 const ALLOWED_LAP_DELTA_SECONDS = 5;
+const COMPOUND_DISPLAY_ORDER: Record<string, number> = {
+    soft: 0,
+    medium: 1,
+    hard: 2,
+    inters: 3,
+    intermediate: 3,
+    wet: 4,
+};
 
 export default function PracticeStatsSection({ lapCount, stints, laps }: PracticeStatsSectionProps) {
     const typicalLapDuration = calculateTypicalLapDuration(laps);
@@ -21,9 +29,14 @@ export default function PracticeStatsSection({ lapCount, stints, laps }: Practic
 
     const avgLapTimesPerCompound = calculateAvgLapTimePerCompound(laps, stints, {
         lapThreshold,
-    }).sort(
-        (a, b) => b.lapCount - a.lapCount
-    );
+    }).sort((a, b) => {
+        const aName = getCompoundName(a.compound).trim().toLowerCase();
+        const bName = getCompoundName(b.compound).trim().toLowerCase();
+        const aRank = COMPOUND_DISPLAY_ORDER[aName] ?? Number.MAX_SAFE_INTEGER;
+        const bRank = COMPOUND_DISPLAY_ORDER[bName] ?? Number.MAX_SAFE_INTEGER;
+        if (aRank !== bRank) return aRank - bRank;
+        return aName.localeCompare(bName);
+    });
 
     const normalizedCompoundNames = stints
         .map(stint => stint.compound?.trim().toLowerCase())
