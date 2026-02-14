@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    Animated,
     FlatList,
     Image,
+    LayoutChangeEvent,
     RefreshControl,
     StyleSheet,
     Text,
@@ -11,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import {
     getDriverChampionshipStandings,
     getTeamChampionshipStandings,
@@ -29,9 +32,30 @@ const SEGMENTS: Array<{ key: StandingsTab; label: string; icon: string }> = [
     { key: 'drivers', label: 'Drivers', icon: 'account' },
     { key: 'teams', label: 'Teams', icon: 'factory' },
 ];
+const SEGMENT_CONTAINER_PADDING = 6;
 
 const StandingsScreen = () => {
     const [activeTab, setActiveTab] = useState<StandingsTab>('drivers');
+    const tabBarHeight = useBottomTabBarHeight();
+    const segmentProgress = useRef(new Animated.Value(0)).current;
+    const [segmentWidth, setSegmentWidth] = useState(0);
+    const activeTabIndex = SEGMENTS.findIndex(segment => segment.key === activeTab);
+
+    const handleSegmentsLayout = useCallback((event: LayoutChangeEvent) => {
+        const containerWidth = event.nativeEvent.layout.width;
+        const nextSegmentWidth = (containerWidth - SEGMENT_CONTAINER_PADDING * 2) / SEGMENTS.length;
+        setSegmentWidth(Math.max(nextSegmentWidth, 0));
+    }, []);
+
+    useEffect(() => {
+        Animated.spring(segmentProgress, {
+            toValue: Math.max(activeTabIndex, 0),
+            useNativeDriver: true,
+            stiffness: 220,
+            damping: 24,
+            mass: 0.95,
+        }).start();
+    }, [activeTabIndex, segmentProgress]);
 
     const {
         data: driverData,
@@ -75,10 +99,7 @@ const StandingsScreen = () => {
                         key={segment.key}
                         onPress={() => setActiveTab(segment.key)}
                         activeOpacity={0.92}
-                        style={[
-                            styles.segmentButton,
-                            isActive && styles.segmentButtonActive,
-                        ]}
+                        style={styles.segmentButton}
                     >
                         <MaterialCommunityIcons
                             name={segment.icon as any}
@@ -244,7 +265,10 @@ const StandingsScreen = () => {
                 <FlatList<DriverChampionshipStanding>
                     data={driverStandings}
                     keyExtractor={item => item.driver_number.toString()}
-                    contentContainerStyle={styles.listContent}
+                    contentContainerStyle={[
+                        styles.listContent,
+                        { paddingBottom: tabBarHeight + 28 },
+                    ]}
                     renderItem={renderDriverRow}
                     ListHeaderComponent={renderListHeader('drivers')}
                     ListEmptyComponent={!loading ? renderEmptyState : undefined}
@@ -263,7 +287,10 @@ const StandingsScreen = () => {
             <FlatList<ChampionshipTeam>
                 data={teamStandings}
                 keyExtractor={item => item.team_name}
-                contentContainerStyle={styles.listContent}
+                contentContainerStyle={[
+                    styles.listContent,
+                    { paddingBottom: tabBarHeight + 28 },
+                ]}
                 renderItem={renderTeamRow}
                 ListHeaderComponent={renderListHeader('teams')}
                 ListEmptyComponent={!loading ? renderEmptyState : undefined}
@@ -278,11 +305,25 @@ const StandingsScreen = () => {
         );
     };
 
+    const indicatorTranslateX = Animated.multiply(segmentProgress, segmentWidth);
+
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.segmentWrapper}>
                 <Text style={styles.screenTitle}>Standings</Text>
-                <View style={styles.segmentContainer}>{segments}</View>
+                <View onLayout={handleSegmentsLayout} style={styles.segmentContainer}>
+                    <Animated.View
+                        pointerEvents="none"
+                        style={[
+                            styles.segmentIndicator,
+                            {
+                                width: segmentWidth,
+                                transform: [{ translateX: indicatorTranslateX }],
+                            },
+                        ]}
+                    />
+                    {segments}
+                </View>
             </View>
             <View style={styles.listWrapper}>{renderList(activeTab)}</View>
         </SafeAreaView>
@@ -309,9 +350,19 @@ const styles = StyleSheet.create({
     },
     segmentContainer: {
         flexDirection: 'row',
+        position: 'relative',
+        overflow: 'hidden',
         backgroundColor: '#ECECF1',
-        padding: 6,
+        padding: SEGMENT_CONTAINER_PADDING,
         borderRadius: 18,
+    },
+    segmentIndicator: {
+        position: 'absolute',
+        left: SEGMENT_CONTAINER_PADDING,
+        top: SEGMENT_CONTAINER_PADDING,
+        bottom: SEGMENT_CONTAINER_PADDING,
+        borderRadius: 14,
+        backgroundColor: '#15151E',
     },
     segmentButton: {
         flex: 1,
@@ -321,9 +372,6 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 12,
         borderRadius: 14,
-    },
-    segmentButtonActive: {
-        backgroundColor: '#15151E',
     },
     segmentLabel: {
         fontSize: 14,
@@ -341,7 +389,6 @@ const styles = StyleSheet.create({
     },
     listContent: {
         padding: 16,
-        paddingBottom: 40,
     },
     listHeader: {
         marginBottom: 12,

@@ -116,7 +116,5 @@ export const shadows = {
 };
 
 export const timingTextStyle = {
-    fontFamily: 'Menlo',
     fontVariant: ['tabular-nums'] as const,
 };
-

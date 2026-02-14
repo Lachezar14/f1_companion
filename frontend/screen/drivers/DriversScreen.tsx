@@ -18,9 +18,33 @@ import { useServiceRequest } from '../../hooks/useServiceRequest';
 import { AVAILABLE_MEETING_YEARS, DEFAULT_SEASON_YEAR } from '../../config/appConfig';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+
+const toCleanString = (value: unknown): string =>
+    typeof value === 'string' ? value.trim() : '';
+
+const getDisplayName = (driver: Driver): string => {
+    const fullName = toCleanString(driver.full_name);
+    if (fullName) return fullName;
+
+    const firstName = toCleanString(driver.first_name);
+    const lastName = toCleanString(driver.last_name);
+    const combined = `${firstName} ${lastName}`.trim();
+    return combined || `Driver #${driver.driver_number}`;
+};
+
+const getDisplayTeam = (driver: Driver): string =>
+    toCleanString(driver.team_name) || 'Team unavailable';
+
+const getSortableLastName = (driver: Driver): string => {
+    const lastName = toCleanString(driver.last_name);
+    if (lastName) return lastName.toLowerCase();
+    return getDisplayName(driver).toLowerCase();
+};
 
 const DriversScreen = () => {
     const navigation = useNavigation<NativeStackNavigationProp<any>>();
+    const tabBarHeight = useBottomTabBarHeight();
     const [search, setSearch] = useState('');
     const [seasonYear, setSeasonYear] = useState(DEFAULT_SEASON_YEAR);
 
@@ -39,13 +63,26 @@ const DriversScreen = () => {
         }
 
         return Array.from(new Map(data.map(driver => [driver.driver_number, driver])).values()).sort(
-            (a, b) => a.last_name.localeCompare(b.last_name)
+            (a, b) => getSortableLastName(a).localeCompare(getSortableLastName(b))
         );
     }, [data]);
 
+    const incompleteProfileCount = useMemo(
+        () =>
+            drivers.filter(driver => {
+                const fullName = toCleanString(driver.full_name);
+                const firstName = toCleanString(driver.first_name);
+                const lastName = toCleanString(driver.last_name);
+                const teamName = toCleanString(driver.team_name);
+                const hasAnyName = Boolean(fullName || firstName || lastName);
+                return !hasAnyName || !teamName;
+            }).length,
+        [drivers]
+    );
+
     const teamCount = useMemo(() => {
         const teams = new Set<string>();
-        drivers.forEach(driver => teams.add(driver.team_name));
+        drivers.forEach(driver => teams.add(getDisplayTeam(driver)));
         return teams.size;
     }, [drivers]);
 
@@ -62,8 +99,8 @@ const DriversScreen = () => {
         if (!search.trim()) return drivers;
         const query = search.trim().toLowerCase();
         return drivers.filter(driver =>
-            driver.full_name.toLowerCase().includes(query) ||
-            driver.team_name.toLowerCase().includes(query)
+            getDisplayName(driver).toLowerCase().includes(query) ||
+            getDisplayTeam(driver).toLowerCase().includes(query)
         );
     }, [search, drivers]);
 
@@ -72,8 +109,8 @@ const DriversScreen = () => {
             navigation.navigate('DriverSeasonDetails', {
                 driverNumber: driver.driver_number,
                 year: seasonYear,
-                driverName: driver.full_name,
-                teamName: driver.team_name,
+                driverName: getDisplayName(driver),
+                teamName: getDisplayTeam(driver),
                 teamColor: driver.team_colour,
                 headshotUrl: driver.headshot_url,
             });
@@ -82,10 +119,15 @@ const DriversScreen = () => {
     );
 
     const getDriverCode = (driver: Driver) => {
-        const acronym = driver.name_acronym?.trim();
+        const acronym = toCleanString(driver.name_acronym);
         if (acronym) return acronym.toUpperCase();
-        const cleaned = driver.last_name.replace(/[^A-Za-z]/g, '');
-        return cleaned.slice(0, 3).toUpperCase();
+
+        const cleanedLastName = toCleanString(driver.last_name).replace(/[^A-Za-z]/g, '');
+        if (cleanedLastName) return cleanedLastName.slice(0, 3).toUpperCase();
+
+        const cleanedDisplayName = getDisplayName(driver).replace(/[^A-Za-z]/g, '');
+        if (cleanedDisplayName) return cleanedDisplayName.slice(0, 3).toUpperCase();
+        return `#${driver.driver_number}`;
     };
 
     const renderListHeader = () => (
@@ -137,6 +179,16 @@ const DriversScreen = () => {
                     onChangeText={setSearch}
                 />
             </View>
+            {incompleteProfileCount > 0 ? (
+                <View style={styles.warningCard}>
+                    <Ionicons name="alert-circle-outline" size={16} color="#8A6600" />
+                    <Text style={styles.warningText}>
+                        {incompleteProfileCount} driver profile
+                        {incompleteProfileCount > 1 ? 's are' : ' is'} missing data. Placeholder
+                        values are shown.
+                    </Text>
+                </View>
+            ) : null}
         </>
     );
 
@@ -175,6 +227,10 @@ const DriversScreen = () => {
 
     const renderDriver = ({ item }: { item: Driver }) => {
         const teamColor = item.team_colour ? `#${item.team_colour}` : '#15151E';
+        const displayName = getDisplayName(item);
+        const displayTeam = getDisplayTeam(item);
+        const avatarInitial =
+            toCleanString(item.last_name)[0] || displayName[0] || '?';
         return (
             <TouchableOpacity
                 style={styles.driverCard}
@@ -189,16 +245,16 @@ const DriversScreen = () => {
                         <Image source={{ uri: item.headshot_url }} style={styles.avatar} />
                     ) : (
                         <View style={styles.avatarPlaceholder}>
-                            <Text style={styles.avatarInitial}>{item.last_name[0]}</Text>
+                            <Text style={styles.avatarInitial}>{avatarInitial}</Text>
                         </View>
                     )}
                     <View style={styles.driverInfo}>
                         <Text style={styles.driverCode}>{getDriverCode(item)}</Text>
                         <Text style={styles.driverName} numberOfLines={1}>
-                            {item.full_name}
+                            {displayName}
                         </Text>
                         <View style={styles.teamChip}>
-                            <Text style={styles.teamChipText}>{item.team_name}</Text>
+                            <Text style={styles.teamChipText}>{displayTeam}</Text>
                         </View>
                     </View>
                 </View>
@@ -214,7 +270,10 @@ const DriversScreen = () => {
                 data={filteredDrivers}
                 keyExtractor={driver => driver.driver_number.toString()}
                 renderItem={renderDriver}
-                contentContainerStyle={styles.listContent}
+                contentContainerStyle={[
+                    styles.listContent,
+                    { paddingBottom: tabBarHeight + 24 },
+                ]}
                 ListHeaderComponent={renderListHeader}
                 refreshControl={
                     <RefreshControl
@@ -374,9 +433,26 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#15151E',
     },
+    warningCard: {
+        marginBottom: 12,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderWidth: 1,
+        borderColor: '#F4D58D',
+        backgroundColor: '#FFF8E1',
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+    },
+    warningText: {
+        flex: 1,
+        marginLeft: 8,
+        color: '#6A4E00',
+        fontSize: 12,
+        lineHeight: 16,
+    },
     listContent: {
         paddingHorizontal: 16,
-        paddingBottom: 24,
     },
     driverCard: {
         flexDirection: 'row',

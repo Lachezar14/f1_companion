@@ -1,38 +1,44 @@
-import React, { useCallback, useContext, useEffect } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
+    Animated,
     View,
-    Text,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
     LayoutChangeEvent,
 } from 'react-native';
-import type {
-    BottomTabBarProps,
-    BottomTabBarLabelProps,
-} from '@react-navigation/bottom-tabs';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BottomTabBarHeightCallbackContext } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommonActions } from '@react-navigation/native';
+import type { ViewStyle } from 'react-native';
 
-const ACTIVE_BACKGROUND = '#15151E';
-const INACTIVE_BACKGROUND = 'transparent';
 const ACTIVE_TINT = '#FFFFFF';
-const INACTIVE_TINT = '#8C8D9A';
+const INACTIVE_TINT = '#5F6472';
+const TAB_BAR_PADDING = 2;
+const TAB_BUTTON_HEIGHT = 36;
+const TAB_BUTTON_GAP = 3;
 
 const FloatingTabBar = ({ state, descriptors, navigation }: BottomTabBarProps) => {
     const insets = useSafeAreaInsets();
     const onHeightChange = useContext(BottomTabBarHeightCallbackContext);
+    const indicatorProgress = useRef(new Animated.Value(state.index)).current;
+    const [tabBarWidth, setTabBarWidth] = useState(0);
     const focusedRoute = state.routes[state.index];
     const focusedOptions = descriptors[focusedRoute.key].options;
-    const flattenedTabBarStyle = StyleSheet.flatten(focusedOptions.tabBarStyle) || {};
+    const flattenedTabBarStyle =
+        (StyleSheet.flatten(focusedOptions.tabBarStyle) as ViewStyle | undefined) || {};
     const isHidden = flattenedTabBarStyle?.display === 'none';
 
-    const handleLayout = useCallback(
+    const handleContainerLayout = useCallback(
         (event: LayoutChangeEvent) => {
             onHeightChange?.(event.nativeEvent.layout.height);
         },
         [onHeightChange]
     );
+
+    const handleTabBarLayout = useCallback((event: LayoutChangeEvent) => {
+        setTabBarWidth(event.nativeEvent.layout.width);
+    }, []);
 
     useEffect(() => {
         if (isHidden) {
@@ -40,61 +46,50 @@ const FloatingTabBar = ({ state, descriptors, navigation }: BottomTabBarProps) =
         }
     }, [isHidden, onHeightChange]);
 
+    useEffect(() => {
+        Animated.spring(indicatorProgress, {
+            toValue: state.index,
+            useNativeDriver: true,
+            stiffness: 220,
+            damping: 24,
+            mass: 0.95,
+        }).start();
+    }, [state.index, indicatorProgress]);
+
     if (isHidden) {
         return null;
     }
 
+    const tabCount = state.routes.length || 1;
+    const tabWidth = Math.max((tabBarWidth - TAB_BAR_PADDING * 2) / tabCount, 0);
+    const indicatorTranslateX = Animated.multiply(indicatorProgress, tabWidth);
+
     return (
         <View
-            onLayout={handleLayout}
+            onLayout={handleContainerLayout}
             style={[
                 styles.container,
                 {
-                    paddingBottom: Math.max(insets.bottom, 12),
+                    paddingBottom: Math.max(insets.bottom, 6),
                 },
                 flattenedTabBarStyle,
             ]}
         >
-            <View style={styles.tabBar}>
+            <View onLayout={handleTabBarLayout} style={styles.tabBar}>
+                <Animated.View
+                    pointerEvents="none"
+                    style={[
+                        styles.activePill,
+                        {
+                            width: Math.max(tabWidth - TAB_BUTTON_GAP * 2, 0),
+                            transform: [{ translateX: indicatorTranslateX }],
+                        },
+                    ]}
+                />
                 {state.routes.map((route, index) => {
                     const { options } = descriptors[route.key];
                     const isFocused = state.index === index;
                     const color = isFocused ? ACTIVE_TINT : INACTIVE_TINT;
-
-                    const renderLabel = () => {
-                        const rawLabel =
-                            options.tabBarLabel !== undefined
-                                ? options.tabBarLabel
-                                : options.title ?? route.name;
-
-                        if (typeof rawLabel === 'function') {
-                            return rawLabel({
-                                focused: isFocused,
-                                color,
-                                position: 'beside-icon',
-                                children: route.name,
-                            } as BottomTabBarLabelProps);
-                        }
-
-                        if (typeof rawLabel === 'string') {
-                            return (
-                                <Text style={[styles.label, { color }]}>
-                                    {rawLabel}
-                                </Text>
-                            );
-                        }
-
-                        if (React.isValidElement(rawLabel)) {
-                            return rawLabel;
-                        }
-
-                        return (
-                            <Text style={[styles.label, { color }]}>
-                                {route.name}
-                            </Text>
-                        );
-                    };
-
                     const icon = options.tabBarIcon?.({
                         focused: isFocused,
                         color,
@@ -124,28 +119,28 @@ const FloatingTabBar = ({ state, descriptors, navigation }: BottomTabBarProps) =
                     };
 
                     return (
-                        <TouchableOpacity
-                            key={route.key}
-                            accessibilityRole="tab"
-                            accessibilityState={isFocused ? { selected: true } : {}}
-                            accessibilityLabel={options.tabBarAccessibilityLabel}
-                            testID={options.tabBarButtonTestID}
-                            activeOpacity={0.9}
-                            onPress={onPress}
-                            onLongPress={onLongPress}
-                            style={[
-                                styles.tabButton,
-                                {
-                                    backgroundColor: isFocused
-                                        ? ACTIVE_BACKGROUND
-                                        : INACTIVE_BACKGROUND,
-                                },
-                            ]}
-                        >
-                            <View style={styles.iconLabelRow}>
-                                {icon ? <View style={styles.iconWrapper}>{icon}</View> : null}
-                            </View>
-                        </TouchableOpacity>
+                        <View key={route.key} style={styles.tabSlot}>
+                            <Pressable
+                                accessibilityRole="tab"
+                                accessibilityState={isFocused ? { selected: true } : {}}
+                                accessibilityLabel={options.tabBarAccessibilityLabel}
+                                testID={options.tabBarButtonTestID}
+                                onPress={onPress}
+                                onLongPress={onLongPress}
+                                android_ripple={{
+                                    color: 'rgba(32, 36, 49, 0.08)',
+                                    borderless: false,
+                                }}
+                                style={({ pressed }) => [
+                                    styles.tabButton,
+                                    pressed && styles.tabButtonPressed,
+                                ]}
+                            >
+                                <View style={styles.iconLabelRow}>
+                                    {icon ? <View style={styles.iconWrapper}>{icon}</View> : null}
+                                </View>
+                            </Pressable>
+                        </View>
                     );
                 })}
             </View>
@@ -158,41 +153,54 @@ export default FloatingTabBar;
 const styles = StyleSheet.create({
     container: {
         backgroundColor: '#FFFFFF',
-        paddingHorizontal: 20,
-        paddingTop: 12,
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
+        paddingHorizontal: 12,
+        paddingTop: 10,
         borderTopWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E6E6EA',
-        shadowColor: '#000',
-        shadowOpacity: 0.04,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: -4 },
-        elevation: 16,
+        borderTopColor: '#E4E7EF',
     },
     tabBar: {
         flexDirection: 'row',
-        backgroundColor: '#F3F3F6',
-        borderRadius: 22,
-        padding: 8,
+        position: 'relative',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        paddingBottom: 10,
+        padding: TAB_BAR_PADDING,
+    },
+    activePill: {
+        position: 'absolute',
+        left: TAB_BAR_PADDING + TAB_BUTTON_GAP,
+        top: TAB_BAR_PADDING + TAB_BUTTON_GAP,
+        height: TAB_BUTTON_HEIGHT,
+        borderRadius: 12,
+        backgroundColor: '#111111',
+        shadowColor: '#121622',
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 1,
+    },
+    tabSlot: {
+        flex: 1,
+        paddingHorizontal: TAB_BUTTON_GAP,
     },
     tabButton: {
-        flex: 1,
-        borderRadius: 18,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        marginHorizontal: 4,
+        height: TAB_BUTTON_HEIGHT,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     iconLabelRow: {
-        flexDirection: 'row',
-        justifyContent: 'center',
         alignItems: 'center',
+        justifyContent: 'center',
     },
     iconWrapper: {
-        marginRight: 6,
+        width: 24,
+        height: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        transform: [{ translateY: 1 }],
     },
-    label: {
-        fontSize: 13,
-        fontWeight: '600',
+    tabButtonPressed: {
+        opacity: 0.8,
     },
 });

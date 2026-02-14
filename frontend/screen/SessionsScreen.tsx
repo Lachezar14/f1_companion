@@ -13,9 +13,11 @@ import GPCard from '../component/gp/GPCard';
 import { AVAILABLE_MEETING_YEARS, DEFAULT_MEETING_YEAR } from '../config/appConfig';
 import { useServiceRequest } from '../hooks/useServiceRequest';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 
 const SessionsScreen = () => {
     const [seasonYear, setSeasonYear] = useState(DEFAULT_MEETING_YEAR);
+    const tabBarHeight = useBottomTabBarHeight();
     const { data, loading, error, reload } = useServiceRequest<Meeting[]>(
         () => getMeetingsByYear(seasonYear),
         [seasonYear]
@@ -116,7 +118,10 @@ const SessionsScreen = () => {
                 data={meetings}
                 keyExtractor={item => item.meeting_key.toString()}
                 renderItem={renderMeeting}
-                contentContainerStyle={styles.listContent}
+                contentContainerStyle={[
+                    styles.listContent,
+                    { paddingBottom: tabBarHeight + 28 },
+                ]}
                 ListHeaderComponent={renderHero}
             />
         </SafeAreaView>
@@ -142,7 +147,6 @@ const styles = StyleSheet.create({
     },
     listContent: {
         padding: 16,
-        paddingBottom: 32,
     },
     center: {
         flex: 1,
