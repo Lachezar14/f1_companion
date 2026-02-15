@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "f1_companion",
-    "slug": "f1_companion",
+    "name": "Outlap",
+    "slug": "outlap",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,24 +13,26 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "bundleIdentifier": "com.lachezar_m.outlap",
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#C80000"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.lachezar_m.f1_companion"
+      "package": "com.lachezar_m.outlap"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "extra": {
       "eas": {
-        "projectId": "ba6703c2-3ca0-45a0-95e2-376633e93ece"
+        "projectId": "4cbff27f-a95d-4818-b27e-5f13379a38df"
       }
-    }
+    },
+    "owner": "lachezar_m"
   }
 }
