@@ -1,5 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { colors, overlays, radius, semanticColors, spacing, typography } from '../theme/tokens';
+import {
+    colors,
+    overlays,
+    radius,
+    semanticColors,
+    shadows,
+    spacing,
+    typography,
+} from '../theme/tokens';
 import {
     View,
     Text,
@@ -27,17 +35,38 @@ const SessionsScreen = () => {
     const meetings = data ?? [];
 
     const seasonSummary = useMemo(() => {
+        const now = Date.now();
         const upcoming = meetings.filter(
-            meeting => new Date(meeting.date_start).getTime() > Date.now()
+            meeting => new Date(meeting.date_start).getTime() > now
         ).length;
+        const completed = meetings.filter(
+            meeting => new Date(meeting.date_end).getTime() < now
+        ).length;
+        const live = Math.max(meetings.length - upcoming - completed, 0);
+
         return {
             total: meetings.length,
             upcoming,
+            completed,
+            live,
         };
     }, [meetings]);
 
     const renderHero = () => (
         <View style={styles.heroCard}>
+            <View style={styles.heroRail} />
+            <View style={styles.heroTopRow}>
+                <Text style={styles.heroEyebrow}>RACE COMPANION</Text>
+                <View style={styles.seasonBadge}>
+                    <View style={styles.seasonBadgeDot} />
+                    <Text style={styles.seasonBadgeText}>SEASON {seasonYear}</Text>
+                </View>
+            </View>
+            <Text style={styles.heroTitle}>Race Weekend Calendar</Text>
+            <Text style={styles.heroSubtitle}>
+                Choose a Grand Prix and drill into every session.
+            </Text>
+
             <View style={styles.yearRow}>
                 {AVAILABLE_MEETING_YEARS.map(year => (
                     <TouchableOpacity
@@ -60,10 +89,7 @@ const SessionsScreen = () => {
                     </TouchableOpacity>
                 ))}
             </View>
-            <View>
-                <Text style={styles.heroSubtitle}>Formula 1 · Season {seasonYear}</Text>
-                <Text style={styles.heroTitle}>Grand Prix Calendar</Text>
-            </View>
+
             <View style={styles.heroStats}>
                 <View style={styles.heroStat}>
                     <Text style={styles.heroStatValue}>{seasonSummary.total}</Text>
@@ -74,13 +100,44 @@ const SessionsScreen = () => {
                     <Text style={styles.heroStatValue}>{seasonSummary.upcoming}</Text>
                     <Text style={styles.heroStatLabel}>Upcoming</Text>
                 </View>
+                <View style={styles.heroDivider} />
+                <View style={styles.heroStat}>
+                    <Text style={styles.heroStatValue}>
+                        {seasonSummary.live > 0 ? seasonSummary.live : seasonSummary.completed}
+                    </Text>
+                    <Text style={styles.heroStatLabel}>
+                        {seasonSummary.live > 0 ? 'Live' : 'Completed'}
+                    </Text>
+                </View>
             </View>
         </View>
     );
 
     const renderScreenHeader = () => (
         <View style={styles.screenHeader}>
-            <Text style={styles.screenTitle}>Races</Text>
+            <Text style={styles.screenLabel}>SEASON HUB</Text>
+            <Text style={styles.screenTitle}>Meetings</Text>
+        </View>
+    );
+
+    const renderListHeader = () => (
+        <View>
+            {renderHero()}
+            <View style={styles.listSectionHeader}>
+                <Text style={styles.listSectionTitle}>Grand Prix Weekends</Text>
+                <View style={styles.listSectionCount}>
+                    <Text style={styles.listSectionCountText}>{seasonSummary.total}</Text>
+                </View>
+            </View>
+        </View>
+    );
+
+    const renderEmptyState = () => (
+        <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No meetings available</Text>
+            <Text style={styles.emptySubtitle}>
+                Try another season from the selector above.
+            </Text>
         </View>
     );
 
@@ -119,11 +176,13 @@ const SessionsScreen = () => {
                 data={meetings}
                 keyExtractor={item => item.meeting_key.toString()}
                 renderItem={renderMeeting}
+                showsVerticalScrollIndicator={false}
                 contentContainerStyle={[
                     styles.listContent,
                     { paddingBottom: tabBarHeight + 28 },
                 ]}
-                ListHeaderComponent={renderHero}
+                ListHeaderComponent={renderListHeader}
+                ListEmptyComponent={renderEmptyState}
             />
         </SafeAreaView>
     );
@@ -134,100 +193,164 @@ export default SessionsScreen;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: semanticColors.background,
+        backgroundColor: semanticColors.backgroundMuted,
     },
     screenHeader: {
-        paddingHorizontal: spacing.md,
-        paddingTop: spacing.xs,
-        paddingBottom: spacing.xxs,
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.sm,
+        paddingBottom: spacing.xs,
+    },
+    screenLabel: {
+        fontSize: typography.size.xs,
+        fontWeight: typography.weight.semibold,
+        color: semanticColors.textMuted,
+        letterSpacing: typography.letterSpacing.widest,
+        marginBottom: spacing.xxs,
     },
     screenTitle: {
-        fontSize: typography.size.xxl,
-        fontWeight: typography.weight.bold,
+        fontSize: typography.size.display,
+        fontWeight: typography.weight.black,
+        letterSpacing: typography.letterSpacing.tight,
         color: semanticColors.textPrimary,
     },
     listContent: {
-        padding: spacing.md,
+        paddingHorizontal: spacing.lg,
+        paddingBottom: spacing.md,
     },
     center: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: semanticColors.background,
+        backgroundColor: semanticColors.backgroundMuted,
+        paddingHorizontal: spacing.xl,
     },
     loadingText: {
-        marginTop: spacing.sm,
-        fontSize: typography.size.lg,
-        color: semanticColors.textSecondary,
+        marginTop: spacing.md,
+        fontSize: typography.size.base,
+        color: semanticColors.textMuted,
     },
     errorText: {
-        fontSize: typography.size.lg,
+        textAlign: 'center',
+        fontSize: typography.size.base,
         color: semanticColors.danger,
     },
     retryButton: {
         marginTop: spacing.md,
-        paddingHorizontal: spacing.xl,
+        paddingHorizontal: spacing.xxl,
         paddingVertical: spacing.sm,
         backgroundColor: semanticColors.danger,
         borderRadius: radius.sm,
+        ...shadows.glow,
     },
     retryText: {
         color: semanticColors.surface,
         fontWeight: typography.weight.bold,
+        letterSpacing: typography.letterSpacing.wide,
     },
     heroCard: {
-        backgroundColor: semanticColors.textPrimary,
+        backgroundColor: colors.neutral.carbon,
         borderRadius: radius.xxl,
         padding: spacing.lg,
-        marginBottom: spacing.md,
-        shadowColor: colors.neutral.black,
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 6 },
-        elevation: 4,
+        marginBottom: spacing.lg,
+        borderWidth: 1,
+        borderColor: overlays.white12,
+        overflow: 'hidden',
+        ...shadows.level3,
+    },
+    heroRail: {
+        position: 'absolute',
+        left: spacing.lg,
+        top: 0,
+        height: 5,
+        width: 92,
+        borderBottomLeftRadius: radius.sm,
+        borderBottomRightRadius: radius.sm,
+        backgroundColor: colors.brand.primary,
+    },
+    heroTopRow: {
+        marginTop: spacing.sm,
+        marginBottom: spacing.sm,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    heroEyebrow: {
+        color: 'rgba(255,255,255,0.74)',
+        fontSize: typography.size.xs,
+        letterSpacing: typography.letterSpacing.widest,
+        fontWeight: typography.weight.semibold,
+    },
+    seasonBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: overlays.white10,
+        borderRadius: radius.pill,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xxs,
+    },
+    seasonBadgeDot: {
+        width: 7,
+        height: 7,
+        borderRadius: radius.pill,
+        backgroundColor: colors.flags.green,
+        marginRight: spacing.xs,
+    },
+    seasonBadgeText: {
+        color: semanticColors.surface,
+        fontSize: typography.size.xs,
+        fontWeight: typography.weight.semibold,
+        letterSpacing: typography.letterSpacing.wide,
     },
     yearRow: {
         flexDirection: 'row',
+        marginTop: spacing.lg,
         marginBottom: spacing.sm,
         flexWrap: 'wrap',
         marginHorizontal: -4,
     },
     yearChip: {
-        paddingHorizontal: spacing.sm,
+        paddingHorizontal: spacing.md,
         paddingVertical: spacing.xs,
         borderRadius: radius.pill,
-        backgroundColor: overlays.white12,
+        backgroundColor: overlays.white08,
+        borderWidth: 1,
+        borderColor: overlays.white12,
         marginHorizontal: spacing.xxs,
         marginBottom: spacing.xs,
     },
     yearChipActive: {
-        backgroundColor: semanticColors.surface,
+        backgroundColor: semanticColors.danger,
+        borderColor: semanticColors.danger,
     },
     yearChipText: {
-        color: 'rgba(255,255,255,0.7)',
+        color: 'rgba(255,255,255,0.78)',
         fontWeight: typography.weight.semibold,
-        letterSpacing: typography.letterSpacing.wide,
+        letterSpacing: typography.letterSpacing.wider,
     },
     yearChipTextActive: {
-        color: semanticColors.textPrimary,
+        color: semanticColors.surface,
     },
     heroTitle: {
-        fontSize: typography.size.xxl,
-        fontWeight: typography.weight.bold,
+        fontSize: typography.size.xxxl,
+        fontWeight: typography.weight.black,
+        letterSpacing: typography.letterSpacing.tight,
         color: semanticColors.surface,
-        marginTop: spacing.xs,
+        marginTop: spacing.xxs,
     },
     heroSubtitle: {
-        fontSize: typography.size.base,
-        color: 'rgba(255,255,255,0.7)',
+        marginTop: spacing.xs,
+        fontSize: typography.size.sm,
+        color: 'rgba(255,255,255,0.72)',
         letterSpacing: typography.letterSpacing.wide,
     },
     heroStats: {
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: spacing.lg,
-        backgroundColor: overlays.white08,
+        backgroundColor: overlays.white10,
         borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: overlays.white12,
         paddingVertical: spacing.sm,
     },
     heroStat: {
@@ -235,8 +358,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     heroStatValue: {
-        fontSize: typography.size.xxl,
-        fontWeight: typography.weight.bold,
+        fontSize: typography.size.xxxl,
+        fontWeight: typography.weight.black,
         color: semanticColors.surface,
     },
     heroStatLabel: {
@@ -250,5 +373,52 @@ const styles = StyleSheet.create({
         width: 1,
         height: 36,
         backgroundColor: overlays.white20,
+    },
+    listSectionHeader: {
+        marginBottom: spacing.sm,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    listSectionTitle: {
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
+    },
+    listSectionCount: {
+        minWidth: 32,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xxs,
+        borderRadius: radius.pill,
+        backgroundColor: semanticColors.surface,
+        borderWidth: 1,
+        borderColor: semanticColors.borderStrong,
+        alignItems: 'center',
+    },
+    listSectionCountText: {
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
+    },
+    emptyState: {
+        marginTop: spacing.xl,
+        alignItems: 'center',
+        paddingVertical: spacing.xl,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: semanticColors.border,
+        backgroundColor: semanticColors.surface,
+    },
+    emptyTitle: {
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
+        marginBottom: spacing.xs,
+    },
+    emptySubtitle: {
+        fontSize: typography.size.sm,
+        textAlign: 'center',
+        color: semanticColors.textMuted,
     },
 });
