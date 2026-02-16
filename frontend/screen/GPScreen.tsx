@@ -64,10 +64,19 @@ type WeekendHighlights = {
     race: RaceHighlight;
 };
 
+type TestingOverview = {
+    total: number;
+    completed: number;
+    live: number;
+    upcoming: number;
+};
+
 type MeetingDetails = {
     meeting: Meeting;
     sessions: Session[];
-    highlights: WeekendHighlights;
+    isTestingMeeting: boolean;
+    testingOverview: TestingOverview | null;
+    highlights: WeekendHighlights | null;
 };
 
 const resolveSessionScreen = (session: Session): SessionScreenTarget => {
@@ -371,6 +380,51 @@ const getLifecycleBadgeColors = (lifecycle: SessionLifecycle) => {
     return { bg: '#F2F4F8', text: '#697087' };
 };
 
+const isTestingEvent = (meeting: Meeting, sessions: Session[]): boolean => {
+    const meetingText = `${meeting.meeting_name || ''} ${meeting.meeting_official_name || ''}`.toLowerCase();
+    if (meetingText.includes('testing') || meetingText.includes('test')) {
+        return true;
+    }
+
+    const sessionTexts = sessions.map(session =>
+        `${session.session_type || ''} ${session.session_name || ''}`.toLowerCase()
+    );
+
+    const hasTestingSession = sessionTexts.some(text => text.includes('test'));
+    const hasRaceWeekendSession = sessionTexts.some(
+        text =>
+            text.includes('qualifying') ||
+            text.includes('shootout') ||
+            text.includes('sprint') ||
+            text.includes('race') ||
+            text.includes('grand prix')
+    );
+
+    return hasTestingSession && !hasRaceWeekendSession;
+};
+
+const buildTestingOverview = (sessions: Session[]): TestingOverview => {
+    return sessions.reduce<TestingOverview>(
+        (accumulator, session) => {
+            const lifecycle = getSessionLifecycle(session);
+            if (lifecycle === 'completed') {
+                accumulator.completed += 1;
+            } else if (lifecycle === 'live') {
+                accumulator.live += 1;
+            } else {
+                accumulator.upcoming += 1;
+            }
+            return accumulator;
+        },
+        {
+            total: sessions.length,
+            completed: 0,
+            live: 0,
+            upcoming: 0,
+        }
+    );
+};
+
 export default function GPScreen() {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const { gpKey, year = DEFAULT_MEETING_YEAR } = route.params;
@@ -383,9 +437,11 @@ export default function GPScreen() {
         }
 
         const sessions = await getSessionsByMeeting(gpKey);
-        const highlights = await buildWeekendHighlights(sessions);
+        const testingMeeting = isTestingEvent(meeting, sessions);
+        const highlights = testingMeeting ? null : await buildWeekendHighlights(sessions);
+        const testingOverview = testingMeeting ? buildTestingOverview(sessions) : null;
 
-        return { meeting, sessions, highlights };
+        return { meeting, sessions, isTestingMeeting: testingMeeting, testingOverview, highlights };
     }, [gpKey, year]);
 
     const {
@@ -441,10 +497,10 @@ export default function GPScreen() {
         );
     }
 
-    const { meeting, highlights } = data;
+    const { meeting, highlights, isTestingMeeting, testingOverview } = data;
     const dateRange = formatDateRange(meeting.date_start, meeting.date_end);
-    const qualifyingBadge = getLifecycleBadgeColors(highlights.qualifying.lifecycle);
-    const raceBadge = getLifecycleBadgeColors(highlights.race.lifecycle);
+    const qualifyingBadge = highlights ? getLifecycleBadgeColors(highlights.qualifying.lifecycle) : null;
+    const raceBadge = highlights ? getLifecycleBadgeColors(highlights.race.lifecycle) : null;
 
     return (
         <ScrollView
@@ -503,67 +559,108 @@ export default function GPScreen() {
                 ) : null}
             </View>
 
-            <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Weekend Highlights</Text>
-                <MaterialCommunityIcons name="star-four-points-outline" size={16} color={semanticColors.textMuted} />
-            </View>
-
-            <View style={styles.highlightGrid}>
-                <TouchableOpacity
-                    activeOpacity={0.88}
-                    disabled={!highlights.qualifying.session}
-                    onPress={() => highlights.qualifying.session && handleSessionPress(highlights.qualifying.session)}
-                    style={styles.highlightCard}
-                >
-                    <View style={styles.highlightHeader}>
-                        <Text style={styles.highlightLabel}>Qualifying</Text>
-                        <View style={[styles.highlightBadge, { backgroundColor: qualifyingBadge.bg }]}> 
-                            <Text style={[styles.highlightBadgeText, { color: qualifyingBadge.text }]}>
-                                {highlights.qualifying.lifecycle.toUpperCase()}
-                            </Text>
-                        </View>
+            {isTestingMeeting ? (
+                <>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Testing Overview</Text>
+                        <MaterialCommunityIcons name="flask-outline" size={16} color={semanticColors.textMuted} />
                     </View>
 
-                    {highlights.qualifying.poleSitter && highlights.qualifying.poleLap ? (
-                        <>
-                            <Text style={styles.highlightPrimary}>{highlights.qualifying.poleSitter}</Text>
-                            <Text style={styles.highlightSecondary}>Pole lap {highlights.qualifying.poleLap}</Text>
-                        </>
-                    ) : (
-                        <Text style={styles.highlightSecondary}>{highlights.qualifying.statusText}</Text>
-                    )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    activeOpacity={0.88}
-                    disabled={!highlights.race.session}
-                    onPress={() => highlights.race.session && handleSessionPress(highlights.race.session)}
-                    style={styles.highlightCard}
-                >
-                    <View style={styles.highlightHeader}>
-                        <Text style={styles.highlightLabel}>Race</Text>
-                        <View style={[styles.highlightBadge, { backgroundColor: raceBadge.bg }]}> 
-                            <Text style={[styles.highlightBadgeText, { color: raceBadge.text }]}>
-                                {highlights.race.lifecycle.toUpperCase()}
-                            </Text>
+                    <View style={styles.highlightCard}>
+                        <View style={styles.highlightHeader}>
+                            <Text style={styles.highlightLabel}>Testing Event</Text>
+                            <View style={[styles.highlightBadge, { backgroundColor: '#EEF1F7' }]}>
+                                <Text style={[styles.highlightBadgeText, { color: '#4D5166' }]}>NO RACE</Text>
+                            </View>
                         </View>
-                    </View>
-
-                    {highlights.race.podium.length > 0 ? (
-                        <View style={styles.podiumList}>
-                            {highlights.race.podium.map(entry => (
-                                <View key={`podium-${entry.position}`} style={styles.podiumRow}>
-                                    <Text style={styles.podiumPosition}>P{entry.position}</Text>
-                                    <Text style={styles.podiumDriver}>{entry.driverCode}</Text>
-                                    <Text style={styles.podiumTeam} numberOfLines={1}>{entry.team}</Text>
+                        <Text style={styles.highlightSecondary}>
+                            This meeting does not include qualifying or race results.
+                        </Text>
+                        {testingOverview ? (
+                            <View style={styles.testingStatsRow}>
+                                <View style={styles.testingStat}>
+                                    <Text style={styles.testingStatValue}>{testingOverview.total}</Text>
+                                    <Text style={styles.testingStatLabel}>Sessions</Text>
                                 </View>
-                            ))}
-                        </View>
-                    ) : (
-                        <Text style={styles.highlightSecondary}>{highlights.race.statusText}</Text>
-                    )}
-                </TouchableOpacity>
-            </View>
+                                <View style={styles.testingStatDivider} />
+                                <View style={styles.testingStat}>
+                                    <Text style={styles.testingStatValue}>{testingOverview.completed}</Text>
+                                    <Text style={styles.testingStatLabel}>Completed</Text>
+                                </View>
+                                <View style={styles.testingStatDivider} />
+                                <View style={styles.testingStat}>
+                                    <Text style={styles.testingStatValue}>{testingOverview.live + testingOverview.upcoming}</Text>
+                                    <Text style={styles.testingStatLabel}>Remaining</Text>
+                                </View>
+                            </View>
+                        ) : null}
+                    </View>
+                </>
+            ) : highlights ? (
+                <>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Weekend Highlights</Text>
+                        <MaterialCommunityIcons name="star-four-points-outline" size={16} color={semanticColors.textMuted} />
+                    </View>
+
+                    <View style={styles.highlightGrid}>
+                        <TouchableOpacity
+                            activeOpacity={0.88}
+                            disabled={!highlights.qualifying.session}
+                            onPress={() => highlights.qualifying.session && handleSessionPress(highlights.qualifying.session)}
+                            style={styles.highlightCard}
+                        >
+                            <View style={styles.highlightHeader}>
+                                <Text style={styles.highlightLabel}>Qualifying</Text>
+                                <View style={[styles.highlightBadge, { backgroundColor: qualifyingBadge?.bg || '#EEF1F7' }]}> 
+                                    <Text style={[styles.highlightBadgeText, { color: qualifyingBadge?.text || '#4D5166' }]}>
+                                        {highlights.qualifying.lifecycle.toUpperCase()}
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {highlights.qualifying.poleSitter && highlights.qualifying.poleLap ? (
+                                <>
+                                    <Text style={styles.highlightPrimary}>{highlights.qualifying.poleSitter}</Text>
+                                    <Text style={styles.highlightSecondary}>Pole lap {highlights.qualifying.poleLap}</Text>
+                                </>
+                            ) : (
+                                <Text style={styles.highlightSecondary}>{highlights.qualifying.statusText}</Text>
+                            )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            activeOpacity={0.88}
+                            disabled={!highlights.race.session}
+                            onPress={() => highlights.race.session && handleSessionPress(highlights.race.session)}
+                            style={styles.highlightCard}
+                        >
+                            <View style={styles.highlightHeader}>
+                                <Text style={styles.highlightLabel}>Race</Text>
+                                <View style={[styles.highlightBadge, { backgroundColor: raceBadge?.bg || '#EEF1F7' }]}> 
+                                    <Text style={[styles.highlightBadgeText, { color: raceBadge?.text || '#4D5166' }]}>
+                                        {highlights.race.lifecycle.toUpperCase()}
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {highlights.race.podium.length > 0 ? (
+                                <View style={styles.podiumList}>
+                                    {highlights.race.podium.map(entry => (
+                                        <View key={`podium-${entry.position}`} style={styles.podiumRow}>
+                                            <Text style={styles.podiumPosition}>P{entry.position}</Text>
+                                            <Text style={styles.podiumDriver}>{entry.driverCode}</Text>
+                                            <Text style={styles.podiumTeam} numberOfLines={1}>{entry.team}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            ) : (
+                                <Text style={styles.highlightSecondary}>{highlights.race.statusText}</Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </>
+            ) : null}
 
             <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Weekend Schedule</Text>
@@ -831,6 +928,37 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: typography.size.sm,
         color: 'rgba(255,255,255,0.78)',
+    },
+    testingStatsRow: {
+        marginTop: spacing.md,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: overlays.white10,
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: overlays.white12,
+        paddingVertical: spacing.sm,
+    },
+    testingStat: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    testingStatValue: {
+        fontSize: typography.size.xl,
+        color: semanticColors.surface,
+        fontWeight: typography.weight.bold,
+    },
+    testingStatLabel: {
+        marginTop: spacing.xxs,
+        fontSize: typography.size.xs,
+        color: 'rgba(255,255,255,0.72)',
+        textTransform: 'uppercase',
+        letterSpacing: typography.letterSpacing.wide,
+    },
+    testingStatDivider: {
+        width: 1,
+        height: 30,
+        backgroundColor: overlays.white20,
     },
     emptyCard: {
         borderRadius: radius.lg,

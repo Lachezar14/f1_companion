@@ -16,6 +16,7 @@ import DriverQualifyingDetailsScreen from "../screen/sessions/qualifying/DriverQ
 import RaceScreen from "../screen/sessions/race/RaceScreen";
 import RaceOvertakesScreen from "../screen/sessions/race/RaceOvertakesScreen";
 import RaceClassificationScreen from "../screen/sessions/race/RaceClassificationScreen";
+import RacePaceInsightsScreen from "../screen/sessions/race/RacePaceInsightsScreen";
 import DriverSeasonScreen from "../screen/drivers/DriverSeasonScreen";
 import FloatingTabBar from '../component/navigation/FloatingTabBar';
 import StackScreenWrapper from '../component/navigation/StackScreenWrapper';
@@ -86,6 +87,18 @@ const RaceOvertakesWithHeader = withStackScreenWrapper(RaceOvertakesScreen, {
 
 const RaceClassificationWithHeader = withStackScreenWrapper(RaceClassificationScreen, {
     title: 'Classification',
+});
+
+const RacePaceInsightsWithHeader = withStackScreenWrapper(RacePaceInsightsScreen, {
+    getTitle: props => {
+        const detailType = props.route?.params?.detailType;
+        if (detailType === 'degradation') return 'Tyre Degradation';
+        if (detailType === 'racecraft') return 'Racecraft';
+        if (detailType === 'consistency') return 'Pace Consistency';
+        if (detailType === 'compoundPace') return 'Compound Pace';
+        if (detailType === 'pit') return 'Pit Strategy';
+        return 'Race Insights';
+    },
 });
 
 const DriverSeasonWithHeader = withStackScreenWrapper(DriverSeasonScreen, {
@@ -164,6 +177,11 @@ function SessionsStack() {
                 name="RaceClassification"
                 component={RaceClassificationWithHeader}
                 options={{ title: 'Classification' }}
+            />
+            <SessionsStackNavigator.Screen
+                name="RacePaceInsights"
+                component={RacePaceInsightsWithHeader}
+                options={{ title: 'Race Insights' }}
             />
         </SessionsStackNavigator.Navigator>
     );
