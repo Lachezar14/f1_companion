@@ -27,7 +27,7 @@ import {
     getDriversBySession,
     getSessionResults,
 } from '../../backend/service/openf1Service';
-import { Meeting, Session, SessionResult } from '../../backend/types';
+import { Driver, Meeting, Session, SessionResult } from '../../backend/types';
 import SessionCard from '../component/session/SessionCard';
 import { useServiceRequest } from '../hooks/useServiceRequest';
 import { DEFAULT_MEETING_YEAR } from '../config/appConfig';
@@ -53,6 +53,9 @@ type QualifyingHighlight = {
     statusText: string;
     poleSitter: string | null;
     poleLap: string | null;
+    poleDriverInitials: string | null;
+    poleHeadshotUrl: string | null;
+    poleTeam: string | null;
 };
 
 type RaceHighlight = {
@@ -272,7 +275,31 @@ const normalizeHeadshotUrl = (url: string | null | undefined): string | null => 
     return trimmed;
 };
 
-const buildQualifyingHighlight = async (session: Session | null): Promise<QualifyingHighlight> => {
+type DriverHighlightIdentity = {
+    driverInitials: string;
+    driverCode: string;
+    headshotUrl: string | null;
+    team: string;
+};
+
+const buildDriverHighlightIdentity = (driver?: Driver): DriverHighlightIdentity => {
+    const displayName = driver?.full_name?.trim()
+        || driver?.broadcast_name?.trim()
+        || driver?.name_acronym?.trim()
+        || `#${driver?.driver_number ?? ''}`;
+
+    return {
+        driverInitials: getDriverInitials(displayName, 2),
+        driverCode: driver?.name_acronym?.trim() || deriveDriverCode(displayName),
+        headshotUrl: normalizeHeadshotUrl(driver?.headshot_url || null),
+        team: driver?.team_name || 'Unknown Team',
+    };
+};
+
+const buildQualifyingHighlight = async (
+    session: Session | null,
+    raceSession: Session | null
+): Promise<QualifyingHighlight> => {
     if (!session) {
         return {
             session: null,
@@ -280,6 +307,9 @@ const buildQualifyingHighlight = async (session: Session | null): Promise<Qualif
             statusText: 'Not scheduled',
             poleSitter: null,
             poleLap: null,
+            poleDriverInitials: null,
+            poleHeadshotUrl: null,
+            poleTeam: null,
         };
     }
 
@@ -292,13 +322,17 @@ const buildQualifyingHighlight = async (session: Session | null): Promise<Qualif
             statusText: formatLifecycleLabel(session, lifecycle),
             poleSitter: null,
             poleLap: null,
+            poleDriverInitials: null,
+            poleHeadshotUrl: null,
+            poleTeam: null,
         };
     }
 
     try {
-        const [results, drivers] = await Promise.all([
+        const [results, drivers, raceDrivers] = await Promise.all([
             getSessionResults(session.session_key),
             getDriversBySession(session.session_key),
+            raceSession ? getDriversBySession(raceSession.session_key) : Promise.resolve([]),
         ]);
         const sortedResults = [...results].sort(
             (a, b) => toSortablePosition(a.position) - toSortablePosition(b.position)
@@ -312,12 +346,24 @@ const buildQualifyingHighlight = async (session: Session | null): Promise<Qualif
                 statusText: 'Completed · results pending',
                 poleSitter: null,
                 poleLap: null,
+                poleDriverInitials: null,
+                poleHeadshotUrl: null,
+                poleTeam: null,
             };
         }
 
-        const poleDriver = drivers.find(driver => driver.driver_number === poleResult.driver_number);
-        const poleCode = poleDriver?.name_acronym?.trim()
-            || (poleDriver ? deriveDriverCode(poleDriver.full_name) : `#${poleResult.driver_number}`);
+        const poleDriver =
+            drivers.find(driver => driver.driver_number === poleResult.driver_number)
+            || drivers.find(driver => String(driver.driver_number) === String(poleResult.driver_number));
+        const racePoleDriver =
+            raceDrivers.find(driver => driver.driver_number === poleResult.driver_number)
+            || raceDrivers.find(
+                driver => String(driver.driver_number) === String(poleResult.driver_number)
+            );
+        const poleIdentity = buildDriverHighlightIdentity(
+            (poleDriver?.headshot_url ? poleDriver : racePoleDriver) ?? poleDriver ?? racePoleDriver
+        );
+        const poleCode = poleIdentity.driverCode || `#${poleResult.driver_number}`;
         const poleLap = getBestQualifyingLap(poleResult);
 
         return {
@@ -326,6 +372,9 @@ const buildQualifyingHighlight = async (session: Session | null): Promise<Qualif
             statusText: 'Completed',
             poleSitter: poleCode,
             poleLap: poleLap || 'N/A',
+            poleDriverInitials: poleIdentity.driverInitials || null,
+            poleHeadshotUrl: poleIdentity.headshotUrl,
+            poleTeam: poleIdentity.team || null,
         };
     } catch (error) {
         console.warn(`[GPScreen] Qualifying highlight unavailable for session ${session.session_key}:`, error);
@@ -335,6 +384,9 @@ const buildQualifyingHighlight = async (session: Session | null): Promise<Qualif
             statusText: 'Completed · results pending',
             poleSitter: null,
             poleLap: null,
+            poleDriverInitials: null,
+            poleHeadshotUrl: null,
+            poleTeam: null,
         };
     }
 };
@@ -373,17 +425,16 @@ const buildRaceHighlight = async (session: Session | null): Promise<RaceHighligh
             )
             .sort((a, b) => a.position - b.position)
             .map(entry => {
-                const driver = driverMap.get(entry.driver_number);
-                const displayName = driver?.full_name?.trim()
-                    || driver?.broadcast_name?.trim()
-                    || driver?.name_acronym?.trim()
-                    || `#${entry.driver_number}`;
+                const identity = buildDriverHighlightIdentity(
+                    driverMap.get(entry.driver_number)
+                        ?? drivers.find(driver => String(driver.driver_number) === String(entry.driver_number))
+                );
                 return {
                     position: entry.position,
-                    driverInitials: getDriverInitials(displayName, 2),
-                    driverCode: driver?.name_acronym?.trim() || deriveDriverCode(displayName),
-                    headshotUrl: normalizeHeadshotUrl(driver?.headshot_url || null),
-                    team: driver?.team_name || 'Unknown Team',
+                    driverInitials: identity.driverInitials,
+                    driverCode: identity.driverCode,
+                    headshotUrl: identity.headshotUrl,
+                    team: identity.team,
                 };
             });
 
@@ -418,7 +469,7 @@ const buildWeekendHighlights = async (sessions: Session[]): Promise<WeekendHighl
     const raceSession = selectRaceSession(sessions);
 
     const [qualifying, race] = await Promise.all([
-        buildQualifyingHighlight(qualifyingSession),
+        buildQualifyingHighlight(qualifyingSession, raceSession),
         buildRaceHighlight(raceSession),
     ]);
 
@@ -725,10 +776,31 @@ export default function GPScreen() {
                                 <>
                                     <View style={styles.qualifyingResultRow}>
                                         <View style={styles.qualifyingResultLeft}>
-                                            <Text style={styles.qualifyingResultLabel}>Pole Sitter</Text>
-                                            <Text style={styles.highlightPrimary}>
-                                                {highlights.qualifying.poleSitter}
-                                            </Text>
+                                            <View style={styles.qualifyingDriverRow}>
+                                                {highlights.qualifying.poleHeadshotUrl ? (
+                                                    <Image
+                                                        source={{ uri: highlights.qualifying.poleHeadshotUrl }}
+                                                        style={styles.qualifyingAvatar}
+                                                    />
+                                                ) : (
+                                                    <View style={styles.qualifyingAvatarFallback}>
+                                                        <Text style={styles.qualifyingAvatarFallbackText}>
+                                                            {highlights.qualifying.poleDriverInitials
+                                                                || highlights.qualifying.poleSitter.slice(0, 2)}
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                                <View style={styles.qualifyingDriverTextBlock}>
+                                                    <Text style={styles.qualifyingDriverCode}>
+                                                        {highlights.qualifying.poleSitter}
+                                                    </Text>
+                                                    {highlights.qualifying.poleTeam ? (
+                                                        <Text style={styles.qualifyingDriverTeam} numberOfLines={1}>
+                                                            {highlights.qualifying.poleTeam}
+                                                        </Text>
+                                                    ) : null}
+                                                </View>
+                                            </View>
                                         </View>
                                         <View style={styles.qualifyingLapPanel}>
                                             <Text style={styles.qualifyingLapLabel}>Best Lap</Text>
@@ -1079,6 +1151,48 @@ const styles = StyleSheet.create({
     qualifyingResultLeft: {
         flex: 1,
         paddingRight: spacing.sm,
+    },
+    qualifyingDriverRow: {
+        marginTop: 2,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    qualifyingAvatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: overlays.white20,
+        marginRight: spacing.xs,
+    },
+    qualifyingAvatarFallback: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: spacing.xs,
+        backgroundColor: overlays.white20,
+    },
+    qualifyingAvatarFallbackText: {
+        fontSize: typography.size.xs,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.surface,
+        letterSpacing: typography.letterSpacing.wide,
+    },
+    qualifyingDriverTextBlock: {
+        flexShrink: 1,
+    },
+    qualifyingDriverCode: {
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.black,
+        color: semanticColors.surface,
+        letterSpacing: typography.letterSpacing.wide,
+    },
+    qualifyingDriverTeam: {
+        marginTop: 1,
+        fontSize: typography.size.xs,
+        color: 'rgba(255,255,255,0.76)',
     },
     qualifyingResultLabel: {
         fontSize: typography.size.xs,
