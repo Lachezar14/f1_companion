@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { colors, overlays, radius, semanticColors, spacing, typography } from '../../../theme/tokens';
 import {
     View,
@@ -57,6 +57,7 @@ export default function DriverPracticeDetailsScreen() {
     } = route.params;
     const driverOptions = driverOptionsParam ?? [];
     const [selectedDriverNumber, setSelectedDriverNumber] = useState(driverNumber);
+    const [isDriverListOpen, setIsDriverListOpen] = useState(false);
 
     const [state, setState] = useState<DriverState>({
         driverData: driverDataParam ?? null,
@@ -64,13 +65,13 @@ export default function DriverPracticeDetailsScreen() {
         refreshing: false,
         error: null,
     });
+    const requestIdRef = useRef(0);
 
     const fetchDriver = useCallback(
         async (targetDriver: number, isRefresh = false) => {
+            const requestId = ++requestIdRef.current;
             setState(prev => {
-                const shouldShowLoading =
-                    !isRefresh &&
-                    (!prev.driverData || prev.driverData.driverNumber !== targetDriver);
+                const shouldShowLoading = !isRefresh && !prev.driverData;
                 return {
                     ...prev,
                     loading: shouldShowLoading,
@@ -81,13 +82,22 @@ export default function DriverPracticeDetailsScreen() {
 
             try {
                 const detail = await getPracticeDriverDetail(sessionKey, targetDriver);
+                if (requestId !== requestIdRef.current) {
+                    return;
+                }
                 setState({
                     driverData: detail,
                     loading: false,
                     refreshing: false,
                     error: detail ? null : 'Driver data not found for this session',
                 });
+                if (detail?.driverNumber === targetDriver) {
+                    setSelectedDriverNumber(targetDriver);
+                }
             } catch (error) {
+                if (requestId !== requestIdRef.current) {
+                    return;
+                }
                 setState({
                     driverData: null,
                     loading: false,
@@ -100,23 +110,11 @@ export default function DriverPracticeDetailsScreen() {
     );
 
     useEffect(() => {
-        if (driverDataParam && driverDataParam.driverNumber === driverNumber) {
-            setState({
-                driverData: driverDataParam,
-                loading: false,
-                refreshing: false,
-                error: null,
-            });
+        if (state.driverData?.driverNumber === selectedDriverNumber) {
+            return;
         }
-    }, [driverDataParam, driverNumber]);
-
-    useEffect(() => {
         fetchDriver(selectedDriverNumber);
-    }, [selectedDriverNumber, fetchDriver]);
-
-    useEffect(() => {
-        setSelectedDriverNumber(driverNumber);
-    }, [driverNumber]);
+    }, [selectedDriverNumber, fetchDriver, state.driverData?.driverNumber]);
 
     const handleRefresh = useCallback(
         () => fetchDriver(selectedDriverNumber, true),
@@ -125,11 +123,21 @@ export default function DriverPracticeDetailsScreen() {
 
     const handleSelectDriver = useCallback(
         (optionNumber: number) => {
-            if (optionNumber === selectedDriverNumber) return;
+            if (optionNumber === selectedDriverNumber) {
+                setIsDriverListOpen(false);
+                return;
+            }
             setSelectedDriverNumber(optionNumber);
+            setIsDriverListOpen(false);
         },
         [selectedDriverNumber]
     );
+
+    const selectedDriverOption = useMemo(() => {
+        return (
+            driverOptions.find(option => option.driverNumber === selectedDriverNumber) ?? null
+        );
+    }, [driverOptions, selectedDriverNumber]);
 
     const driverData = state.driverData;
     const [stintsExpanded, setStintsExpanded] = useState(true);
@@ -218,47 +226,80 @@ export default function DriverPracticeDetailsScreen() {
             }
         >
             {driverOptions.length > 0 && (
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.driverSwitchScroll}
-                    contentContainerStyle={styles.driverSwitchContent}
-                >
-                    {driverOptions.map(option => {
-                        const isActive = option.driverNumber === selectedDriverNumber;
-                        return (
-                            <TouchableOpacity
-                                key={option.driverNumber}
-                                style={[
-                                    styles.driverChip,
-                                    isActive && [
-                                        styles.driverChipActive,
-                                        { borderColor: getTeamColorHex(option.teamColor) },
-                                    ],
-                                ]}
-                                activeOpacity={0.85}
-                                onPress={() => handleSelectDriver(option.driverNumber)}
-                            >
-                                <Text
-                                    style={[
-                                        styles.driverChipName,
-                                        isActive && styles.driverChipNameActive,
-                                    ]}
-                                >
-                                    {asDisplayText(option.name)}
-                                </Text>
-                                <Text
-                                    style={[
-                                        styles.driverChipNumber,
-                                        isActive && styles.driverChipNumberActive,
-                                    ]}
-                                >
-                                    #{option.driverNumber}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </ScrollView>
+                <View style={styles.driverSelectorContainer}>
+                    <TouchableOpacity
+                        style={[
+                            styles.driverSelectorField,
+                            isDriverListOpen && styles.driverSelectorFieldOpen,
+                        ]}
+                        activeOpacity={0.88}
+                        onPress={() => setIsDriverListOpen(prev => !prev)}
+                    >
+                        <View style={styles.driverSelectorLabelWrap}>
+                            <Text style={styles.driverSelectorName}>
+                                {asDisplayText(
+                                    selectedDriverOption?.name,
+                                    `Driver #${selectedDriverNumber}`
+                                )}
+                            </Text>
+                            <Text style={styles.driverSelectorMeta}>
+                                {asDisplayText(selectedDriverOption?.team, 'Choose driver')}
+                            </Text>
+                        </View>
+                        <Text style={styles.driverSelectorCaret}>
+                            {isDriverListOpen ? '▲' : '▼'}
+                        </Text>
+                    </TouchableOpacity>
+                    {isDriverListOpen && (
+                        <ScrollView
+                            style={styles.driverSelectorList}
+                            nestedScrollEnabled
+                            showsVerticalScrollIndicator={false}
+                        >
+                            {driverOptions.map(option => {
+                                const isActive = option.driverNumber === selectedDriverNumber;
+                                return (
+                                    <TouchableOpacity
+                                        key={option.driverNumber}
+                                        style={[
+                                            styles.driverOptionRow,
+                                            isActive && styles.driverOptionRowActive,
+                                        ]}
+                                        activeOpacity={0.85}
+                                        onPress={() => handleSelectDriver(option.driverNumber)}
+                                    >
+                                        <View style={styles.driverOptionInfo}>
+                                            <Text
+                                                style={[
+                                                    styles.driverOptionName,
+                                                    isActive && styles.driverOptionNameActive,
+                                                ]}
+                                            >
+                                                {asDisplayText(option.name)}
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.driverOptionMeta,
+                                                    isActive && styles.driverOptionMetaActive,
+                                                ]}
+                                            >
+                                                {asDisplayText(option.team)}
+                                            </Text>
+                                        </View>
+                                        <Text
+                                            style={[
+                                                styles.driverOptionNumber,
+                                                isActive && styles.driverOptionNumberActive,
+                                            ]}
+                                        >
+                                            #{option.driverNumber}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                    )}
+                </View>
             )}
             <View style={[styles.heroCard, { backgroundColor: headerColor }]}>
                 <View style={styles.heroRow}>
@@ -346,42 +387,92 @@ const styles = StyleSheet.create({
     contentContainer: {
         paddingBottom: spacing.xxl,
     },
-    driverSwitchScroll: {
+    driverSelectorContainer: {
         marginHorizontal: spacing.md,
         marginBottom: spacing.sm,
     },
-    driverSwitchContent: {
-        paddingVertical: spacing.xxs,
-    },
-    driverChip: {
+    driverSelectorField: {
         borderRadius: radius.lg,
-        borderWidth: StyleSheet.hairlineWidth,
+        borderWidth: 1,
         borderColor: '#D9DEEC',
+        backgroundColor: semanticColors.surface,
         paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xs,
-        marginRight: spacing.xs,
+        paddingVertical: spacing.sm,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    driverSelectorFieldOpen: {
+        borderColor: '#BFC6DF',
+        borderBottomLeftRadius: radius.sm,
+        borderBottomRightRadius: radius.sm,
+    },
+    driverSelectorLabelWrap: {
+        flex: 1,
+        paddingRight: spacing.md,
+    },
+    driverSelectorName: {
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.semibold,
+        color: semanticColors.textPrimary,
+    },
+    driverSelectorMeta: {
+        marginTop: 2,
+        fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
+    },
+    driverSelectorCaret: {
+        fontSize: typography.size.sm,
+        color: semanticColors.textSecondary,
+        fontWeight: typography.weight.bold,
+    },
+    driverSelectorList: {
+        maxHeight: 280,
+        marginTop: spacing.xxs,
+        borderWidth: 1,
+        borderColor: '#D9DEEC',
+        borderRadius: radius.lg,
         backgroundColor: semanticColors.surface,
     },
-    driverChipActive: {
-        backgroundColor: semanticColors.textPrimary,
-        borderColor: semanticColors.textPrimary,
+    driverOptionRow: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: '#E6E9F4',
     },
-    driverChipName: {
-        fontSize: typography.size.sm,
+    driverOptionRowActive: {
+        backgroundColor: '#F5F6FB',
+    },
+    driverOptionInfo: {
+        flex: 1,
+        paddingRight: spacing.sm,
+    },
+    driverOptionName: {
+        fontSize: typography.size.base,
         fontWeight: typography.weight.semibold,
-        color: '#5F6683',
+        color: semanticColors.textPrimary,
     },
-    driverChipNameActive: {
-        color: semanticColors.surface,
+    driverOptionNameActive: {
+        color: semanticColors.textPrimary,
     },
-    driverChipNumber: {
-        fontSize: typography.size.sm,
-        fontWeight: typography.weight.semibold,
-        color: '#9AA0BA',
+    driverOptionMeta: {
         marginTop: 2,
+        fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
     },
-    driverChipNumberActive: {
-        color: semanticColors.surface,
+    driverOptionMetaActive: {
+        color: semanticColors.textSecondary,
+    },
+    driverOptionNumber: {
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
+        color: '#6D7390',
+    },
+    driverOptionNumberActive: {
+        color: semanticColors.textPrimary,
     },
     center: {
         flex: 1,

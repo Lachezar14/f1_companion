@@ -17,20 +17,30 @@ import { formatLapTime } from '../../../../shared/time';
 import { getCompoundName } from '../../../../utils/tyre';
 import { getTeamColorHex } from '../../../../utils/driver';
 import { calculateAvgLapTimePerCompound } from '../../../../utils/lap';
+import {
+    average,
+    FUEL_LOAD_ORDER,
+    getCompoundOptions,
+    getFuelLoadBounds,
+    getFuelLoadForLap as resolveFuelLoadForLap,
+    getRaceLapCount,
+    isValidPositiveNumber,
+    median,
+    OVERALL_FILTER,
+    standardDeviation,
+    type FuelLoad,
+} from './raceAnalytics';
 
 type InsightViewMode = 'drivers' | 'teams';
-type FuelLoad = 'heavy' | 'medium' | 'low';
 type InsightDetailType = 'degradation' | 'racecraft' | 'consistency' | 'compoundPace' | 'pit';
 type ConsistencyFilter = 'overall' | FuelLoad;
 type RacecraftFilter = 'overtakes' | 'gains' | 'drops';
 
-const FUEL_LOAD_ORDER: FuelLoad[] = ['heavy', 'medium', 'low'];
 const FUEL_LOAD_LABEL: Record<FuelLoad, string> = {
     heavy: 'High Fuel',
     medium: 'Medium Fuel',
     low: 'Low Fuel',
 };
-const OVERALL_FILTER = 'overall';
 
 type RouteParams = {
     sessionKey: number;
@@ -155,32 +165,6 @@ const DETAIL_META: Record<InsightDetailType, { title: string; subtitle: string; 
     },
 };
 
-const isValidPositiveNumber = (value: number | null | undefined): value is number =>
-    typeof value === 'number' && Number.isFinite(value) && value > 0;
-
-const average = (values: number[]): number | null => {
-    if (!values.length) return null;
-    return values.reduce((sum, value) => sum + value, 0) / values.length;
-};
-
-const median = (values: number[]): number | null => {
-    if (!values.length) return null;
-    const sorted = [...values].sort((a, b) => a - b);
-    const middle = Math.floor(sorted.length / 2);
-    if (sorted.length % 2 === 0) {
-        return (sorted[middle - 1] + sorted[middle]) / 2;
-    }
-    return sorted[middle];
-};
-
-const standardDeviation = (values: number[]): number | null => {
-    const avg = average(values);
-    if (avg == null) return null;
-    const variance =
-        values.reduce((sum, value) => sum + (value - avg) * (value - avg), 0) / values.length;
-    return Math.sqrt(variance);
-};
-
 const formatSignedSeconds = (value?: number | null) => {
     if (typeof value !== 'number' || Number.isNaN(value)) return '—';
     const prefix = value > 0 ? '+' : '';
@@ -237,42 +221,18 @@ const RacePaceInsightsScreen = () => {
     const fastestStop = data?.insights.pitStrategy.fastestStop ?? null;
     const safetyCarPitStops = data?.insights.pitStrategy.safetyCarPitStops ?? 0;
 
-    const raceLapCount = useMemo(() => {
-        if (rows[0]?.laps) return rows[0].laps;
-        return driverEntries.reduce((max, entry) => Math.max(max, entry.laps.length), 0);
-    }, [rows, driverEntries]);
+    const raceLapCount = useMemo(() => getRaceLapCount(rows, driverEntries), [rows, driverEntries]);
 
-    const fuelLoadBounds = useMemo(() => {
-        const maxLapFromEntries = driverEntries.reduce((max, entry) => {
-            const entryMax = entry.laps.reduce(
-                (lapMax, lap) => Math.max(lapMax, lap.lap_number),
-                0
-            );
-            return Math.max(max, entryMax);
-        }, 0);
-
-        const totalLaps =
-            typeof raceLapCount === 'number' && raceLapCount > 0
-                ? raceLapCount
-                : maxLapFromEntries;
-        const normalizedTotal = Math.max(1, totalLaps);
-        const heavyEndLap = Math.ceil(normalizedTotal / 3);
-        const mediumEndLap = Math.ceil((2 * normalizedTotal) / 3);
-
-        return {
-            totalLaps: normalizedTotal,
-            heavyEndLap,
-            mediumEndLap,
-        };
-    }, [driverEntries, raceLapCount]);
+    const fuelLoadBounds = useMemo(
+        () => getFuelLoadBounds(driverEntries, raceLapCount),
+        [driverEntries, raceLapCount]
+    );
 
     const getFuelLoadForLap = useCallback(
         (lapNumber: number): FuelLoad => {
-            if (lapNumber <= fuelLoadBounds.heavyEndLap) return 'heavy';
-            if (lapNumber <= fuelLoadBounds.mediumEndLap) return 'medium';
-            return 'low';
+            return resolveFuelLoadForLap(lapNumber, fuelLoadBounds);
         },
-        [fuelLoadBounds.heavyEndLap, fuelLoadBounds.mediumEndLap]
+        [fuelLoadBounds]
     );
 
     const degradationDrivers = useMemo(
@@ -560,15 +520,7 @@ const RacePaceInsightsScreen = () => {
         return teams;
     }, [degradationDrivers]);
 
-    const compoundOptions = useMemo(() => {
-        const set = new Set<string>();
-        driverEntries.forEach(entry => {
-            entry.stints.forEach(stint => {
-                if (stint.compound) set.add(stint.compound.toUpperCase());
-            });
-        });
-        return Array.from(set);
-    }, [driverEntries]);
+    const compoundOptions = useMemo(() => getCompoundOptions(driverEntries), [driverEntries]);
 
     const compoundFilterOptions = useMemo(
         () => [OVERALL_FILTER, ...compoundOptions],

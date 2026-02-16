@@ -74,6 +74,23 @@ export const calculateAvgLapTimePerCompound = (
         ? new Set(excludedLapNumbers)
         : excludedLapNumbers ?? new Set<number>();
 
+    const compoundByLapNumber = new Map<number, string>();
+    const orderedStints = [...stints].sort(
+        (a, b) => a.lap_start - b.lap_start || a.stint_number - b.stint_number
+    );
+    orderedStints.forEach(stint => {
+        const compoundLabel = normalizeCompoundLabel(stint.compound);
+        if (!compoundLabel) {
+            return;
+        }
+
+        for (let lapNumber = stint.lap_start; lapNumber <= stint.lap_end; lapNumber++) {
+            if (!compoundByLapNumber.has(lapNumber)) {
+                compoundByLapNumber.set(lapNumber, compoundLabel);
+            }
+        }
+    });
+
     const compoundMap = new Map<string, { total: number; count: number; label: string }>();
 
     laps.forEach(lap => {
@@ -90,12 +107,7 @@ export const calculateAvgLapTimePerCompound = (
             return;
         }
 
-        const stint = stints.find(s => lap.lap_number >= s.lap_start && lap.lap_number <= s.lap_end);
-        if (!stint) {
-            return;
-        }
-
-        const compoundLabel = normalizeCompoundLabel(stint.compound);
+        const compoundLabel = compoundByLapNumber.get(lap.lap_number);
         if (!compoundLabel) {
             return;
         }
@@ -133,15 +145,22 @@ export const groupLapsByStints = (laps: Lap[], stints: Stint[]): StintLapGroup[]
         (a, b) => a.lap_start - b.lap_start || a.stint_number - b.stint_number
     );
     const orderedLaps = [...laps].sort((a, b) => a.lap_number - b.lap_number);
+    let lapIndex = 0;
     let lastAssignedLap = Number.NEGATIVE_INFINITY;
 
     return orderedStints.map(stint => {
         const rangeStart = Math.max(stint.lap_start, lastAssignedLap + 1);
         const rangeEnd = stint.lap_end;
 
-        const lapsForStint = orderedLaps.filter(
-            lap => lap.lap_number >= rangeStart && lap.lap_number <= rangeEnd
-        );
+        while (lapIndex < orderedLaps.length && orderedLaps[lapIndex].lap_number < rangeStart) {
+            lapIndex += 1;
+        }
+
+        const startIndex = lapIndex;
+        while (lapIndex < orderedLaps.length && orderedLaps[lapIndex].lap_number <= rangeEnd) {
+            lapIndex += 1;
+        }
+        const lapsForStint = orderedLaps.slice(startIndex, lapIndex);
 
         if (rangeEnd > lastAssignedLap) {
             lastAssignedLap = rangeEnd;

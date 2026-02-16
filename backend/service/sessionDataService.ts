@@ -13,11 +13,33 @@ import {
 import type { Lap, SessionResult, Stint, Overtake, PitStop, StartingGrid } from '../types';
 import { withServiceError } from './utils';
 
+const sessionResultsCache = new Map<number, SessionResult[]>();
+const sessionResultsInflight = new Map<number, Promise<SessionResult[]>>();
+const pitStopsCache = new Map<number, PitStop[]>();
+const pitStopsInflight = new Map<number, Promise<PitStop[]>>();
+
 export function getSessionResults(sessionKey: number): Promise<SessionResult[]> {
-    return withServiceError(
+    if (sessionResultsCache.has(sessionKey)) {
+        return Promise.resolve(sessionResultsCache.get(sessionKey)!);
+    }
+
+    if (sessionResultsInflight.has(sessionKey)) {
+        return sessionResultsInflight.get(sessionKey)!;
+    }
+
+    const request = withServiceError(
         `Failed to fetch session results for session ${sessionKey}`,
-        () => fetchSessionResults(sessionKey)
-    );
+        async () => {
+            const results = await fetchSessionResults(sessionKey);
+            sessionResultsCache.set(sessionKey, results);
+            return results;
+        }
+    ).finally(() => {
+        sessionResultsInflight.delete(sessionKey);
+    });
+
+    sessionResultsInflight.set(sessionKey, request);
+    return request;
 }
 
 export function getSessionResultsByDriver(driverNumber: number): Promise<SessionResult[]> {
@@ -87,10 +109,27 @@ export function getOvertakesBySession(sessionKey: number): Promise<Overtake[]> {
 }
 
 export function getPitStopsBySession(sessionKey: number): Promise<PitStop[]> {
-    return withServiceError(
+    if (pitStopsCache.has(sessionKey)) {
+        return Promise.resolve(pitStopsCache.get(sessionKey)!);
+    }
+
+    if (pitStopsInflight.has(sessionKey)) {
+        return pitStopsInflight.get(sessionKey)!;
+    }
+
+    const request = withServiceError(
         `Failed to fetch pit stops for session ${sessionKey}`,
-        () => fetchSessionPits(sessionKey)
-    );
+        async () => {
+            const stops = await fetchSessionPits(sessionKey);
+            pitStopsCache.set(sessionKey, stops);
+            return stops;
+        }
+    ).finally(() => {
+        pitStopsInflight.delete(sessionKey);
+    });
+
+    pitStopsInflight.set(sessionKey, request);
+    return request;
 }
 
 export async function getPitStopsByDriverAndSession(

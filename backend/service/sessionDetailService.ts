@@ -49,6 +49,61 @@ export type PodiumFinisher = {
     time: string | null;
 };
 
+const SESSION_DETAIL_CACHE_TTL_MS = 5 * 1000;
+
+type SessionDetailCacheEntry<T> = {
+    data: T;
+    timestamp: number;
+};
+
+const raceSessionDetailCache = new Map<string, SessionDetailCacheEntry<RaceSessionDetail>>();
+const raceSessionDetailInflight = new Map<string, Promise<RaceSessionDetail>>();
+const qualifyingSessionDetailCache = new Map<string, SessionDetailCacheEntry<QualifyingSessionDetail>>();
+const qualifyingSessionDetailInflight = new Map<string, Promise<QualifyingSessionDetail>>();
+const practiceSessionDetailCache = new Map<string, SessionDetailCacheEntry<PracticeSessionDetail>>();
+const practiceSessionDetailInflight = new Map<string, Promise<PracticeSessionDetail>>();
+
+const raceDriverDetailCache = new Map<string, SessionDetailCacheEntry<SessionDriverData | null>>();
+const raceDriverDetailInflight = new Map<string, Promise<SessionDriverData | null>>();
+const practiceDriverDetailCache = new Map<string, SessionDetailCacheEntry<SessionDriverData | null>>();
+const practiceDriverDetailInflight = new Map<string, Promise<SessionDriverData | null>>();
+const qualifyingDriverDetailCache = new Map<string, SessionDetailCacheEntry<SessionDriverData | null>>();
+const qualifyingDriverDetailInflight = new Map<string, Promise<SessionDriverData | null>>();
+
+const isSessionDetailCacheFresh = (entry: SessionDetailCacheEntry<unknown>): boolean =>
+    Date.now() - entry.timestamp < SESSION_DETAIL_CACHE_TTL_MS;
+
+async function withSessionDetailCache<T>(
+    key: string,
+    cache: Map<string, SessionDetailCacheEntry<T>>,
+    inflight: Map<string, Promise<T>>,
+    loader: () => Promise<T>
+): Promise<T> {
+    const cached = cache.get(key);
+    if (cached && isSessionDetailCacheFresh(cached)) {
+        return cached.data;
+    }
+
+    if (inflight.has(key)) {
+        return inflight.get(key)!;
+    }
+
+    const request = loader()
+        .then(result => {
+            cache.set(key, {
+                data: result,
+                timestamp: Date.now(),
+            });
+            return result;
+        })
+        .finally(() => {
+            inflight.delete(key);
+        });
+
+    inflight.set(key, request);
+    return request;
+}
+
 const isValidLapValue = (value: number | null | undefined): value is number =>
     typeof value === 'number' && value > 0;
 
@@ -242,19 +297,41 @@ type SessionDetailResources = {
     overtakes: Overtake[];
 };
 
-async function assembleSessionDetailResources(sessionKey: number): Promise<SessionDetailResources> {
+type SessionDetailResourceOptions = {
+    includeRaceControl?: boolean;
+    includeOvertakes?: boolean;
+    includePitStops?: boolean;
+    includeStartingGrid?: boolean;
+};
+
+const EMPTY_RACE_CONTROL_SUMMARY: RaceControlSummary = {
+    safetyCarLaps: [],
+    safetyCarIntervals: [],
+};
+
+async function assembleSessionDetailResources(
+    sessionKey: number,
+    options: SessionDetailResourceOptions = {}
+): Promise<SessionDetailResources> {
+    const includeRaceControl = options.includeRaceControl ?? true;
+    const includeOvertakes = options.includeOvertakes ?? false;
+    const includePitStops = options.includePitStops ?? false;
+    const includeStartingGrid = options.includeStartingGrid ?? false;
+
     const [drivers, laps, stints, results, raceControl, overtakes, pitStops] = await Promise.all([
         getDriversBySession(sessionKey),
         getLapsBySession(sessionKey),
         getStintsBySession(sessionKey),
         getSessionResults(sessionKey),
-        getRaceControlBySession(sessionKey),
-        getOvertakesBySession(sessionKey),
-        getPitStopsBySession(sessionKey),
+        includeRaceControl ? getRaceControlBySession(sessionKey) : Promise.resolve([]),
+        includeOvertakes ? getOvertakesBySession(sessionKey) : Promise.resolve([]),
+        includePitStops ? getPitStopsBySession(sessionKey) : Promise.resolve([]),
     ]);
 
     const session = await resolveSessionMetadata(sessionKey, drivers, results);
-    const raceControlSummary = summarizeRaceControl(raceControl, getMaxLapCount(results));
+    const raceControlSummary = includeRaceControl
+        ? summarizeRaceControl(raceControl, getMaxLapCount(results))
+        : EMPTY_RACE_CONTROL_SUMMARY;
     const sessionType = (session.session_type || '').toLowerCase();
     const sessionName = (session.session_name || '').toLowerCase();
     const isRaceSession =
@@ -263,7 +340,7 @@ async function assembleSessionDetailResources(sessionKey: number): Promise<Sessi
         sessionName.includes('grand prix');
 
     let startingGrid: StartingGrid[] = [];
-    if (isRaceSession && session.meeting_key) {
+    if (includeStartingGrid && isRaceSession && session.meeting_key) {
         try {
             startingGrid = await getRaceStartingGrid(session.meeting_key);
         } catch (error) {
@@ -442,82 +519,118 @@ function buildRaceClassificationFromData(
 }
 
 export function getRaceSessionDetail(sessionKey: number): Promise<RaceSessionDetail> {
+    const cacheKey = `${sessionKey}`;
     return withServiceError(
         `Failed to build race session detail for ${sessionKey}`,
-        async () => {
-            const resources = await assembleSessionDetailResources(sessionKey);
+        () =>
+            withSessionDetailCache(
+                cacheKey,
+                raceSessionDetailCache,
+                raceSessionDetailInflight,
+                async () => {
+                    const resources = await assembleSessionDetailResources(sessionKey, {
+                        includeRaceControl: true,
+                        includeOvertakes: true,
+                        includePitStops: true,
+                        includeStartingGrid: true,
+                    });
 
-            const classification = buildRaceClassificationFromData(
-                resources.results,
-                resources.drivers,
-                resources.startingGrid,
-                resources.stints,
-                sessionKey
-            );
-            const insights = buildRaceInsights({
-                driverEntries: resources.driverEntries,
-                overtakes: resources.overtakes,
-                pitStops: resources.pitStops,
-                raceControlSummary: resources.raceControlSummary,
-            });
+                    const classification = buildRaceClassificationFromData(
+                        resources.results,
+                        resources.drivers,
+                        resources.startingGrid,
+                        resources.stints,
+                        sessionKey
+                    );
+                    const insights = buildRaceInsights({
+                        driverEntries: resources.driverEntries,
+                        overtakes: resources.overtakes,
+                        pitStops: resources.pitStops,
+                        raceControlSummary: resources.raceControlSummary,
+                    });
 
-            return {
-                ...resources.session,
-                detailType: 'race',
-                drivers: resources.driverEntries,
-                raceControl: resources.raceControl,
-                raceControlSummary: resources.raceControlSummary,
-                pitStops: resources.pitStops,
-                startingGrid: resources.startingGrid,
-                overtakes: resources.overtakes,
-                classification,
-                insights,
-            };
-        }
+                    return {
+                        ...resources.session,
+                        detailType: 'race',
+                        drivers: resources.driverEntries,
+                        raceControl: resources.raceControl,
+                        raceControlSummary: resources.raceControlSummary,
+                        pitStops: resources.pitStops,
+                        startingGrid: resources.startingGrid,
+                        overtakes: resources.overtakes,
+                        classification,
+                        insights,
+                    };
+                }
+            )
     );
 }
 
 export function getQualifyingSessionDetail(sessionKey: number): Promise<QualifyingSessionDetail> {
+    const cacheKey = `${sessionKey}`;
     return withServiceError(
         `Failed to build qualifying session detail for ${sessionKey}`,
-        async () => {
-            const resources = await assembleSessionDetailResources(sessionKey);
-            const classification = buildQualifyingClassificationFromData(
-                resources.results,
-                resources.drivers,
-                sessionKey
-            );
-            const insights = buildQualifyingInsights({
-                driverEntries: resources.driverEntries,
-                results: resources.results,
-            });
+        () =>
+            withSessionDetailCache(
+                cacheKey,
+                qualifyingSessionDetailCache,
+                qualifyingSessionDetailInflight,
+                async () => {
+                    const resources = await assembleSessionDetailResources(sessionKey, {
+                        includeRaceControl: true,
+                        includeOvertakes: false,
+                        includePitStops: false,
+                        includeStartingGrid: false,
+                    });
+                    const classification = buildQualifyingClassificationFromData(
+                        resources.results,
+                        resources.drivers,
+                        sessionKey
+                    );
+                    const insights = buildQualifyingInsights({
+                        driverEntries: resources.driverEntries,
+                        results: resources.results,
+                    });
 
-            return {
-                ...resources.session,
-                detailType: 'qualifying',
-                drivers: resources.driverEntries,
-                raceControl: resources.raceControl,
-                raceControlSummary: resources.raceControlSummary,
-                classification,
-                insights,
-            };
-        }
+                    return {
+                        ...resources.session,
+                        detailType: 'qualifying',
+                        drivers: resources.driverEntries,
+                        raceControl: resources.raceControl,
+                        raceControlSummary: resources.raceControlSummary,
+                        classification,
+                        insights,
+                    };
+                }
+            )
     );
 }
 
 export function getPracticeSessionDetail(sessionKey: number): Promise<PracticeSessionDetail> {
+    const cacheKey = `${sessionKey}`;
     return withServiceError(
         `Failed to build practice session detail for ${sessionKey}`,
-        async () => {
-            const resources = await assembleSessionDetailResources(sessionKey);
-            return {
-                ...resources.session,
-                detailType: 'practice',
-                drivers: resources.driverEntries,
-                raceControl: resources.raceControl,
-                raceControlSummary: resources.raceControlSummary,
-            };
-        }
+        () =>
+            withSessionDetailCache(
+                cacheKey,
+                practiceSessionDetailCache,
+                practiceSessionDetailInflight,
+                async () => {
+                    const resources = await assembleSessionDetailResources(sessionKey, {
+                        includeRaceControl: false,
+                        includeOvertakes: false,
+                        includePitStops: false,
+                        includeStartingGrid: false,
+                    });
+                    return {
+                        ...resources.session,
+                        detailType: 'practice',
+                        drivers: resources.driverEntries,
+                        raceControl: resources.raceControl,
+                        raceControlSummary: resources.raceControlSummary,
+                    };
+                }
+            )
     );
 }
 
@@ -525,9 +638,16 @@ export function getRaceDriverDetail(
     sessionKey: number,
     driverNumber: number
 ): Promise<SessionDriverData | null> {
+    const cacheKey = `${sessionKey}:${driverNumber}`;
     return withServiceError(
         `Failed to build race driver detail for driver ${driverNumber} in session ${sessionKey}`,
-        () => assembleSingleDriverEntry(sessionKey, driverNumber, { includeStartingGrid: true })
+        () =>
+            withSessionDetailCache(
+                cacheKey,
+                raceDriverDetailCache,
+                raceDriverDetailInflight,
+                () => assembleSingleDriverEntry(sessionKey, driverNumber, { includeStartingGrid: true })
+            )
     );
 }
 
@@ -535,9 +655,16 @@ export function getPracticeDriverDetail(
     sessionKey: number,
     driverNumber: number
 ): Promise<SessionDriverData | null> {
+    const cacheKey = `${sessionKey}:${driverNumber}`;
     return withServiceError(
         `Failed to build practice driver detail for driver ${driverNumber} in session ${sessionKey}`,
-        () => assembleSingleDriverEntry(sessionKey, driverNumber)
+        () =>
+            withSessionDetailCache(
+                cacheKey,
+                practiceDriverDetailCache,
+                practiceDriverDetailInflight,
+                () => assembleSingleDriverEntry(sessionKey, driverNumber)
+            )
     );
 }
 
@@ -545,8 +672,15 @@ export function getQualifyingDriverDetail(
     sessionKey: number,
     driverNumber: number
 ): Promise<SessionDriverData | null> {
+    const cacheKey = `${sessionKey}:${driverNumber}`;
     return withServiceError(
         `Failed to build qualifying driver detail for driver ${driverNumber} in session ${sessionKey}`,
-        () => assembleSingleDriverEntry(sessionKey, driverNumber)
+        () =>
+            withSessionDetailCache(
+                cacheKey,
+                qualifyingDriverDetailCache,
+                qualifyingDriverDetailInflight,
+                () => assembleSingleDriverEntry(sessionKey, driverNumber)
+            )
     );
 }

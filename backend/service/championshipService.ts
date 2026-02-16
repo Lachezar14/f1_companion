@@ -39,9 +39,22 @@ async function buildDriverLookup(
                 .map(entry => entry.session_key)
                 .filter(isValidKey)
         )
-    );
+    ).sort((a, b) => b - a);
 
-    for (const sessionKey of sessionKeys) {
+    const [latestSessionKey, ...otherSessionKeys] = sessionKeys;
+    if (latestSessionKey) {
+        try {
+            const drivers = await getDriversBySession(latestSessionKey);
+            addDrivers(drivers);
+        } catch (error) {
+            console.warn(
+                `[SERVICE] Unable to load drivers for session ${latestSessionKey} when building championship standings`,
+                error
+            );
+        }
+    }
+
+    for (const sessionKey of otherSessionKeys) {
         if (driverMap.size === targetCount) break;
         try {
             const drivers = await getDriversBySession(sessionKey);
@@ -64,9 +77,22 @@ async function buildDriverLookup(
                 .map(entry => entry.meeting_key)
                 .filter(isValidKey)
         )
-    );
+    ).sort((a, b) => b - a);
 
-    for (const meetingKey of meetingKeys) {
+    const [latestMeetingKey, ...otherMeetingKeys] = meetingKeys;
+    if (latestMeetingKey) {
+        try {
+            const drivers = await getDriversByMeeting(latestMeetingKey);
+            addDrivers(drivers);
+        } catch (error) {
+            console.warn(
+                `[SERVICE] Unable to load drivers for meeting ${latestMeetingKey} when building championship standings`,
+                error
+            );
+        }
+    }
+
+    for (const meetingKey of otherMeetingKeys) {
         if (driverMap.size === targetCount) break;
         try {
             const drivers = await getDriversByMeeting(meetingKey);

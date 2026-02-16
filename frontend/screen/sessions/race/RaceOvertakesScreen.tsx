@@ -1,24 +1,25 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { colors, radius, semanticColors, spacing, typography } from '../../../theme/tokens';
+import React, { useCallback, useMemo } from 'react';
+import { radius, semanticColors, spacing, typography } from '../../../theme/tokens';
 import {
     ActivityIndicator,
     FlatList,
     Image,
-    ScrollView,
+    RefreshControl,
     StyleSheet,
     Text,
     View,
 } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getDriversByOvertake } from '../../../../backend/service/openf1Service';
+import { getDriversBySession, getOvertakesBySession } from '../../../../backend/service/openf1Service';
 import type { Driver, Overtake, SessionDriverData } from '../../../../backend/types';
+import { useServiceRequest } from '../../../hooks/useServiceRequest';
 
 type RouteParams = {
     sessionKey: number;
     sessionName: string;
     meetingName?: string;
-    overtakes: Overtake[];
+    overtakes?: Overtake[];
     driverEntries?: SessionDriverData[];
 };
 
@@ -29,6 +30,11 @@ type DriverProfile = {
     team: string;
     teamColor?: string | null;
     headshotUrl?: string | null;
+};
+
+type OvertakeScreenData = {
+    overtakes: Overtake[];
+    drivers: Driver[];
 };
 
 const formatTime = (isoDate: string): string => {
@@ -80,13 +86,6 @@ const DriverAvatar = ({ profile }: { profile: DriverProfile | null }) => {
         return <Image source={{ uri: profile.headshotUrl }} style={styles.avatar} />;
     }
 
-    const initials = profile.name
-        .split(' ')
-        .map(part => part[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
-
     return (
         <View style={[styles.avatar, styles.avatarFallback]}>
             <Text style={styles.avatarFallbackText}>{profile.number}</Text>
@@ -128,91 +127,92 @@ const OvertakeCard = ({
     </View>
 );
 
-const buildDriverMapFromEntries = (entries: SessionDriverData[]): Record<number, DriverProfile> => {
-    return entries.reduce<Record<number, DriverProfile>>((acc, entry) => {
-        const profile = normalizeDriverFromEntry(entry);
-        if (profile) {
-            acc[entry.driverNumber] = profile;
-        }
-        return acc;
-    }, {});
-};
-
 const RaceOvertakesScreen = () => {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
-    const { sessionKey, sessionName, meetingName, overtakes, driverEntries = [] } = route.params;
+    const {
+        sessionKey,
+        sessionName,
+        meetingName,
+        overtakes: overtakesParam = [],
+        driverEntries = [],
+    } = route.params;
 
-    const baseDriverMap = useMemo(
-        () => buildDriverMapFromEntries(driverEntries ?? []),
-        [driverEntries]
-    );
-    const [driverMap, setDriverMap] = useState<Record<number, DriverProfile>>(baseDriverMap);
-    const [loadingDrivers, setLoadingDrivers] = useState(false);
+    const loadData = useCallback(async (): Promise<OvertakeScreenData> => {
+        const [overtakes, drivers] = await Promise.all([
+            overtakesParam.length ? Promise.resolve(overtakesParam) : getOvertakesBySession(sessionKey),
+            getDriversBySession(sessionKey),
+        ]);
 
-    useEffect(() => {
-        setDriverMap(baseDriverMap);
-    }, [baseDriverMap]);
+        return { overtakes, drivers };
+    }, [overtakesParam, sessionKey]);
 
-    useEffect(() => {
-        if (!overtakes.length) return;
-
-        const uniquePairs = Array.from(
-            new Map(
-                overtakes.map(overtake => {
-                    const key = `${overtake.overtakingDriverNumber}-${overtake.overtakenDriverNumber}`;
-                    return [
-                        key,
-                        [overtake.overtakingDriverNumber, overtake.overtakenDriverNumber] as [number, number],
-                    ];
-                })
-            ).values()
-        );
-
-        let cancelled = false;
-        setLoadingDrivers(true);
-
-        (async () => {
-            try {
-                const results = await Promise.all(
-                    uniquePairs.map(pair =>
-                        getDriversByOvertake({
-                            sessionKey,
-                            driverNumber: pair,
-                        })
-                    )
-                );
-
-                if (cancelled) return;
-
-                setDriverMap(prev => {
-                    const next = { ...prev };
-                    results.forEach(result => {
-                        const overtakingProfile = normalizeDriverFromApi(result.overtakingDriver);
-                        const overtakenProfile = normalizeDriverFromApi(result.overtakenDriver);
-                        if (overtakingProfile) {
-                            next[overtakingProfile.number] = overtakingProfile;
-                        }
-                        if (overtakenProfile) {
-                            next[overtakenProfile.number] = overtakenProfile;
-                        }
-                    });
-                    return next;
-                });
-            } catch (error) {
-                console.warn('[Overtakes] Failed to load driver profiles', error);
-            } finally {
-                if (!cancelled) {
-                    setLoadingDrivers(false);
-                }
-            }
-        })();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [overtakes, sessionKey]);
+    const {
+        data,
+        loading,
+        error,
+        refreshing,
+        reload,
+        refresh,
+    } = useServiceRequest<OvertakeScreenData>(loadData, [loadData]);
 
     const heroSubtitle = meetingName ? `${meetingName} · ${sessionName}` : sessionName;
+    const overtakes = data?.overtakes ?? [];
+
+    const driverMap = useMemo(() => {
+        const map: Record<number, DriverProfile> = {};
+
+        driverEntries.forEach(entry => {
+            const profile = normalizeDriverFromEntry(entry);
+            if (profile) {
+                map[profile.number] = profile;
+            }
+        });
+
+        (data?.drivers ?? []).forEach(driver => {
+            const profile = normalizeDriverFromApi(driver);
+            if (profile) {
+                map[profile.number] = profile;
+            }
+        });
+
+        return map;
+    }, [data?.drivers, driverEntries]);
+
+    const renderHeader = () => (
+        <View style={styles.heroCard}>
+            <Text style={styles.heroTitle}>Overtakes</Text>
+            <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
+            <View style={styles.heroStats}>
+                <View style={styles.heroStat}>
+                    <Text style={styles.heroStatValue}>{overtakes.length}</Text>
+                    <Text style={styles.heroStatLabel}>Total Overtakes</Text>
+                </View>
+                <View style={styles.heroStat}>
+                    <Text style={styles.heroStatValue}>{Object.keys(driverMap).length}</Text>
+                    <Text style={styles.heroStatLabel}>Driver Profiles</Text>
+                </View>
+            </View>
+        </View>
+    );
+
+    if (loading) {
+        return (
+            <View style={styles.center}>
+                <ActivityIndicator size="large" color={semanticColors.danger} />
+                <Text style={styles.loadingText}>Loading overtakes...</Text>
+            </View>
+        );
+    }
+
+    if (error) {
+        return (
+            <View style={styles.center}>
+                <Text style={styles.errorTitle}>Unable to load overtakes</Text>
+                <Text style={styles.errorText}>{error}</Text>
+                <Text style={styles.retryHint} onPress={reload}>Tap to retry</Text>
+            </View>
+        );
+    }
 
     if (!overtakes.length) {
         return (
@@ -226,49 +226,28 @@ const RaceOvertakesScreen = () => {
     }
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
-            <View style={styles.heroCard}>
-                <Text style={styles.heroTitle}>Overtakes</Text>
-                <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
-                <View style={styles.heroStats}>
-                    <View style={styles.heroStat}>
-                        <Text style={styles.heroStatValue}>{overtakes.length}</Text>
-                        <Text style={styles.heroStatLabel}>Total Overtakes</Text>
-                    </View>
-                    <View style={styles.heroStat}>
-                        <Text style={styles.heroStatValue}>{loadingDrivers ? '...' : 'Ready'}</Text>
-                        <Text style={styles.heroStatLabel}>Driver Data</Text>
-                    </View>
-                </View>
-            </View>
-
-            {loadingDrivers && (
-                <View style={styles.loadingRow}>
-                    <ActivityIndicator color={semanticColors.danger} />
-                    <Text style={styles.loadingText}>Enriching driver profiles...</Text>
-                </View>
+        <FlatList
+            data={overtakes}
+            keyExtractor={(item, index) =>
+                `${item.sessionKey}-${item.overtakingDriverNumber}-${item.overtakenDriverNumber}-${index}`
+            }
+            renderItem={({ item }) => (
+                <OvertakeCard
+                    overtake={item}
+                    overtakingDriver={driverMap[item.overtakingDriverNumber] ?? null}
+                    overtakenDriver={driverMap[item.overtakenDriverNumber] ?? null}
+                />
             )}
-
-            <FlatList
-                data={overtakes}
-                keyExtractor={(item, index) =>
-                    `${item.sessionKey}-${item.overtakingDriverNumber}-${item.overtakenDriverNumber}-${index}`
-                }
-                renderItem={({ item }) => (
-                    <OvertakeCard
-                        overtake={item}
-                        overtakingDriver={
-                            driverMap[item.overtakingDriverNumber] ?? null
-                        }
-                        overtakenDriver={
-                            driverMap[item.overtakenDriverNumber] ?? null
-                        }
-                    />
-                )}
-                scrollEnabled={false}
-                contentContainerStyle={styles.listContent}
-            />
-        </ScrollView>
+            contentContainerStyle={styles.container}
+            ListHeaderComponent={renderHeader}
+            refreshControl={
+                <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={refresh}
+                    tintColor={semanticColors.danger}
+                />
+            }
+        />
     );
 };
 
@@ -286,6 +265,25 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         padding: spacing.xxl,
         backgroundColor: semanticColors.background,
+    },
+    loadingText: {
+        marginTop: spacing.sm,
+        color: semanticColors.textMuted,
+    },
+    errorTitle: {
+        fontSize: typography.size.xl,
+        fontWeight: typography.weight.semibold,
+        color: semanticColors.danger,
+        marginBottom: spacing.xs,
+    },
+    errorText: {
+        color: semanticColors.textMuted,
+        textAlign: 'center',
+    },
+    retryHint: {
+        marginTop: spacing.sm,
+        color: semanticColors.danger,
+        fontWeight: typography.weight.semibold,
     },
     emptyTitle: {
         fontSize: typography.size.xl,
@@ -331,85 +329,69 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         letterSpacing: 0.8,
     },
-    loadingRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: spacing.xs,
-    },
-    loadingText: {
-        marginLeft: spacing.xs,
-        color: '#757575',
-    },
-    listContent: {
-        paddingBottom: spacing.md,
-    },
     card: {
         backgroundColor: semanticColors.surface,
         borderRadius: radius.lg,
+        marginBottom: spacing.md,
         padding: spacing.md,
-        marginBottom: spacing.sm,
-        shadowColor: colors.neutral.black,
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 3,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.06)',
     },
     cardHeader: {
         flexDirection: 'row',
-        alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: spacing.sm,
     },
     cardTitle: {
-        fontSize: typography.size.lg,
-        fontWeight: typography.weight.semibold,
-        color: semanticColors.surfaceInverse,
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
     },
     cardSubtitle: {
-        color: '#757575',
         fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
     },
     cardBody: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
     },
     avatar: {
-        width: 56,
-        height: 56,
-        borderRadius: radius.xxl,
-        backgroundColor: semanticColors.border,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: semanticColors.surfaceMuted,
     },
     avatarFallback: {
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#ECECEC',
+        backgroundColor: semanticColors.surfaceMuted,
     },
     avatarFallbackText: {
-        fontSize: typography.size.xl,
+        fontSize: typography.size.sm,
         fontWeight: typography.weight.bold,
-        color: semanticColors.surfaceInverse,
+        color: semanticColors.textPrimary,
     },
     driverInfo: {
-        flex: 1,
+        width: 90,
         marginHorizontal: spacing.xs,
     },
     driverLabel: {
-        fontSize: typography.size.sm,
-        color: semanticColors.success,
+        fontSize: typography.size.xs,
+        color: semanticColors.textMuted,
         textTransform: 'uppercase',
-        letterSpacing: 0.6,
     },
     driverName: {
-        fontSize: typography.size.lg,
-        fontWeight: typography.weight.semibold,
-        color: semanticColors.surfaceInverse,
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.bold,
+        color: semanticColors.textPrimary,
+        marginTop: 2,
     },
     driverTeam: {
-        fontSize: typography.size.sm,
-        color: '#757575',
+        fontSize: typography.size.xs,
+        color: semanticColors.textMuted,
+        marginTop: 1,
     },
     chevronWrapper: {
-        paddingHorizontal: spacing.xxs,
+        paddingHorizontal: spacing.xs,
     },
 });

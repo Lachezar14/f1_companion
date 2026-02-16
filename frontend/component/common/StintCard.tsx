@@ -37,15 +37,17 @@ export default function StintCard({
         setSelectedLapNumbers(selectableLapNumbers);
     }, [selectableSignature, selectableLapNumbers]);
 
+    const selectedLapSet = useMemo(() => new Set(selectedLapNumbers), [selectedLapNumbers]);
+
     const selectedLapObjects = useMemo(
         () =>
             sortedLaps.filter(
                 lap =>
                     lap.lap_duration &&
                     lap.lap_duration > 0 &&
-                    selectedLapNumbers.includes(lap.lap_number)
+                    selectedLapSet.has(lap.lap_number)
             ),
-        [sortedLaps, selectedLapNumbers]
+        [sortedLaps, selectedLapSet]
     );
 
     const loggedLaps = selectableLapNumbers.length;

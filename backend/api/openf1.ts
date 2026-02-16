@@ -8,7 +8,6 @@ import {
     SessionResult,
     Stint,
     StartingGrid,
-    RaceControl,
     Overtake,
     Weather, ChampionshipDriver, ChampionshipTeam, PitStop
 } from '../types';
@@ -22,8 +21,54 @@ const openF1 = axios.create({
    CONCURRENCY QUEUE
 ========================= */
 const MAX_CONCURRENT = 3;
+const MAX_REQUESTS_PER_SECOND = 3;
+const MAX_REQUESTS_PER_MINUTE = 30;
+const SECOND_MS = 1000;
+const MINUTE_MS = 60 * 1000;
+const RATE_WAIT_FLOOR_MS = 50;
+
 let activeRequests = 0;
 const queue: (() => void)[] = [];
+const secondWindowTimestamps: number[] = [];
+const minuteWindowTimestamps: number[] = [];
+
+const sleep = (ms: number): Promise<void> =>
+    new Promise(resolve => setTimeout(resolve, ms));
+
+function pruneWindow(timestamps: number[], maxAgeMs: number, now: number): void {
+    while (timestamps.length && now - timestamps[0] >= maxAgeMs) {
+        timestamps.shift();
+    }
+}
+
+async function waitForRateLimitSlot(): Promise<void> {
+    while (true) {
+        const now = Date.now();
+        pruneWindow(secondWindowTimestamps, SECOND_MS, now);
+        pruneWindow(minuteWindowTimestamps, MINUTE_MS, now);
+
+        const underPerSecondLimit = secondWindowTimestamps.length < MAX_REQUESTS_PER_SECOND;
+        const underPerMinuteLimit = minuteWindowTimestamps.length < MAX_REQUESTS_PER_MINUTE;
+
+        if (underPerSecondLimit && underPerMinuteLimit) {
+            secondWindowTimestamps.push(now);
+            minuteWindowTimestamps.push(now);
+            return;
+        }
+
+        const waitForSecond =
+            !underPerSecondLimit && secondWindowTimestamps.length
+                ? SECOND_MS - (now - secondWindowTimestamps[0])
+                : 0;
+        const waitForMinute =
+            !underPerMinuteLimit && minuteWindowTimestamps.length
+                ? MINUTE_MS - (now - minuteWindowTimestamps[0])
+                : 0;
+        const waitMs = Math.max(waitForSecond, waitForMinute, RATE_WAIT_FLOOR_MS);
+
+        await sleep(waitMs);
+    }
+}
 
 async function runWithLimit<T>(fn: () => Promise<T>): Promise<T> {
     if (activeRequests >= MAX_CONCURRENT) {
@@ -33,6 +78,7 @@ async function runWithLimit<T>(fn: () => Promise<T>): Promise<T> {
     activeRequests++;
 
     try {
+        await waitForRateLimitSlot();
         return await fn();
     } finally {
         activeRequests--;
@@ -45,8 +91,24 @@ async function runWithLimit<T>(fn: () => Promise<T>): Promise<T> {
    CACHE SYSTEM
 ========================= */
 const CACHE_PREFIX = 'openf1_cache_';
-const CACHE_TTL = 1000 * 60 * 10; // 10 minutes
-const STALE_CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours (for fallback)
+const DEFAULT_CACHE_TTL = 1000 * 60 * 10; // 10 minutes
+const DEFAULT_STALE_CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours (for fallback)
+const MEMORY_CACHE_MAX_ENTRIES = 200;
+const CACHE_TTL_BY_ENDPOINT: Record<string, number> = {
+    '/meetings': 1000 * 60 * 60 * 6, // 6 hours
+    '/sessions': 1000 * 60 * 60 * 6, // 6 hours
+    '/drivers': 1000 * 60 * 60 * 2, // 2 hours
+    '/session_result': 1000 * 60 * 30, // 30 minutes
+    '/laps': 1000 * 60 * 30, // 30 minutes
+    '/stints': 1000 * 60 * 30, // 30 minutes
+    '/overtakes': 1000 * 60 * 15, // 15 minutes
+    '/pit': 1000 * 60 * 15, // 15 minutes
+    '/race_control': 1000 * 60 * 2, // 2 minutes
+    '/weather': 1000 * 60 * 2, // 2 minutes
+    '/starting_grid': 1000 * 60 * 60 * 24, // 24 hours
+    '/championship_drivers': 1000 * 60 * 5, // 5 minutes
+    '/championship_teams': 1000 * 60 * 5, // 5 minutes
+};
 
 interface CacheEntry<T> {
     data: T;
@@ -55,16 +117,34 @@ interface CacheEntry<T> {
 
 // Track inflight requests to prevent duplicates
 const inflightRequests = new Map<string, Promise<any>>();
+const memoryCache = new Map<string, CacheEntry<any>>();
 
 function getCacheKey(url: string, params?: any): string {
     return CACHE_PREFIX + url + (params ? JSON.stringify(params) : '');
 }
 
 async function readCache<T>(cacheKey: string): Promise<CacheEntry<T> | null> {
+    const inMemoryEntry = memoryCache.get(cacheKey);
+    if (inMemoryEntry) {
+        // Touch entry for LRU behavior.
+        memoryCache.delete(cacheKey);
+        memoryCache.set(cacheKey, inMemoryEntry);
+        return inMemoryEntry as CacheEntry<T>;
+    }
+
     try {
         const cachedString = await AsyncStorage.getItem(cacheKey);
         if (!cachedString) return null;
-        return JSON.parse(cachedString) as CacheEntry<T>;
+        const entry = JSON.parse(cachedString) as CacheEntry<T>;
+        memoryCache.delete(cacheKey);
+        memoryCache.set(cacheKey, entry);
+        if (memoryCache.size > MEMORY_CACHE_MAX_ENTRIES) {
+            const oldestKey = memoryCache.keys().next().value;
+            if (typeof oldestKey === 'string') {
+                memoryCache.delete(oldestKey);
+            }
+        }
+        return entry;
     } catch (error) {
         console.warn(`[CACHE READ ERROR] ${cacheKey}:`, error);
         return null;
@@ -77,19 +157,35 @@ async function writeCache<T>(cacheKey: string, data: T): Promise<void> {
             data,
             timestamp: Date.now(),
         };
+        memoryCache.delete(cacheKey);
+        memoryCache.set(cacheKey, entry);
+        if (memoryCache.size > MEMORY_CACHE_MAX_ENTRIES) {
+            const oldestKey = memoryCache.keys().next().value;
+            if (typeof oldestKey === 'string') {
+                memoryCache.delete(oldestKey);
+            }
+        }
         await AsyncStorage.setItem(cacheKey, JSON.stringify(entry));
     } catch (error) {
         console.warn(`[CACHE WRITE ERROR] ${cacheKey}:`, error);
     }
 }
 
-function isCacheFresh(entry: CacheEntry<any>): boolean {
-    return Date.now() - entry.timestamp < CACHE_TTL;
+function resolveCacheTtl(url: string): number {
+    return CACHE_TTL_BY_ENDPOINT[url] ?? DEFAULT_CACHE_TTL;
 }
 
-function isCacheStale(entry: CacheEntry<any>): boolean {
+function resolveStaleCacheTtl(cacheTtl: number): number {
+    return Math.max(DEFAULT_STALE_CACHE_TTL, cacheTtl * 2);
+}
+
+function isCacheFresh(entry: CacheEntry<any>, cacheTtl: number): boolean {
+    return Date.now() - entry.timestamp < cacheTtl;
+}
+
+function isCacheStale(entry: CacheEntry<any>, cacheTtl: number, staleCacheTtl: number): boolean {
     const age = Date.now() - entry.timestamp;
-    return age >= CACHE_TTL && age < STALE_CACHE_TTL;
+    return age >= cacheTtl && age < staleCacheTtl;
 }
 
 /* =========================
@@ -98,6 +194,7 @@ function isCacheStale(entry: CacheEntry<any>): boolean {
 
 export async function clearCache(): Promise<void> {
     try {
+        memoryCache.clear();
         const keys = await AsyncStorage.getAllKeys();
         const cacheKeys = keys.filter(key => key.startsWith(CACHE_PREFIX));
         await AsyncStorage.multiRemove(cacheKeys);
@@ -109,6 +206,11 @@ export async function clearCache(): Promise<void> {
 
 export async function clearCacheForEndpoint(url: string): Promise<void> {
     try {
+        Array.from(memoryCache.keys()).forEach(key => {
+            if (key.startsWith(CACHE_PREFIX + url)) {
+                memoryCache.delete(key);
+            }
+        });
         const keys = await AsyncStorage.getAllKeys();
         const cacheKeys = keys.filter(key => key.startsWith(CACHE_PREFIX + url));
         await AsyncStorage.multiRemove(cacheKeys);
@@ -128,6 +230,42 @@ interface CachedGetOptions {
     useStaleOnError?: boolean;
 }
 
+function parseRetryAfterMs(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return Math.max(0, value * 1000);
+    }
+
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const asNumber = Number(value);
+    if (!Number.isNaN(asNumber) && Number.isFinite(asNumber)) {
+        return Math.max(0, asNumber * 1000);
+    }
+
+    const asDate = Date.parse(value);
+    if (Number.isNaN(asDate)) {
+        return null;
+    }
+
+    return Math.max(0, asDate - Date.now());
+}
+
+function resolveRetryDelay(error: unknown, baseDelayMs: number): number {
+    if (!axios.isAxiosError(error)) {
+        return baseDelayMs;
+    }
+
+    const retryAfterHeader = error.response?.headers?.['retry-after'];
+    const retryAfterValue = Array.isArray(retryAfterHeader)
+        ? retryAfterHeader[0]
+        : retryAfterHeader;
+    const retryAfterMs = parseRetryAfterMs(retryAfterValue);
+
+    return retryAfterMs == null ? baseDelayMs : Math.max(baseDelayMs, retryAfterMs);
+}
+
 async function cachedGet<T>(
     url: string,
     params?: any,
@@ -140,6 +278,8 @@ async function cachedGet<T>(
     } = options;
 
     const cacheKey = getCacheKey(url, params);
+    const cacheTtl = resolveCacheTtl(url);
+    const staleCacheTtl = resolveStaleCacheTtl(cacheTtl);
 
     // Check if there's already an inflight request for this exact resource
     if (inflightRequests.has(cacheKey)) {
@@ -152,7 +292,7 @@ async function cachedGet<T>(
         try {
             // 1. Check cache first
             const cached = await readCache<T>(cacheKey);
-            if (cached && isCacheFresh(cached)) {
+            if (cached && isCacheFresh(cached, cacheTtl)) {
                 console.log(`[CACHE HIT] ${url} | params: ${JSON.stringify(params)}`);
                 return cached.data;
             }
@@ -178,11 +318,12 @@ async function cachedGet<T>(
                     lastError = error;
 
                     if (attempt < maxRetries) {
-                        const delay = retryDelay * Math.pow(2, attempt);
+                        const baseDelay = retryDelay * Math.pow(2, attempt);
+                        const delay = resolveRetryDelay(error, baseDelay);
                         console.log(
                             `[RETRY] ${url} | attempt ${attempt + 1}/${maxRetries} | waiting ${delay}ms`
                         );
-                        await new Promise(resolve => setTimeout(resolve, delay));
+                        await sleep(delay);
                     }
                 }
             }
@@ -194,7 +335,7 @@ async function cachedGet<T>(
             );
 
             // 4. Try to use stale cache as fallback
-            if (useStaleOnError && cached && isCacheStale(cached)) {
+            if (useStaleOnError && cached && isCacheStale(cached, cacheTtl, staleCacheTtl)) {
                 console.log(
                     `[STALE CACHE FALLBACK] ${url} | age: ${Math.round((Date.now() - cached.timestamp) / 60000)}min`
                 );
@@ -428,13 +569,27 @@ export async function fetchStartingGridBySession(
    Race Control
 ========================= */
 
+export type RawRaceControl = {
+    category: string;
+    date: string;
+    driver_number?: number | null;
+    flag?: string | null;
+    lap_number?: number | null;
+    meeting_key: number;
+    session_key: number;
+    message: string;
+    qualifying_phase?: number | null;
+    scope?: string | null;
+    sector?: number | null;
+};
+
 /**
  * Get race control messages for a session
  */
 export async function fetchRaceControlBySession(
     sessionKey: number
-): Promise<RaceControl[]> {
-    return cachedGet<RaceControl[]>('/race_control', {
+): Promise<RawRaceControl[]> {
+    return cachedGet<RawRaceControl[]>('/race_control', {
         session_key: sessionKey,
     });
 }

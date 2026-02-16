@@ -24,14 +24,15 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
     getMeetingByKey,
     getSessionsByMeeting,
-    getQualifyingSessionDetail,
-    getRaceSessionDetail,
+    getDriversBySession,
+    getSessionResults,
 } from '../../backend/service/openf1Service';
-import { Meeting, Session } from '../../backend/types';
+import { Meeting, Session, SessionResult } from '../../backend/types';
 import SessionCard from '../component/session/SessionCard';
 import { useServiceRequest } from '../hooks/useServiceRequest';
 import { DEFAULT_MEETING_YEAR } from '../config/appConfig';
-import { deriveDriverCode } from '../../utils/driver';
+import { deriveDriverCode, getDriverInitials } from '../../utils/driver';
+import { formatLapTime } from '../../shared/time';
 
 type RouteParams = { gpKey: number; year?: number };
 
@@ -40,7 +41,9 @@ type SessionLifecycle = 'upcoming' | 'live' | 'completed' | 'tbc';
 
 type PodiumEntry = {
     position: 1 | 2 | 3;
+    driverInitials: string;
     driverCode: string;
+    headshotUrl: string | null;
     team: string;
 };
 
@@ -235,6 +238,40 @@ const selectRaceSession = (sessions: Session[]): Session | null => {
     );
 };
 
+const isPositiveNumber = (value: number | null | undefined): value is number =>
+    typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+const toSortablePosition = (position: number | null | undefined): number =>
+    isPositiveNumber(position) ? position : Number.POSITIVE_INFINITY;
+
+const getBestQualifyingLap = (result: SessionResult): string | null => {
+    if (!Array.isArray(result.duration)) {
+        return null;
+    }
+
+    const q3 = result.duration[2];
+    if (isPositiveNumber(q3)) {
+        return formatLapTime(q3);
+    }
+
+    const validSegments = result.duration.filter(isPositiveNumber);
+    if (!validSegments.length) {
+        return null;
+    }
+
+    return formatLapTime(Math.min(...validSegments));
+};
+
+const normalizeHeadshotUrl = (url: string | null | undefined): string | null => {
+    if (!url) return null;
+    const trimmed = url.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('http://')) {
+        return `https://${trimmed.slice('http://'.length)}`;
+    }
+    return trimmed;
+};
+
 const buildQualifyingHighlight = async (session: Session | null): Promise<QualifyingHighlight> => {
     if (!session) {
         return {
@@ -259,10 +296,16 @@ const buildQualifyingHighlight = async (session: Session | null): Promise<Qualif
     }
 
     try {
-        const detail = await getQualifyingSessionDetail(session.session_key);
-        const pole = detail.classification.find(row => row.position === 1) ?? detail.classification[0] ?? null;
+        const [results, drivers] = await Promise.all([
+            getSessionResults(session.session_key),
+            getDriversBySession(session.session_key),
+        ]);
+        const sortedResults = [...results].sort(
+            (a, b) => toSortablePosition(a.position) - toSortablePosition(b.position)
+        );
+        const poleResult = sortedResults.find(row => row.position === 1) ?? sortedResults[0] ?? null;
 
-        if (!pole) {
+        if (!poleResult) {
             return {
                 session,
                 lifecycle,
@@ -272,12 +315,17 @@ const buildQualifyingHighlight = async (session: Session | null): Promise<Qualif
             };
         }
 
+        const poleDriver = drivers.find(driver => driver.driver_number === poleResult.driver_number);
+        const poleCode = poleDriver?.name_acronym?.trim()
+            || (poleDriver ? deriveDriverCode(poleDriver.full_name) : `#${poleResult.driver_number}`);
+        const poleLap = getBestQualifyingLap(poleResult);
+
         return {
             session,
             lifecycle,
             statusText: 'Completed',
-            poleSitter: pole.shortName?.trim() || deriveDriverCode(pole.driverName),
-            poleLap: pole.q3 || pole.best || 'N/A',
+            poleSitter: poleCode,
+            poleLap: poleLap || 'N/A',
         };
     } catch (error) {
         console.warn(`[GPScreen] Qualifying highlight unavailable for session ${session.session_key}:`, error);
@@ -313,18 +361,31 @@ const buildRaceHighlight = async (session: Session | null): Promise<RaceHighligh
     }
 
     try {
-        const detail = await getRaceSessionDetail(session.session_key);
-        const podium = detail.classification
+        const [results, drivers] = await Promise.all([
+            getSessionResults(session.session_key),
+            getDriversBySession(session.session_key),
+        ]);
+        const driverMap = new Map(drivers.map(driver => [driver.driver_number, driver]));
+        const podium = results
             .filter(
-                (entry): entry is typeof entry & { position: 1 | 2 | 3 } =>
+                (entry): entry is SessionResult & { position: 1 | 2 | 3 } =>
                     entry.position === 1 || entry.position === 2 || entry.position === 3
             )
             .sort((a, b) => a.position - b.position)
-            .map(entry => ({
-                position: entry.position,
-                driverCode: deriveDriverCode(entry.driverName),
-                team: entry.teamName,
-            }));
+            .map(entry => {
+                const driver = driverMap.get(entry.driver_number);
+                const displayName = driver?.full_name?.trim()
+                    || driver?.broadcast_name?.trim()
+                    || driver?.name_acronym?.trim()
+                    || `#${entry.driver_number}`;
+                return {
+                    position: entry.position,
+                    driverInitials: getDriverInitials(displayName, 2),
+                    driverCode: driver?.name_acronym?.trim() || deriveDriverCode(displayName),
+                    headshotUrl: normalizeHeadshotUrl(driver?.headshot_url || null),
+                    team: driver?.team_name || 'Unknown Team',
+                };
+            });
 
         if (!podium.length) {
             return {
@@ -378,6 +439,39 @@ const getLifecycleBadgeColors = (lifecycle: SessionLifecycle) => {
     }
 
     return { bg: '#F2F4F8', text: '#697087' };
+};
+
+const getPodiumTone = (position: 1 | 2 | 3) => {
+    if (position === 1) {
+        return {
+            border: '#EAC457',
+            background: '#31270F',
+            badgeBackground: '#FFD76B',
+            badgeText: '#4A3500',
+            initialsBackground: '#F0CA63',
+            initialsText: '#4A3500',
+        };
+    }
+
+    if (position === 2) {
+        return {
+            border: '#BFC5D8',
+            background: '#242833',
+            badgeBackground: '#DFE3EE',
+            badgeText: '#2E3240',
+            initialsBackground: '#D7DCE8',
+            initialsText: '#2E3240',
+        };
+    }
+
+    return {
+        border: '#C88B56',
+        background: '#2C2218',
+        badgeBackground: '#D9A06E',
+        badgeText: '#46270E',
+        initialsBackground: '#C88E5C',
+        initialsText: '#46270E',
+    };
 };
 
 const isTestingEvent = (meeting: Meeting, sessions: Session[]): boolean => {
@@ -501,6 +595,14 @@ export default function GPScreen() {
     const dateRange = formatDateRange(meeting.date_start, meeting.date_end);
     const qualifyingBadge = highlights ? getLifecycleBadgeColors(highlights.qualifying.lifecycle) : null;
     const raceBadge = highlights ? getLifecycleBadgeColors(highlights.race.lifecycle) : null;
+    const podiumDisplay: PodiumEntry[] = (() => {
+        if (!highlights?.race.podium.length) return [];
+        const order: Array<1 | 2 | 3> = [2, 1, 3];
+        const byPosition = new Map(highlights.race.podium.map(entry => [entry.position, entry]));
+        return order
+            .map(position => byPosition.get(position))
+            .filter((entry): entry is PodiumEntry => Boolean(entry));
+    })();
 
     return (
         <ScrollView
@@ -621,8 +723,20 @@ export default function GPScreen() {
 
                             {highlights.qualifying.poleSitter && highlights.qualifying.poleLap ? (
                                 <>
-                                    <Text style={styles.highlightPrimary}>{highlights.qualifying.poleSitter}</Text>
-                                    <Text style={styles.highlightSecondary}>Pole lap {highlights.qualifying.poleLap}</Text>
+                                    <View style={styles.qualifyingResultRow}>
+                                        <View style={styles.qualifyingResultLeft}>
+                                            <Text style={styles.qualifyingResultLabel}>Pole Sitter</Text>
+                                            <Text style={styles.highlightPrimary}>
+                                                {highlights.qualifying.poleSitter}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.qualifyingLapPanel}>
+                                            <Text style={styles.qualifyingLapLabel}>Best Lap</Text>
+                                            <Text style={styles.qualifyingLapValue}>
+                                                {highlights.qualifying.poleLap}
+                                            </Text>
+                                        </View>
+                                    </View>
                                 </>
                             ) : (
                                 <Text style={styles.highlightSecondary}>{highlights.qualifying.statusText}</Text>
@@ -645,14 +759,66 @@ export default function GPScreen() {
                             </View>
 
                             {highlights.race.podium.length > 0 ? (
-                                <View style={styles.podiumList}>
-                                    {highlights.race.podium.map(entry => (
-                                        <View key={`podium-${entry.position}`} style={styles.podiumRow}>
-                                            <Text style={styles.podiumPosition}>P{entry.position}</Text>
-                                            <Text style={styles.podiumDriver}>{entry.driverCode}</Text>
-                                            <Text style={styles.podiumTeam} numberOfLines={1}>{entry.team}</Text>
-                                        </View>
-                                    ))}
+                                <View style={styles.podiumCardsRow}>
+                                    {podiumDisplay.map((entry, index) => {
+                                        const tone = getPodiumTone(entry.position);
+                                        return (
+                                            <View
+                                                key={`podium-${entry.position}`}
+                                                style={[
+                                                    styles.podiumCard,
+                                                    index < highlights.race.podium.length - 1
+                                                        && styles.podiumCardSpacing,
+                                                    {
+                                                        borderColor: tone.border,
+                                                        backgroundColor: tone.background,
+                                                    },
+                                                ]}
+                                            >
+                                                <View
+                                                    style={[
+                                                        styles.podiumPositionBadge,
+                                                        { backgroundColor: tone.badgeBackground },
+                                                    ]}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.podiumPositionText,
+                                                            { color: tone.badgeText },
+                                                        ]}
+                                                    >
+                                                        P{entry.position}
+                                                    </Text>
+                                                </View>
+                                                {entry.headshotUrl ? (
+                                                    <Image
+                                                        source={{ uri: entry.headshotUrl }}
+                                                        style={styles.podiumAvatar}
+                                                    />
+                                                ) : (
+                                                    <View
+                                                        style={[
+                                                            styles.podiumInitialsFallback,
+                                                            { backgroundColor: tone.initialsBackground },
+                                                        ]}
+                                                    >
+                                                        <Text
+                                                            style={[
+                                                                styles.podiumInitialsFallbackText,
+                                                                { color: tone.initialsText },
+                                                            ]}
+                                                        >
+                                                            {entry.driverCode.slice(0, 2)}
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                                <Text style={styles.podiumInitials}>{entry.driverCode}</Text>
+                                                <Text style={styles.podiumTeam} numberOfLines={1}>
+                                                    {entry.team}
+                                                </Text>
+                                            </View>
+                                        );
+                                    })}
                                 </View>
                             ) : (
                                 <Text style={styles.highlightSecondary}>{highlights.race.statusText}</Text>
@@ -903,31 +1069,106 @@ const styles = StyleSheet.create({
         fontSize: typography.size.sm,
         color: 'rgba(255,255,255,0.78)',
     },
-    podiumList: {
-        marginTop: 2,
-    },
-    podiumRow: {
+    qualifyingResultRow: {
+        marginTop: spacing.xxs,
+        marginBottom: spacing.xs,
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 4,
+        justifyContent: 'space-between',
     },
-    podiumPosition: {
-        width: 28,
+    qualifyingResultLeft: {
+        flex: 1,
+        paddingRight: spacing.sm,
+    },
+    qualifyingResultLabel: {
         fontSize: typography.size.xs,
         fontWeight: typography.weight.bold,
-        color: '#FFD700',
+        color: 'rgba(255,255,255,0.74)',
+        letterSpacing: typography.letterSpacing.wide,
+        textTransform: 'uppercase',
+    },
+    qualifyingLapPanel: {
+        minWidth: 112,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: '#58607A',
+        backgroundColor: '#171B27',
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        alignItems: 'flex-end',
+    },
+    qualifyingLapLabel: {
+        fontSize: typography.size.xs,
+        color: '#AEB4CB',
+        textTransform: 'uppercase',
+        letterSpacing: typography.letterSpacing.wider,
+        fontWeight: typography.weight.semibold,
+    },
+    qualifyingLapValue: {
+        marginTop: 2,
+        fontSize: typography.size.lg,
+        fontWeight: typography.weight.black,
+        color: semanticColors.surface,
+        letterSpacing: typography.letterSpacing.tight,
+    },
+    podiumCardsRow: {
+        marginTop: spacing.xs,
+        flexDirection: 'row',
+    },
+    podiumCard: {
+        flex: 1,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        paddingHorizontal: spacing.xs,
+        paddingTop: spacing.sm,
+        paddingBottom: spacing.xs,
+        alignItems: 'center',
+    },
+    podiumCardSpacing: {
+        marginRight: spacing.xs,
+    },
+    podiumPositionBadge: {
+        borderRadius: radius.pill,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 3,
+        marginBottom: spacing.xs,
+    },
+    podiumPositionText: {
+        fontSize: typography.size.xs,
+        fontWeight: typography.weight.black,
+        letterSpacing: typography.letterSpacing.wider,
+    },
+    podiumAvatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: overlays.white20,
+        marginBottom: spacing.xs,
+    },
+    podiumInitialsFallback: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: spacing.xs,
+    },
+    podiumInitialsFallbackText: {
+        fontSize: typography.size.base,
+        fontWeight: typography.weight.black,
+    },
+    podiumInitials: {
+        fontSize: typography.size.sm,
+        fontWeight: typography.weight.black,
+        color: semanticColors.surface,
+        marginBottom: 2,
         letterSpacing: typography.letterSpacing.wide,
     },
-    podiumDriver: {
-        width: 42,
-        fontSize: typography.size.sm,
-        fontWeight: typography.weight.bold,
-        color: semanticColors.surface,
-    },
     podiumTeam: {
-        flex: 1,
-        fontSize: typography.size.sm,
-        color: 'rgba(255,255,255,0.78)',
+        fontSize: typography.size.xs,
+        color: 'rgba(255,255,255,0.76)',
+        textAlign: 'center',
     },
     testingStatsRow: {
         marginTop: spacing.md,

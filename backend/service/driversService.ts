@@ -66,14 +66,31 @@ export type OvertakeDriverLookupResult = {
     overtakenDriver: Driver | null;
 };
 
+const MAX_SESSION_DRIVER_CACHE = 24;
 const sessionDriverCache = new Map<number, Driver[]>();
+
+const touchSessionDriverCache = (sessionKey: number, drivers: Driver[]) => {
+    if (sessionDriverCache.has(sessionKey)) {
+        sessionDriverCache.delete(sessionKey);
+    }
+    sessionDriverCache.set(sessionKey, drivers);
+
+    if (sessionDriverCache.size > MAX_SESSION_DRIVER_CACHE) {
+        const oldestKey = sessionDriverCache.keys().next().value;
+        if (typeof oldestKey === 'number') {
+            sessionDriverCache.delete(oldestKey);
+        }
+    }
+};
 
 async function loadDriversForSession(sessionKey: number): Promise<Driver[]> {
     if (sessionDriverCache.has(sessionKey)) {
-        return sessionDriverCache.get(sessionKey)!;
+        const cached = sessionDriverCache.get(sessionKey)!;
+        touchSessionDriverCache(sessionKey, cached);
+        return cached;
     }
     const drivers = await fetchDriversBySession(sessionKey);
-    sessionDriverCache.set(sessionKey, drivers);
+    touchSessionDriverCache(sessionKey, drivers);
     return drivers;
 }
 

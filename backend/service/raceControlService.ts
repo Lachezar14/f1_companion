@@ -1,4 +1,4 @@
-import { fetchRaceControlBySession } from '../api/openf1';
+import { fetchRaceControlBySession, type RawRaceControl } from '../api/openf1';
 import type { RaceControl, RaceControlSummary, SafetyCarInterval, SessionResult } from '../types';
 import { withServiceError } from './utils';
 
@@ -74,21 +74,7 @@ export function summarizeRaceControl(
     };
 }
 
-type RaceControlApiResponse = {
-    category: string;
-    date: string;
-    driver_number?: number | null;
-    flag?: string | null;
-    lap_number?: number | null;
-    meeting_key: number;
-    session_key: number;
-    message: string;
-    qualifying_phase?: number | null;
-    scope?: string | null;
-    sector?: number | null;
-};
-
-const normalizeRaceControl = (entry: RaceControlApiResponse): RaceControl => ({
+const normalizeRaceControl = (entry: RawRaceControl): RaceControl => ({
     category: entry.category,
     date: entry.date,
     driverNumber: entry.driver_number ?? null,
