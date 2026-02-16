@@ -61,7 +61,6 @@ export default function FreePracticeScreen() {
     const { sessionKey, sessionName, meetingName } = route.params;
     const [selectedDriverCompound, setSelectedDriverCompound] = useState<string | null>(null);
     const [selectedTeamCompound, setSelectedTeamCompound] = useState<string | null>(null);
-    const [showAllTeams, setShowAllTeams] = useState(false);
     const [paceViewMode, setPaceViewMode] = useState<PaceViewMode>('drivers');
 
     const loadSessionDrivers = useCallback(
@@ -204,7 +203,6 @@ export default function FreePracticeScreen() {
         if (!compoundOptions.length) {
             setSelectedDriverCompound(null);
             setSelectedTeamCompound(null);
-            setShowAllTeams(false);
             return;
         }
         setSelectedDriverCompound(prev =>
@@ -214,10 +212,6 @@ export default function FreePracticeScreen() {
             prev && compoundOptions.includes(prev) ? prev : compoundOptions[0]
         );
     }, [compoundOptions]);
-
-    useEffect(() => {
-        setShowAllTeams(false);
-    }, [selectedTeamCompound]);
 
     const driverOptionsPayload = useMemo<DriverOption[]>(
         () =>
@@ -274,7 +268,7 @@ export default function FreePracticeScreen() {
         });
         map.forEach((list, compound) => {
             list.sort((a, b) => a.avgTime - b.avgTime);
-            map.set(compound, list.slice(0, 5));
+            map.set(compound, list);
         });
         return map;
     }, [driverEntries, compoundOptions, driverLapThresholds]);
@@ -338,15 +332,12 @@ export default function FreePracticeScreen() {
         selectedDriverCompound && driverPaceByCompound.has(selectedDriverCompound)
             ? driverPaceByCompound.get(selectedDriverCompound) ?? []
             : [];
+    const topDriverLeaders = driverLeaders.slice(0, 3);
     const teamLeaders =
         selectedTeamCompound && teamPaceByCompound.has(selectedTeamCompound)
             ? teamPaceByCompound.get(selectedTeamCompound) ?? []
             : [];
-
-    const displayedTeamLeaders = useMemo(() => {
-        if (!teamLeaders.length) return [];
-        return showAllTeams ? teamLeaders : teamLeaders.slice(0, 5);
-    }, [teamLeaders, showAllTeams]);
+    const topTeamLeaders = teamLeaders.slice(0, 3);
 
     const heroStats = [
         { label: 'Drivers', value: driverEntries.length || '–' },
@@ -398,6 +389,16 @@ export default function FreePracticeScreen() {
         if (!defaultDriverNumber) return;
         openDriverOverview(defaultDriverNumber);
     }, [defaultDriverNumber, openDriverOverview]);
+
+    const handleOpenPaceInsights = useCallback((viewMode: PaceViewMode, initialCompound?: string | null) => {
+        navigation.navigate('PracticePaceInsights', {
+            sessionKey,
+            sessionName,
+            meetingName,
+            initialViewMode: viewMode,
+            initialCompound: initialCompound ?? undefined,
+        });
+    }, [meetingName, navigation, sessionKey, sessionName]);
 
     // Loading state
     if (loading) {
@@ -584,7 +585,9 @@ export default function FreePracticeScreen() {
                 <View style={styles.listCard}>
                     <View style={styles.listHeader}>
                         <Text style={styles.listTitle}>Team Avg Pace by Compound</Text>
-                        <Text style={styles.listSubtitle}>Combined average of both drivers</Text>
+                        <Text style={styles.listSubtitle}>
+                            Top 3 teams by clean-lap average
+                        </Text>
                     </View>
                     {compoundOptions.length ? (
                         <ScrollView
@@ -600,12 +603,7 @@ export default function FreePracticeScreen() {
                                     <TouchableOpacity
                                         key={`team-compound-${option}`}
                                         style={[styles.filterChip, isActive && styles.filterChipActive]}
-                                        onPress={() => {
-                                            if (option !== selectedTeamCompound) {
-                                                setSelectedTeamCompound(option);
-                                                setShowAllTeams(false);
-                                            }
-                                        }}
+                                        onPress={() => setSelectedTeamCompound(option)}
                                     >
                                         <Text
                                             style={[
@@ -620,8 +618,8 @@ export default function FreePracticeScreen() {
                             })}
                         </ScrollView>
                     ) : null}
-                    {selectedTeamCompound && displayedTeamLeaders.length ? (
-                        displayedTeamLeaders.map((team, index) => (
+                    {selectedTeamCompound && topTeamLeaders.length ? (
+                        topTeamLeaders.map((team, index) => (
                             <View key={`${team.teamName ?? 'team'}-${index}`} style={styles.listRow}>
                                 <View
                                     style={[styles.teamDot, { backgroundColor: getTeamColorHex(team.color) }]}
@@ -644,14 +642,12 @@ export default function FreePracticeScreen() {
                                 : 'No team pace data yet'}
                         </Text>
                     )}
-                    {selectedTeamCompound && teamLeaders.length > 5 ? (
+                    {selectedTeamCompound && teamLeaders.length ? (
                         <TouchableOpacity
-                            style={styles.expandButton}
-                            onPress={() => setShowAllTeams(prev => !prev)}
+                            style={styles.storyButton}
+                            onPress={() => handleOpenPaceInsights('teams', selectedTeamCompound)}
                         >
-                            <Text style={styles.expandButtonText}>
-                                {showAllTeams ? 'Show Less' : 'Show All Teams'}
-                            </Text>
+                            <Text style={styles.storyButtonText}>View Full Compound Pace Data</Text>
                         </TouchableOpacity>
                     ) : null}
                 </View>
@@ -659,7 +655,9 @@ export default function FreePracticeScreen() {
                 <View style={styles.listCard}>
                     <View style={styles.listHeader}>
                         <Text style={styles.listTitle}>Driver Pace by Compound</Text>
-                        <Text style={styles.listSubtitle}>Excludes pit exit laps</Text>
+                        <Text style={styles.listSubtitle}>
+                            Top 3 drivers by clean-lap average
+                        </Text>
                     </View>
                     {compoundOptions.length ? (
                         <ScrollView
@@ -690,8 +688,8 @@ export default function FreePracticeScreen() {
                             })}
                         </ScrollView>
                     ) : null}
-                    {selectedDriverCompound && driverLeaders.length ? (
-                        driverLeaders.map((stat, index) => (
+                    {selectedDriverCompound && topDriverLeaders.length ? (
+                        topDriverLeaders.map((stat, index) => (
                             <View
                                 key={`${stat.driverNumber}-${selectedDriverCompound}`}
                                 style={styles.listRow}
@@ -721,10 +719,10 @@ export default function FreePracticeScreen() {
                     )}
                     {selectedDriverCompound && driverLeaders.length ? (
                         <TouchableOpacity
-                            style={styles.expandButton}
-                            onPress={() => openDriverOverview(driverLeaders[0]?.driverNumber)}
+                            style={styles.storyButton}
+                            onPress={() => handleOpenPaceInsights('drivers', selectedDriverCompound)}
                         >
-                            <Text style={styles.expandButtonText}>Open Driver Details</Text>
+                            <Text style={styles.storyButtonText}>View Full Compound Pace Data</Text>
                         </TouchableOpacity>
                     ) : null}
                 </View>
@@ -1096,17 +1094,18 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: spacing.xs,
     },
-    expandButton: {
-        marginTop: spacing.xs,
-        paddingVertical: spacing.sm,
+    storyButton: {
+        marginTop: spacing.sm,
         borderRadius: radius.md,
-        backgroundColor: '#F5F6FA',
+        paddingVertical: spacing.sm,
         alignItems: 'center',
+        backgroundColor: semanticColors.textPrimary,
     },
-    expandButtonText: {
-        fontSize: typography.size.base,
+    storyButtonText: {
+        color: semanticColors.surface,
+        fontSize: typography.size.sm,
         fontWeight: typography.weight.semibold,
-        color: semanticColors.textPrimary,
+        letterSpacing: typography.letterSpacing.wide,
     },
     rankPill: {
         width: 32,

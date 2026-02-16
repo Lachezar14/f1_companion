@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { colors, overlays, radius, semanticColors, spacing, typography } from '../../../theme/tokens';
 import {
     ActivityIndicator,
@@ -23,7 +23,11 @@ type RouteParams = {
 };
 type NavigationProp = NativeStackNavigationProp<any>;
 
-type SectorResult = {
+type QualifyingInsightDetailType = 'gains' | 'idealLap' | 'sectorTimes';
+type SectorFilter = 's1' | 's2' | 's3';
+
+type SectorRankingRow = {
+    driverNumber: number;
     driverName: string;
     teamName: string;
     time: number;
@@ -33,6 +37,72 @@ type DriverOption = {
     name: string;
     team: string;
     teamColor?: string | null;
+};
+
+const buildSectorRankings = (driverEntries: QualifyingSessionDetail['drivers']) => {
+    const rankings: Record<SectorFilter, SectorRankingRow[]> = {
+        s1: [],
+        s2: [],
+        s3: [],
+    };
+
+    driverEntries.forEach(entry => {
+        let bestS1: number | null = null;
+        let bestS2: number | null = null;
+        let bestS3: number | null = null;
+
+        entry.laps.forEach(lap => {
+            if (typeof lap.duration_sector_1 === 'number' && lap.duration_sector_1 > 0) {
+                bestS1 =
+                    bestS1 == null
+                        ? lap.duration_sector_1
+                        : Math.min(bestS1, lap.duration_sector_1);
+            }
+            if (typeof lap.duration_sector_2 === 'number' && lap.duration_sector_2 > 0) {
+                bestS2 =
+                    bestS2 == null
+                        ? lap.duration_sector_2
+                        : Math.min(bestS2, lap.duration_sector_2);
+            }
+            if (typeof lap.duration_sector_3 === 'number' && lap.duration_sector_3 > 0) {
+                bestS3 =
+                    bestS3 == null
+                        ? lap.duration_sector_3
+                        : Math.min(bestS3, lap.duration_sector_3);
+            }
+        });
+
+        if (bestS1 != null) {
+            rankings.s1.push({
+                driverNumber: entry.driverNumber,
+                driverName: entry.driver.name,
+                teamName: entry.driver.team,
+                time: bestS1,
+            });
+        }
+        if (bestS2 != null) {
+            rankings.s2.push({
+                driverNumber: entry.driverNumber,
+                driverName: entry.driver.name,
+                teamName: entry.driver.team,
+                time: bestS2,
+            });
+        }
+        if (bestS3 != null) {
+            rankings.s3.push({
+                driverNumber: entry.driverNumber,
+                driverName: entry.driver.name,
+                teamName: entry.driver.team,
+                time: bestS3,
+            });
+        }
+    });
+
+    rankings.s1.sort((a, b) => a.time - b.time);
+    rankings.s2.sort((a, b) => a.time - b.time);
+    rankings.s3.sort((a, b) => a.time - b.time);
+
+    return rankings;
 };
 
 const parseLapTimeToSeconds = (value: string | null | undefined): number | null => {
@@ -64,6 +134,7 @@ const QualifyingScreen = () => {
     const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
     const navigation = useNavigation<NavigationProp>();
     const { sessionKey, sessionName, meetingName } = route.params;
+    const [selectedSectorFilter, setSelectedSectorFilter] = useState<SectorFilter>('s1');
 
     const loadSession = useCallback(
         () => getQualifyingSessionDetail(sessionKey),
@@ -84,10 +155,8 @@ const QualifyingScreen = () => {
     const improvementInsights = data?.insights.improvementIndex.drivers ?? [];
     const sectorKings = data?.insights.sectorKings;
     const idealLapInsights = sectorKings?.idealLaps ?? [];
-    const displayedImprovementInsights = improvementInsights.slice(0, 5);
-    const topImprovementDriverNumber = displayedImprovementInsights[0]?.driverNumber ?? null;
-    const displayedIdealLapInsights = idealLapInsights.slice(0, 5);
-    const topIdealDriverNumber = displayedIdealLapInsights[0]?.driverNumber ?? null;
+    const topImprovementInsights = improvementInsights.slice(0, 3);
+    const topIdealLapInsights = idealLapInsights.slice(0, 3);
 
     const driverEntryMap = useMemo(
         () => new Map(driverEntries.map(entry => [entry.driverNumber, entry])),
@@ -166,44 +235,8 @@ const QualifyingScreen = () => {
     const poleResult = rows[0] ?? null;
     const poleGap = rows[1]?.gapToPole ?? '—';
 
-    const fastestSectors = useMemo<Record<'s1' | 's2' | 's3', SectorResult | null>>(() => {
-        const initial: Record<'s1' | 's2' | 's3', SectorResult | null> = {
-            s1: null,
-            s2: null,
-            s3: null,
-        };
-
-        driverEntries.forEach(entry => {
-            entry.laps.forEach(lap => {
-                const sectors: Array<{ key: 's1' | 's2' | 's3'; value: number | null | undefined }> = [
-                    { key: 's1', value: lap.duration_sector_1 },
-                    { key: 's2', value: lap.duration_sector_2 },
-                    { key: 's3', value: lap.duration_sector_3 },
-                ];
-                sectors.forEach(({ key, value }) => {
-                    if (typeof value !== 'number' || value <= 0) {
-                        return;
-                    }
-                    const current = initial[key];
-                    if (!current || value < current.time) {
-                        initial[key] = {
-                            driverName: entry.driver.name,
-                            teamName: entry.driver.team,
-                            time: value,
-                        };
-                    }
-                });
-            });
-        });
-
-        return initial;
-    }, [driverEntries]);
-
-    const sectorRows = [
-        { label: 'Sector 1', stat: fastestSectors.s1 },
-        { label: 'Sector 2', stat: fastestSectors.s2 },
-        { label: 'Sector 3', stat: fastestSectors.s3 },
-    ];
+    const sectorRankings = useMemo(() => buildSectorRankings(driverEntries), [driverEntries]);
+    const topSectorRows = sectorRankings[selectedSectorFilter].slice(0, 3);
 
     const formatSectorTime = (value?: number) =>
         typeof value === 'number' && value > 0 ? `${value.toFixed(3)}s` : '—';
@@ -220,6 +253,11 @@ const QualifyingScreen = () => {
     };
     const formatLapValue = (value?: number | null) =>
         typeof value === 'number' && value > 0 ? formatLapTime(value) : '—';
+    const sectorLabel: Record<SectorFilter, string> = {
+        s1: 'Sector 1',
+        s2: 'Sector 2',
+        s3: 'Sector 3',
+    };
 
     const handleOpenClassification = useCallback(() => {
         navigation.navigate('QualifyingClassification', {
@@ -246,6 +284,19 @@ const QualifyingScreen = () => {
     const handleOpenDriverOverview = useCallback(() => {
         handleOpenDriverQualifyingDetails(defaultDriverNumber);
     }, [defaultDriverNumber, handleOpenDriverQualifyingDetails]);
+
+    const handleOpenInsightDetails = useCallback(
+        (detailType: QualifyingInsightDetailType, initialFilter?: string) => {
+            navigation.navigate('QualifyingInsights', {
+                sessionKey,
+                sessionName,
+                meetingName,
+                detailType,
+                initialFilter,
+            });
+        },
+        [meetingName, navigation, sessionKey, sessionName]
+    );
 
     if (loading) {
         return (
@@ -374,34 +425,75 @@ const QualifyingScreen = () => {
                 <View style={styles.cardHeader}>
                     <Text style={styles.cardOverline}>Micro Sectors</Text>
                     <Text style={styles.cardTitle}>Fastest drivers per sector</Text>
-                    <Text style={styles.cardSubtitle}>Based on clean laps across all sessions</Text>
+                    <Text style={styles.cardSubtitle}>
+                        Top 3 drivers on {sectorLabel[selectedSectorFilter]}
+                    </Text>
                 </View>
-                {sectorRows.map(row => (
-                    <View key={row.label} style={styles.sectorRow}>
-                        <View style={styles.sectorLabelBlock}>
-                            <Text style={styles.sectorLabel}>{row.label}</Text>
-                            <Text style={styles.sectorDriver}>
-                                {row.stat ? row.stat.driverName : 'No data'}
-                            </Text>
-                            <Text style={styles.sectorTeam}>
-                                {row.stat ? row.stat.teamName : ''}
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.filterScroll}
+                    contentContainerStyle={styles.filterContent}
+                >
+                    {(['s1', 's2', 's3'] as SectorFilter[]).map(filter => {
+                        const active = filter === selectedSectorFilter;
+                        return (
+                            <TouchableOpacity
+                                key={`sector-filter-${filter}`}
+                                style={[styles.filterChip, active && styles.filterChipActive]}
+                                onPress={() => setSelectedSectorFilter(filter)}
+                            >
+                                <Text
+                                    style={[
+                                        styles.filterChipLabel,
+                                        active && styles.filterChipLabelActive,
+                                    ]}
+                                >
+                                    {sectorLabel[filter]}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+                {topSectorRows.length ? (
+                    topSectorRows.map((entry, index) => (
+                        <View
+                            key={`sector-${selectedSectorFilter}-${entry.driverNumber}`}
+                            style={styles.analyticsRow}
+                        >
+                            <View style={styles.analyticsRank}>
+                                <Text style={styles.analyticsRankText}>{index + 1}</Text>
+                            </View>
+                            <View style={styles.analyticsInfo}>
+                                <Text style={styles.analyticsName}>{entry.driverName}</Text>
+                                <Text style={styles.analyticsMeta}>{entry.teamName}</Text>
+                            </View>
+                            <Text style={styles.analyticsValue}>
+                                {formatSectorTime(entry.time)}
                             </Text>
                         </View>
-                        <Text style={styles.sectorTime}>
-                            {formatSectorTime(row.stat?.time)}
-                        </Text>
-                    </View>
-                ))}
+                    ))
+                ) : (
+                    <Text style={styles.noDataText}>No sector timing data available.</Text>
+                )}
+                <TouchableOpacity
+                    style={styles.storyButton}
+                    onPress={() =>
+                        handleOpenInsightDetails('sectorTimes', selectedSectorFilter)
+                    }
+                >
+                    <Text style={styles.storyButtonText}>View Full Sector Times</Text>
+                </TouchableOpacity>
             </View>
 
             <View style={styles.analyticsCard}>
                 <View style={styles.cardHeader}>
                     <Text style={styles.cardOverline}>Quali Improvement Index</Text>
                     <Text style={styles.cardTitle}>Who found the biggest gains?</Text>
-                    <Text style={styles.cardSubtitle}>Measured from Q1 baseline to best lap</Text>
+                    <Text style={styles.cardSubtitle}>Top 3 from Q1 baseline to best lap</Text>
                 </View>
-                {displayedImprovementInsights.length ? (
-                    displayedImprovementInsights.map((entry, index) => (
+                {topImprovementInsights.length ? (
+                    topImprovementInsights.map((entry, index) => (
                         <View key={`improvement-${entry.driverNumber}`} style={styles.analyticsRow}>
                             <View style={styles.analyticsRank}>
                                 <Text style={styles.analyticsRankText}>{index + 1}</Text>
@@ -421,12 +513,12 @@ const QualifyingScreen = () => {
                 ) : (
                     <Text style={styles.noDataText}>No qualifying phase deltas available.</Text>
                 )}
-                {topImprovementDriverNumber != null ? (
+                {improvementInsights.length ? (
                     <TouchableOpacity
-                        style={styles.detailsButton}
-                        onPress={() => handleOpenDriverQualifyingDetails(topImprovementDriverNumber)}
+                        style={styles.storyButton}
+                        onPress={() => handleOpenInsightDetails('gains')}
                     >
-                        <Text style={styles.detailsButtonText}>Open Driver Details</Text>
+                        <Text style={styles.storyButtonText}>View Full Gains Ranking</Text>
                     </TouchableOpacity>
                 ) : null}
             </View>
@@ -436,11 +528,11 @@ const QualifyingScreen = () => {
                     <Text style={styles.cardOverline}>Sector Kings</Text>
                     <Text style={styles.cardTitle}>Ideal lap potential</Text>
                     <Text style={styles.cardSubtitle}>
-                        Top 5 drivers by ideal lap (best sectors across qualifying)
+                        Top 3 drivers by ideal lap (best sectors across qualifying)
                     </Text>
                 </View>
-                {displayedIdealLapInsights.length ? (
-                    displayedIdealLapInsights.map((entry, index) => (
+                {topIdealLapInsights.length ? (
+                    topIdealLapInsights.map((entry, index) => (
                         <View key={`ideal-${entry.driverNumber}`} style={styles.analyticsRow}>
                             <View style={styles.analyticsRank}>
                                 <Text style={styles.analyticsRankText}>{index + 1}</Text>
@@ -456,15 +548,15 @@ const QualifyingScreen = () => {
                         </View>
                     ))
                 ) : null}
-                {topIdealDriverNumber != null ? (
+                {idealLapInsights.length ? (
                     <TouchableOpacity
-                        style={styles.detailsButton}
-                        onPress={() => handleOpenDriverQualifyingDetails(topIdealDriverNumber)}
+                        style={styles.storyButton}
+                        onPress={() => handleOpenInsightDetails('idealLap')}
                     >
-                        <Text style={styles.detailsButtonText}>Open Driver Details</Text>
+                        <Text style={styles.storyButtonText}>View Full Ideal Lap Ranking</Text>
                     </TouchableOpacity>
                 ) : null}
-                {!displayedIdealLapInsights.length ? (
+                {!topIdealLapInsights.length ? (
                     <Text style={styles.noDataText}>No ideal lap insights available.</Text>
                 ) : null}
             </View>
@@ -661,6 +753,33 @@ const styles = StyleSheet.create({
         fontSize: typography.size.sm,
         color: semanticColors.textMuted,
     },
+    filterScroll: {
+        marginBottom: spacing.xs,
+    },
+    filterContent: {
+        paddingVertical: spacing.xxs,
+    },
+    filterChip: {
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: semanticColors.borderStrong,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        marginRight: spacing.xs,
+        backgroundColor: semanticColors.surface,
+    },
+    filterChipActive: {
+        backgroundColor: semanticColors.textPrimary,
+        borderColor: semanticColors.textPrimary,
+    },
+    filterChipLabel: {
+        fontSize: typography.size.sm,
+        color: semanticColors.textMuted,
+        fontWeight: typography.weight.semibold,
+    },
+    filterChipLabelActive: {
+        color: semanticColors.surface,
+    },
     metricRow: {
         flexDirection: 'row',
         gap: spacing.sm,
@@ -837,19 +956,18 @@ const styles = StyleSheet.create({
         color: '#1F2435',
         marginLeft: spacing.sm,
     },
-    detailsButton: {
+    storyButton: {
         marginTop: spacing.sm,
         paddingVertical: spacing.sm,
         borderRadius: radius.md,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#D5DAE7',
         alignItems: 'center',
-        backgroundColor: '#F8FAFF',
+        backgroundColor: semanticColors.textPrimary,
     },
-    detailsButtonText: {
+    storyButtonText: {
         fontSize: typography.size.sm,
         fontWeight: typography.weight.semibold,
-        color: '#2C2C34',
+        color: semanticColors.surface,
+        letterSpacing: typography.letterSpacing.wide,
     },
     analyticsSubSection: {
         marginTop: spacing.sm,

@@ -10,9 +10,11 @@ import DriverPracticeDetailsScreen from "../screen/sessions/practice/DriverPract
 import GPScreen from "../screen/GPScreen";
 import FreePracticeScreen from "../screen/sessions/practice/FreePracticeScreen";
 import PracticeClassificationScreen from "../screen/sessions/practice/PracticeClassificationScreen";
+import PracticePaceInsightsScreen from "../screen/sessions/practice/PracticePaceInsightsScreen";
 import QualifyingScreen from "../screen/sessions/qualifying/QualifyingScreen";
 import QualifyingClassificationScreen from "../screen/sessions/qualifying/QualifyingClassificationScreen";
 import DriverQualifyingDetailsScreen from "../screen/sessions/qualifying/DriverQualifyingDetailsScreen";
+import QualifyingInsightsScreen from "../screen/sessions/qualifying/QualifyingInsightsScreen";
 import RaceScreen from "../screen/sessions/race/RaceScreen";
 import RaceOvertakesScreen from "../screen/sessions/race/RaceOvertakesScreen";
 import RaceClassificationScreen from "../screen/sessions/race/RaceClassificationScreen";
@@ -65,6 +67,10 @@ const PracticeClassificationWithHeader = withStackScreenWrapper(PracticeClassifi
     title: 'Practice Classification',
 });
 
+const PracticePaceInsightsWithHeader = withStackScreenWrapper(PracticePaceInsightsScreen, {
+    title: 'Compound Pace',
+});
+
 const QualifyingWithHeader = withStackScreenWrapper(QualifyingScreen, {
     title: 'Qualifying',
 });
@@ -75,6 +81,16 @@ const QualifyingClassificationWithHeader = withStackScreenWrapper(QualifyingClas
 
 const DriverQualifyingDetailsWithHeader = withStackScreenWrapper(DriverQualifyingDetailsScreen, {
     title: 'Qualifying Driver',
+});
+
+const QualifyingInsightsWithHeader = withStackScreenWrapper(QualifyingInsightsScreen, {
+    getTitle: props => {
+        const detailType = props.route?.params?.detailType;
+        if (detailType === 'gains') return 'Biggest Gains';
+        if (detailType === 'idealLap') return 'Ideal Lap Potential';
+        if (detailType === 'sectorTimes') return 'Sector Times';
+        return 'Qualifying Insights';
+    },
 });
 
 const RaceWithHeader = withStackScreenWrapper(RaceScreen, {
@@ -149,6 +165,11 @@ function SessionsStack() {
                 options={{ title: 'Practice Classification' }}
             />
             <SessionsStackNavigator.Screen
+                name="PracticePaceInsights"
+                component={PracticePaceInsightsWithHeader}
+                options={{ title: 'Compound Pace' }}
+            />
+            <SessionsStackNavigator.Screen
                 name="QualifyingScreen"
                 component={QualifyingWithHeader}
                 options={{ title: 'Qualifying' }}
@@ -162,6 +183,11 @@ function SessionsStack() {
                 name="DriverQualifyingOverview"
                 component={DriverQualifyingDetailsWithHeader}
                 options={{ title: 'Qualifying Driver' }}
+            />
+            <SessionsStackNavigator.Screen
+                name="QualifyingInsights"
+                component={QualifyingInsightsWithHeader}
+                options={{ title: 'Qualifying Insights' }}
             />
             <SessionsStackNavigator.Screen
                 name="RaceScreen"
